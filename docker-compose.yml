@@ -25,10 +25,10 @@ services:
       - alice
     environment:
       RUST_LOG: "warn"
-    tty: true
-    stdin_open: true
     networks:
       - tictactoe
+    profiles:
+      - interactive
 
   client-2:
     image: tictactoe-rs:local
@@ -42,10 +42,10 @@ services:
       - bob
     environment:
       RUST_LOG: "warn"
-    tty: true
-    stdin_open: true
     networks:
       - tictactoe
+    profiles:
+      - interactive
 
   hacker:
     image: tictactoe-rs:local
