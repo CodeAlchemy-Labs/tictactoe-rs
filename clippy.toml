@@ -1,0 +1,5 @@
+# Clippy configuration.
+# Reference: https://doc.rust-lang.org/clippy/configuration.html
+
+# Keeps Clippy aligned with the toolchain declared in `workspace.package.rust-version`.
+msrv = "1.97"
