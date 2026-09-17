@@ -353,6 +353,14 @@ impl LobbyService {
     fn lock(&self) -> MutexGuard<'_, LobbyState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
+
+    /// Handles `Ping`.
+    pub fn pong(&self, client: ClientId) {
+        let state = self.lock();
+        if let Some(session) = state.sessions.get(&client) {
+            session.try_send(ServerMessage::Pong);
+        }
+    }
 }
 
 /// Removes `client` from `match_id`, notifies the opponent, and drops the
