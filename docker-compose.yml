@@ -1,78 +1,69 @@
 services:
-  name: tictactoe-rs
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tictactoe-rs:local
+    command: ["server"]
+    environment:
+      TICTACTOE_BIND: "0.0.0.0:8080"
+      RUST_LOG: "info"
+    ports:
+      - "8080:8080"
+    networks:
+      - tictactoe
 
-  services:
-    server:
-      build:
-        context: .
-        dockerfile: Dockerfile
-      image: tictactoe-rs:local
-      command: [ "server" ]
-      environment:
-        TICTACTOE_BIND: "0.0.0.0:8080"
-        RUST_LOG: "info"
-      ports:
-        - "8080:8080"
-      networks:
-        - tictactoe
-      healthcheck:
-        test: [ "CMD", "server", "--version" ]
-        interval: 5s
-        timeout: 2s
-        retries: 3
-        start_period: 2s
+  client-1:
+    image: tictactoe-rs:local
+    depends_on:
+      - server
+    command:
+      - client
+      - --server
+      - ws://server:8080/ws
+      - --name
+      - alice
+    environment:
+      RUST_LOG: "warn"
+    tty: true
+    stdin_open: true
+    networks:
+      - tictactoe
 
-    client-1:
-      image: tictactoe-rs:local
-      depends_on:
-        - server
-      command:
-        - client
-        - --server
-        - ws://server:8080/ws
-        - --name
-        - alice
-      environment:
-        RUST_LOG: "warn"
-      tty: true
-      stdin_open: true
-      networks:
-        - tictactoe
+  client-2:
+    image: tictactoe-rs:local
+    depends_on:
+      - server
+    command:
+      - client
+      - --server
+      - ws://server:8080/ws
+      - --name
+      - bob
+    environment:
+      RUST_LOG: "warn"
+    tty: true
+    stdin_open: true
+    networks:
+      - tictactoe
 
-    client-2:
-      image: tictactoe-rs:local
-      depends_on:
-        - server
-      command:
-        - client
-        - --server
-        - ws://server:8080/ws
-        - --name
-        - bob
-      environment:
-        RUST_LOG: "warn"
-      tty: true
-      stdin_open: true
-      networks:
-        - tictactoe
+  hacker:
+    image: tictactoe-rs:local
+    depends_on:
+      - server
+    command:
+      - hacker
+      - --target
+      - ws://server:8080/ws
+      - --scenario
+      - all
+    environment:
+      RUST_LOG: "warn"
+    networks:
+      - tictactoe
+    profiles:
+      - demo
 
-    hacker:
-      image: tictactoe-rs:local
-      depends_on:
-        - server
-      command:
-        - hacker
-        - --target
-        - ws://server:8080/ws
-        - --scenario
-        - all
-      environment:
-        RUST_LOG: "warn"
-      networks:
-        - tictactoe
-      profiles:
-        - demo
-
-  networks:
-    tictactoe:
-      driver: bridge
+networks:
+  tictactoe:
+    driver: bridge
