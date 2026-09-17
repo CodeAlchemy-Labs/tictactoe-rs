@@ -1,0 +1,131 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  verify:
+    name: Verify tag matches the workspace version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the tag equals the workspace version
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          manifest_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"(.*)".*/\1/')"
+          if [ "${version}" != "${manifest_version}" ]; then
+            echo "Tag ${tag} does not match workspace version ${manifest_version}" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: verify
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            archive: tar.gz
+            suffix: ""
+          - target: x86_64-pc-windows-msvc
+            runner: windows-latest
+            archive: zip
+            suffix: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.97"
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build all binaries
+        run: cargo build --release --workspace --bins --target ${{ matrix.target }}
+
+      - name: Package the release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.verify.outputs.version }}"
+          target="${{ matrix.target }}"
+          archive="${{ matrix.archive }}"
+          suffix="${{ matrix.suffix }}"
+          staging="tictactoe-rs-${version}-${target}"
+          mkdir -p "dist/${staging}"
+
+          for bin in server client hacker; do
+            cp "target/${target}/release/${bin}${suffix}" "dist/${staging}/${bin}${suffix}"
+          done
+          cp README.md CHANGELOG.md LICENSE "dist/${staging}/"
+
+          if [ "${archive}" = "zip" ]; then
+            (cd dist && 7z a "${staging}.zip" "${staging}")
+            asset="dist/${staging}.zip"
+          else
+            (cd dist && tar -czf "${staging}.tar.gz" "${staging}")
+            asset="dist/${staging}.tar.gz"
+          fi
+
+          echo "ASSET=${asset}" >> "${GITHUB_ENV}"
+          echo "STAGING=${staging}" >> "${GITHUB_ENV}"
+
+      - name: Upload the release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: ${{ env.ASSET }}
+          retention-days: 1
+
+  publish:
+    name: Publish the GitHub release
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all release assets
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: release-*
+          merge-multiple: true
+
+      - name: List the downloaded assets
+        run: ls -la dist
+
+      - name: Create the GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
