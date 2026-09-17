@@ -25,4 +25,4 @@ tracing-subscriber.workspace = true
 futures-util.workspace = true
 
 [dev-dependencies]
-tokio-tungstenite = "0.26"
+tokio-tungstenite.workspace = true
