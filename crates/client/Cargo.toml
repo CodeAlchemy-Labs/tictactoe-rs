@@ -25,6 +25,7 @@ futures-util.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 tokio-tungstenite.workspace = true
+rustls.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
