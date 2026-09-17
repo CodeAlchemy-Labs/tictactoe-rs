@@ -27,7 +27,9 @@ use crate::outcome::Outcome;
 pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     let url = parse_target(target)?;
     let host = url.host_str().context("target URL has no host")?;
-    let port = url.port_or_known_default().context("target URL has no port")?;
+    let port = url
+        .port_or_known_default()
+        .context("target URL has no port")?;
     let address = format!("{host}:{port}");
 
     // Check 1: bind the server's port.
@@ -60,7 +62,9 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
                 ))),
             }
         }
-        Err(error) => Err(anyhow::Error::from(error)
-            .context(format!("unexpected bind failure for {address}"))),
+        Err(error) => {
+            Err(anyhow::Error::from(error)
+                .context(format!("unexpected bind failure for {address}")))
+        }
     }
 }

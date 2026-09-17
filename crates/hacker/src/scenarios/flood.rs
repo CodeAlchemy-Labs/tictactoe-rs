@@ -50,7 +50,7 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     let payload = serde_json::to_string(&ClientMessage::Hello {
         display_name: String::from("post-flood"),
     })
-        .context("serialize hello")?;
+    .context("serialize hello")?;
     ws.send(Message::Text(payload.into()))
         .await
         .context("failed to send hello after flood")?;

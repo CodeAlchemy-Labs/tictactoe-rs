@@ -19,11 +19,7 @@ pub enum ScenarioChoice {
 
 /// Command-line arguments.
 #[derive(Debug, Parser)]
-#[command(
-    name = "hacker",
-    about = "Adversarial actor for tictactoe-rs",
-    version
-)]
+#[command(name = "hacker", about = "Adversarial actor for tictactoe-rs", version)]
 pub struct Cli {
     /// Which scenario (or set of scenarios) to run.
     #[arg(long, value_enum, default_value_t = ScenarioChoice::All)]

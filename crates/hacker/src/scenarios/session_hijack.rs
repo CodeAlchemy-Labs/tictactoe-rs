@@ -45,7 +45,7 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             display_name: String::from("hacker"),
         },
     )
-        .await?;
+    .await?;
     match recv(&mut ws).await? {
         ServerMessage::Welcome { .. } => {}
         other => {
@@ -62,7 +62,7 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             position: Position::new(4).context("hard-coded position")?,
         },
     )
-        .await?;
+    .await?;
     match recv(&mut ws).await? {
         ServerMessage::Error {
             code: ErrorCode::NotInMatch,
@@ -82,7 +82,7 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             match_id: MatchId::new(u64::MAX),
         },
     )
-        .await?;
+    .await?;
     match recv(&mut ws).await? {
         ServerMessage::Error {
             code: ErrorCode::MatchNotFound,
@@ -102,7 +102,7 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             display_name: String::from("hacker-again"),
         },
     )
-        .await?;
+    .await?;
     match recv(&mut ws).await? {
         ServerMessage::Error {
             code: ErrorCode::InvalidState,
