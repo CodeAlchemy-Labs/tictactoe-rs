@@ -5,6 +5,7 @@ use tracing_subscriber::EnvFilter;
 
 use hacker::config::{Cli, ScenarioChoice};
 use hacker::scenarios;
+use std::io::IsTerminal;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -45,5 +46,32 @@ fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
+        .with_ansi(ansi_supported())
         .init();
+}
+
+/// Returns `true` when the current stderr can render ANSI escape codes.
+///
+/// See the identical helper in `server/src/main.rs` for the rationale.
+fn ansi_supported() -> bool {
+    if std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if std::env::var("CLICOLOR_FORCE").is_ok_and(|value| value != "0") {
+        return true;
+    }
+    if !std::io::stderr().is_terminal() {
+        return false;
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var_os("WT_SESSION").is_some()
+            || std::env::var_os("ConEmuANSI").is_some()
+            || std::env::var_os("TERM_PROGRAM").is_some()
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
 }
