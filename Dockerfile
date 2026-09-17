@@ -15,28 +15,14 @@ RUN apt-get update \
         pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy manifests first so that the dependency graph is cached across source
-# changes. The workspace uses a virtual manifest with members under
-# `crates/*`, so we copy the root manifest and each member manifest before
-# the source.
+# Copy the workspace manifest, the lockfile, and every source file. The
+# whole tree is copied in one step so that Cargo sees consistent mtimes and
+# rebuilds every crate that has changed. The dependency-graph caching trick
+# (stub sources + later copy) is deliberately avoided: it silently reuses
+# stale rlibs when Docker's COPY preserves the host's older mtimes.
 COPY Cargo.toml Cargo.lock ./
-COPY crates/common/Cargo.toml ./crates/common/Cargo.toml
-COPY crates/server/Cargo.toml ./crates/server/Cargo.toml
-COPY crates/client/Cargo.toml ./crates/client/Cargo.toml
-COPY crates/hacker/Cargo.toml ./crates/hacker/Cargo.toml
-
-# Compile the dependency graph once. This layer is reused when only source
-# files change.
-RUN mkdir -p crates/common/src crates/server/src crates/client/src crates/hacker/src \
-    && echo 'fn main() {}' > crates/common/src/lib.rs \
-    && echo 'fn main() {}' > crates/server/src/main.rs \
-    && echo 'fn main() {}' > crates/client/src/main.rs \
-    && echo 'fn main() {}' > crates/hacker/src/main.rs \
-    && cargo build --release --workspace --bins \
-    && rm -rf crates
-
-# Now copy the real sources and build.
 COPY crates ./crates
+
 RUN cargo build --release --workspace --bins
 
 # ---------------------------------------------------------------------------
