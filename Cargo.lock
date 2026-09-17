@@ -237,10 +237,12 @@ name = "client"
 version = "0.1.1"
 dependencies = [
  "anyhow",
+ "clap",
  "common",
  "crossterm",
  "futures-util",
  "ratatui",
+ "rustls",
  "serde",
  "serde_json",
  "thiserror",
@@ -248,6 +250,7 @@ dependencies = [
  "tokio-tungstenite 0.26.2",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -1105,6 +1108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0283386ce02abc0151e1761d08802dfe86c173b0b494af5cbc086574e453da06"
 dependencies = [
  "once_cell",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki",
  "subtle",
