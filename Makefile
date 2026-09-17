@@ -5,18 +5,19 @@ SHELL := /bin/sh
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build test lint fmt doc coverage clean demo demo-down \
+.PHONY: help tools build test lint fmt doc coverage clean demo demo-down \
         client-1 client-2 hacker run-server run-hacker
 
 help:
 	@printf '%s\n' \
 		"Targets:" \
+		"  tools              install development tools (cargo-llvm-cov)" \
 		"  build              cargo build --release --workspace" \
 		"  test               cargo test --workspace" \
 		"  lint               cargo clippy --workspace --all-targets -- -D warnings" \
 		"  fmt                cargo fmt --all -- --check" \
 		"  doc                cargo doc --workspace --no-deps" \
-		"  coverage           cargo llvm-cov --workspace --html" \
+		"  coverage           cargo llvm-cov --workspace --html (needs 'make tools')" \
 		"  clean              remove build artifacts and docker resources" \
 		"  demo               build the image and start the server" \
 		"  demo-down          stop the demo stack" \
@@ -25,6 +26,10 @@ help:
 		"  hacker             run all hacker scenarios against the running server" \
 		"  run-server         run the server locally" \
 		"  run-hacker         run the hacker locally against a running server"
+
+tools:
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || cargo install cargo-llvm-cov --locked
+	@command -v rustup >/dev/null 2>&1 && rustup component add llvm-tools-preview || true
 
 build:
 	cargo build --release --workspace
@@ -42,11 +47,15 @@ doc:
 	cargo doc --workspace --no-deps
 
 coverage:
+	@command -v cargo-llvm-cov >/dev/null 2>&1 || { \
+		printf 'cargo-llvm-cov is not installed. Run: make tools\n' >&2; \
+		exit 1; \
+	}
 	cargo llvm-cov --workspace --html
 
 clean:
 	cargo clean
-	docker compose down --rmi local --volumes --remove-orphans
+	docker compose --profile interactive --profile demo down --rmi local --volumes --remove-orphans
 
 demo:
 	docker compose build
