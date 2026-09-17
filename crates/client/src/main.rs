@@ -8,12 +8,13 @@ use crossterm::terminal::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tracing_subscriber::EnvFilter;
 
 use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
+use client::domain::screen::Screen;
 use client::infrastructure::{Transport, WsTransport};
 use client::tui::{KeyAction, read_key_action, render};
 
@@ -22,11 +23,8 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
     let config = ClientConfig::from_args_and_env()?;
 
-    // Terminal setup. The `TerminalSession` guard restores the previous
-    // state on drop, which includes the panic path.
     let mut terminal = TerminalSession::enter()?;
 
-    // Split the transport and wire it to the event queue.
     let transport = WsTransport::new(config.server_url.clone());
     let handle = transport.start();
     let outgoing = handle.outgoing;
@@ -45,11 +43,19 @@ async fn main() -> anyhow::Result<()> {
         let _ = server_events.send(AppEvent::Disconnected);
     });
 
+    // A `watch` channel broadcasts the current screen from the main loop to
+    // the keyboard thread. The keyboard thread is the only reader, and it
+    // must know which screen is showing to translate digits correctly.
+    let mut state = AppState::new(config.display_name.clone());
+    let (screen_tx, screen_rx) = watch::channel(state.screen.clone());
+
     // Task: read the keyboard in a blocking thread.
     let keyboard_events = event_tx.clone();
+    let keyboard_screen = screen_rx;
     tokio::task::spawn_blocking(move || {
         loop {
-            match read_key_action() {
+            let screen = keyboard_screen.borrow().clone();
+            match read_key_action(&screen) {
                 Ok(KeyAction::Event(event)) => {
                     if keyboard_events.send(event).is_err() {
                         return;
@@ -65,7 +71,6 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Send the initial Hello.
-    let mut state = AppState::new(config.display_name.clone());
     outgoing
         .send(common::protocol::ClientMessage::Hello {
             display_name: config.display_name,
@@ -87,6 +92,10 @@ async fn main() -> anyhow::Result<()> {
         let mut quit = state.should_quit;
         dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
+
+        // Publish the (possibly) updated screen to the keyboard thread. If
+        // no receiver is alive, the send is ignored silently.
+        let _ = screen_tx.send(state.screen.clone());
     }
 
     Ok(())
