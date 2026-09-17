@@ -1,0 +1,31 @@
+[package]
+name = "hacker"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme.workspace = true
+description = "Adversarial actor used to demonstrate Rust's deterministic resource cleanup."
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+common = { path = "../common" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+futures-util.workspace = true
+tokio-tungstenite.workspace = true
+clap.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+server = { path = "../server" }
+axum.workspace = true
