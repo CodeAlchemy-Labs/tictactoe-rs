@@ -108,10 +108,12 @@ And in a fourth terminal, run the hacker scenarios:
 ./hacker --target ws://127.0.0.1:8080/ws --scenario all
 ```
 
-The hacker prints one line per scenario and exits with code `0` if every
-scenario reports `DEFENDED`. No Docker, no Rust toolchain, no source
-checkout: the binaries are statically linked against the same dependencies
-the CI builds use, so the behavior matches what the test suite verifies.
+The binaries accept both `ws://` and `wss://` URLs. TLS uses the system's
+trusted certificate store; no additional configuration is needed to connect
+to a server behind a valid certificate authority. If you need to connect to
+a development server with a self-signed certificate, pass `--insecure` to
+disable certificate verification. Do not use `--insecure` against a
+production endpoint.
 
 On Windows, use `.\server.exe`, `.\client.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
@@ -194,6 +196,54 @@ Tear down the stack:
 ```fish
 make demo-down
 ```
+
+### Connecting to a remote instance
+
+The client speaks both `ws://` and `wss://`. TLS is terminated by the
+platform that hosts the server (for example, Render's edge proxy), so the
+container itself continues to listen for plain HTTP/WS on its internal
+port. The client verifies the certificate against the system's trusted
+store, and the only thing that changes between a local and a remote session
+is the URL:
+
+```fish
+# Local
+./client --server ws://127.0.0.1:8080/ws --name alice
+
+# Remote over TLS
+./client --server wss://tictactoe-rs.onrender.com/ws --name alice
+```
+
+The server reads its bind address from `TICTACTOE_BIND` first and falls back
+to `PORT`, the variable that container platforms such as Render inject.
+This means the same image runs locally on `0.0.0.0:8080` and on a platform
+without any configuration change:
+
+```fish
+# Local default
+./server
+
+# Explicit port
+PORT=9090 ./server
+
+# Explicit full bind address
+TICTACTOE_BIND=127.0.0.1:9999 ./server
+```
+
+#### Deploying to Render
+
+A `render.yaml` blueprint is included at the root of the repository. To
+create the service:
+
+1. Push the repository to GitHub.
+2. In the Render dashboard, choose **New > Blueprint** and select the
+   repository.
+3. Render reads `render.yaml`, builds the image, and deploys it. The service
+   is reachable at `https://<service-name>.onrender.com`, and WebSocket
+   clients connect to `wss://<service-name>.onrender.com/ws`.
+
+The free tier spins down after 15 minutes of inactivity. The first request
+after a spin-down takes roughly 30 seconds while the container restarts.
 
 ## What the demo shows
 
