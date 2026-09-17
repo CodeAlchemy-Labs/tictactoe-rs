@@ -60,13 +60,13 @@ impl ServerConfig {
         Ok(Self::default())
     }
 
-    /// Builds the configuration from a set of environment variables provided
+    /// Builds the configuration from a set of key/value pairs provided
     /// explicitly. Intended for tests.
     ///
     /// # Errors
     ///
     /// Returns an error if a provided variable does not parse.
-    pub fn from_iter<I, K, V>(vars: I) -> anyhow::Result<Self>
+    pub fn from_vars<I, K, V>(vars: I) -> anyhow::Result<Self>
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<str>,
@@ -115,33 +115,33 @@ mod tests {
 
     #[test]
     fn port_env_variable_overrides_the_default() {
-        let config = ServerConfig::from_iter([(ENV_PORT, "9090")]).unwrap();
+        let config = ServerConfig::from_vars([(ENV_PORT, "9090")]).unwrap();
         assert_eq!(config.bind_address.port(), 9090);
     }
 
     #[test]
     fn bind_env_variable_takes_precedence_over_port() {
         let config =
-            ServerConfig::from_iter([(ENV_BIND, "127.0.0.1:1234"), (ENV_PORT, "9090")]).unwrap();
+            ServerConfig::from_vars([(ENV_BIND, "127.0.0.1:1234"), (ENV_PORT, "9090")]).unwrap();
         assert_eq!(config.bind_address.port(), 1234);
         assert_eq!(config.bind_address.ip().to_string(), "127.0.0.1");
     }
 
     #[test]
     fn invalid_bind_is_rejected() {
-        let result = ServerConfig::from_iter([(ENV_BIND, "not an address")]);
+        let result = ServerConfig::from_vars([(ENV_BIND, "not an address")]);
         assert!(result.is_err());
     }
 
     #[test]
     fn invalid_port_is_rejected() {
-        let result = ServerConfig::from_iter([(ENV_PORT, "not a port")]);
+        let result = ServerConfig::from_vars([(ENV_PORT, "not a port")]);
         assert!(result.is_err());
     }
 
     #[test]
     fn no_variables_falls_back_to_default() {
-        let config = ServerConfig::from_iter([("UNRELATED", "x")]).unwrap();
+        let config = ServerConfig::from_vars([("UNRELATED", "x")]).unwrap();
         assert_eq!(config.bind_address.port(), 8080);
     }
 }
