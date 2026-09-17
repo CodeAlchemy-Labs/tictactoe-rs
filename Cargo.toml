@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.97"
 license = "MIT"
@@ -22,13 +22,18 @@ tokio = { version = "1", features = ["full"] }
 # WebSocket server
 axum = { version = "0.8", features = ["ws"] }
 
-# WebSocket client (also used as a dev-dependency for integration tests)
-tokio-tungstenite = "0.26"
+# WebSocket client with TLS. `rustls-tls-native-roots` uses the system CA
+# bundle and avoids a link-time dependency on OpenSSL.
+tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
+
+# TLS primitives, used by the client to build an insecure connector for
+# `--insecure` mode.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
 
 # CLI argument parsing
 clap = { version = "4", features = ["derive"] }
 
-# URL parsing for the hacker port scenario
+# URL parsing
 url = "2"
 
 # Serialization
