@@ -25,6 +25,7 @@ services:
       - alice
     environment:
       RUST_LOG: "warn"
+      TERM: "xterm-256color"
     networks:
       - tictactoe
     profiles:
@@ -42,6 +43,7 @@ services:
       - bob
     environment:
       RUST_LOG: "warn"
+      TERM: "xterm-256color"
     networks:
       - tictactoe
     profiles:
