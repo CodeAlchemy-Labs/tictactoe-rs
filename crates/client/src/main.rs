@@ -14,7 +14,6 @@ use tracing_subscriber::EnvFilter;
 use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
-use client::domain::screen::Screen;
 use client::infrastructure::{Transport, WsTransport};
 use client::tui::{KeyAction, read_key_action, render};
 
