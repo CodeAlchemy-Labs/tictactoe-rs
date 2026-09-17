@@ -72,6 +72,50 @@ tictactoe-rs/
 - Docker Compose 5.5.1 or newer
 - Fish shell 3.x (or any POSIX-compatible shell)
 
+## Pre-built binaries
+
+If you only want to try the demo and do not need to build from source, the
+release page provides pre-compiled binaries for Linux and Windows:
+
+- `tictactoe-rs-<version>-x86_64-unknown-linux-gnu.tar.gz`
+- `tictactoe-rs-<version>-x86_64-pc-windows-msvc.zip`
+
+Each archive contains three executables (`server`, `client`, `hacker` and
+their `.exe` counterparts on Windows), plus `README.md`, `CHANGELOG.md`, and
+`LICENSE`.
+
+Download the archive for your platform from
+[the latest release](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases/latest),
+extract it, and run the server:
+
+```fish
+./server
+```
+
+In two other terminals, run the two clients:
+
+```fish
+./client --server ws://127.0.0.1:8080/ws --name alice
+```
+
+```fish
+./client --server ws://127.0.0.1:8080/ws --name bob
+```
+
+And in a fourth terminal, run the hacker scenarios:
+
+```fish
+./hacker --target ws://127.0.0.1:8080/ws --scenario all
+```
+
+The hacker prints one line per scenario and exits with code `0` if every
+scenario reports `DEFENDED`. No Docker, no Rust toolchain, no source
+checkout: the binaries are statically linked against the same dependencies
+the CI builds use, so the behavior matches what the test suite verifies.
+
+On Windows, use `.\server.exe`, `.\client.exe`, and `.\hacker.exe` from
+PowerShell or `cmd`.
+
 ## Quick start
 
 ### Local development
