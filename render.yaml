@@ -1,0 +1,19 @@
+# Blueprint for Render. Create the service with:
+#
+#   Dashboard > New > Blueprint > select this repository
+#
+# Render terminates TLS at its edge and forwards plain HTTP/WS traffic to
+# the container on the port given in $PORT. The server reads $PORT as a
+# fallback when TICTACTOE_BIND is not set, so no configuration is required.
+services:
+  - type: web
+    name: tictactoe-rs
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: RUST_LOG
+        value: info
