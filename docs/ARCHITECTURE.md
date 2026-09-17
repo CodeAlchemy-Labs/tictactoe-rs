@@ -95,6 +95,30 @@ main loop ──> AppState + apply_event
 The main loop consumes `AppEvent` values, applies them to the state, and
 draws the frame. The UI thread never blocks on I/O.
 
+## TLS termination
+
+The server does not implement TLS. In every supported deployment — local
+development, Docker Compose, Render, and any other container platform —
+TLS is terminated by the edge: the client speaks `wss://` to the edge, the
+edge speaks plain `ws://` to the container, and the container only ever
+binds a plain TCP socket.
+
+This is a deliberate choice, not an omission:
+
+- **Simplicity.** Certificate issuance, rotation, and renewal are the
+  platform's responsibility. There is no TLS configuration to keep in
+  sync with the deployment.
+- **No dependency on OpenSSL or a bundled CA at runtime.** The server image
+  stays small and free of any TLS library.
+- **The client is where TLS matters.** The `client` crate enables
+  `rustls-tls-native-roots` in `tokio-tungstenite`, so it can connect to
+  any `wss://` endpoint using the system trust store, including the flag
+  `--insecure` for development servers with self-signed certificates.
+
+If the deployment model changes and the server must terminate TLS itself,
+the change is localized to `server/src/infrastructure/http.rs` and the
+`Dockerfile`. The domain and application layers would be unaffected.
+
 ## Patterns
 
 ### Aggregate root
