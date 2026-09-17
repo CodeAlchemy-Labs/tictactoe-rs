@@ -143,7 +143,7 @@ pub fn dispatch(
 
 #[cfg(test)]
 mod tests {
-    use common::domain::{Board, Position};
+    use common::domain::Board;
     use common::protocol::{ClientId, ErrorCode, MatchId, MatchSummary};
 
     use super::*;
