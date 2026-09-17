@@ -2,14 +2,19 @@
 
 # ---------------------------------------------------------------------------
 # Build stage: compile the workspace in release mode.
+#
+# Both stages pin Debian to `bookworm`. Building on a newer base (trixie)
+# produces binaries that link against GLIBC symbols the older runtime base
+# does not provide, which manifests at container start as
+# "version `GLIBC_2.39' not found". Pinning both to bookworm keeps the two
+# stages ABI-compatible.
 # ---------------------------------------------------------------------------
-FROM rust:1.97-slim AS builder
+FROM rust:1.97-slim-bookworm AS builder
 
 WORKDIR /build
 
 # Minimal system dependencies. The workspace has no native-linking
-# requirement beyond what the Rust toolchain already provides, so we keep
-# this layer as small as possible.
+# requirement beyond what the Rust toolchain already provides.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         pkg-config \
@@ -17,9 +22,7 @@ RUN apt-get update \
 
 # Copy the workspace manifest, the lockfile, and every source file. The
 # whole tree is copied in one step so that Cargo sees consistent mtimes and
-# rebuilds every crate that has changed. The dependency-graph caching trick
-# (stub sources + later copy) is deliberately avoided: it silently reuses
-# stale rlibs when Docker's COPY preserves the host's older mtimes.
+# rebuilds every crate that has changed.
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
