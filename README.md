@@ -100,40 +100,49 @@ Run the hacker against the running server:
 make run-hacker
 ```
 
+When the server and the hacker run on the same host, the hacker shares the
+host's network namespace. The `port_reuse` scenario then reports
+`EADDRINUSE` for the server's port, which is the strongest form of the
+defense. The full local output is shown in the next section.
+
 ### Docker demo
 
-Build the image and start the stack:
+Build the image and start the server:
 
 ```fish
 make demo
 ```
 
-This brings up three containers: `server`, `client-1`, and `client-2`.
-Attach to either client's TUI from two separate terminals:
+This builds the image and starts a single container (`server`). The two
+clients are interactive terminal programs; running them in the background
+would leave them without a TTY and they would exit immediately. Instead,
+each client runs in the foreground in its own terminal, using
+`docker compose run -it`:
 
 ```fish
-make attach-client-1
+make client-1
 ```
 
 ```fish
-make attach-client-2
+make client-2
 ```
 
 Inside the client:
 
 - `c` creates a match.
 - `r` refreshes the list of open matches.
-- `1`–`9` map to cells in row-major order.
+- `1`–`9` select the numbered match in the lobby, or map to a cell in
+  row-major order while playing.
 - `q` quits.
 
-Run the hacker scenarios against the running server:
+Run the hacker scenarios against the running server from a third terminal:
 
 ```fish
-docker compose --profile demo run --rm hacker
+make hacker
 ```
 
 The hacker prints one line per scenario with `DEFENDED` or `COMPROMISED`,
-and exits with code `0` if every scenario is defended. The full output is
+and exits with code `0` if every scenario is defended. The Docker output is
 shown in the next section.
 
 Tear down the stack:
@@ -144,36 +153,58 @@ make demo-down
 
 ## What the demo shows
 
-When the hacker runs against the live server, the output looks like this:
+The hacker runs three scenarios. Output from a Docker run, with the server
+reachable over the compose bridge network:
 
 ```
 DEFENDED session_hijack: all probes rejected; malformed payload ignored without closing the connection
-DEFENDED port_reuse: server holds 172.18.0.2:8080 (EADDRINUSE); ephemeral 127.0.0.1:43201 released synchronously on drop
+DEFENDED port_reuse: server reachable at server:8080; isolated network namespace: 0.0.0.0:8080 is bindable from this process because each namespace owns its own port space; ephemeral 127.0.0.1:43095 released synchronously on drop and immediately rebindable
 DEFENDED flood: 32 concurrent sessions opened and closed; server still accepts new sessions (local failures: 0)
 ```
 
-Three things are demonstrated:
+Output from a local run, with the server and the hacker sharing the host's
+network namespace:
+
+```
+DEFENDED session_hijack: all probes rejected; malformed payload ignored without closing the connection
+DEFENDED port_reuse: server reachable at 127.0.0.1:8080; EADDRINUSE on 0.0.0.0:8080: the server holds the port in the shared namespace; ephemeral 127.0.0.1:42379 released synchronously on drop and immediately rebindable
+DEFENDED flood: 32 concurrent sessions opened and closed; server still accepts new sessions (local failures: 0)
+```
+
+The `port_reuse` scenario is deliberately honest about the two environments.
+Docker's default bridge network gives every container its own port space, so
+a bind attempt from one container does not contend with another. What the
+scenario proves in both environments is the property that matters for this
+project: a `TcpListener` releases its port the instant it is dropped, and
+the same process can rebind it immediately. There is no window during which
+a garbage collector decides whether the port is free.
+
+Three behaviors are demonstrated:
 
 1. **Illegal state transitions are rejected.** The hacker cannot act on a
-   match it is not part of, cannot join a match that does not exist, cannot
-   register twice on the same connection, and cannot disrupt the connection
-   with a malformed payload.
+   match it is not part of (`NotInMatch`), cannot join a match that does not
+   exist (`MatchNotFound`), cannot register twice on the same connection
+   (`InvalidState`), and cannot disrupt the connection with a malformed
+   payload (the connection survives and answers a subsequent `Ping` with
+   `Pong`).
 
-2. **The server's port is owned for as long as the server runs.** The kernel
-   refuses the hacker's bind attempt with `EADDRINUSE`. When the server
-   process exits, the port is released synchronously.
+2. **The server owns its port for as long as it runs.** When the hacker
+   shares the server's network namespace, the kernel refuses the bind with
+   `EADDRINUSE`. When the server process exits, the port is released
+   synchronously through the `Drop` of `TcpListener`.
 
 3. **Ephemeral ports are released the instant the owning listener is
-   dropped.** The hacker binds an ephemeral port, drops it, and immediately
-   rebinds the same port. The rebind succeeds because Rust runs `Drop`
-   synchronously and there is no GC window.
+   dropped.** The hacker binds an ephemeral port, drops the listener, and
+   immediately rebinds the same port. The rebind succeeds because Rust runs
+   `Drop` synchronously and there is no GC window.
 
 A fourth property is exercised by the integration test suite: when a client
 disconnects, the server's session is removed from the lobby, its outbound
 channel is closed, and the writer task terminates — all before the handler
 returns. This is enforced by the `SessionGuard` RAII type and verified by
 `disconnect_removes_the_session_from_the_lobby` in
-`crates/server/tests/websocket.rs`.
+`crates/server/tests/websocket.rs`. The server log during a flood shows the
+session guard dropping for every client, in order, without delay.
 
 ## Development
 
