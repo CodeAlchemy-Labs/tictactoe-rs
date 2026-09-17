@@ -87,6 +87,42 @@ The fact that the bug was caught deterministically — not as a race but as a
 reproducible test failure — is the point. A GC language would have hidden
 the ordering issue until production.
 
+## TLS termination and trust boundaries
+
+When the server is deployed behind a TLS-terminating proxy (such as
+Render's edge), the wire between the client and the proxy is encrypted, and
+the wire between the proxy and the container is plain HTTP/WS on a private
+network. This is the standard model for container platforms and has three
+security consequences worth spelling out.
+
+1. **Confidentiality on the public segment.** A passive observer on the
+   public internet cannot read the WebSocket frames. The proxy's
+   certificate is validated by the client against the system trust store
+   (`rustls-tls-native-roots`), so an attacker who hijacks the DNS or the
+   routing path cannot forge a valid endpoint without also compromising a
+   trusted certificate authority.
+
+2. **Trust inside the platform.** The proxy-to-container hop is not
+   encrypted. This is acceptable when the platform's internal network is
+   trusted, which is the case for every major container platform. It is
+   not acceptable if the container is reachable directly from the public
+   internet on its plain port; in that case, the deployment must bind
+   `0.0.0.0:8080` to a private network or firewall the port at the
+   platform's edge.
+
+3. **`--insecure` mode.** The client accepts `--insecure` to disable
+   certificate verification. This is intended only for development
+   servers with self-signed certificates. When `--insecure` is passed,
+   the client is vulnerable to any on-path attacker: the connection is
+   still encrypted, but the peer is not authenticated. Documented here so
+   that the flag is never mistaken for a safe default.
+
+The `port_reuse` and `session_hijack` scenarios run over the same plain
+WebSocket connection they would run over in a local deployment. TLS is an
+orthogonal transport concern; the server's state machine and cleanup
+guarantees are independent of whether the connection is encrypted.
+
+
 ## The adversarial scenarios
 
 The `hacker` crate runs three probes. Each one targets a specific defense.
