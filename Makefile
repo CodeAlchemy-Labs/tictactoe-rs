@@ -66,10 +66,10 @@ demo-down:
 	docker compose --profile interactive --profile demo down --remove-orphans
 
 client-1:
-	docker compose --profile interactive run --rm client-1
+	docker compose --profile interactive run --rm -it client-1
 
 client-2:
-	docker compose --profile interactive run --rm client-2
+	docker compose --profile interactive run --rm -it client-2
 
 hacker:
 	docker compose --profile demo run --rm hacker
