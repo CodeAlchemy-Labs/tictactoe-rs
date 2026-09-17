@@ -1,0 +1,47 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "MIT"
+authors = ["CodeAlchemy-Labs"]
+repository = "https://github.com/CodeAlchemy-Labs/tictactoe-rs"
+homepage = "https://github.com/CodeAlchemy-Labs/tictactoe-rs"
+readme = "README.md"
+description = "A WebSocket-based Tic-Tac-Toe game demonstrating Rust ownership-driven safety guarantees."
+keywords = ["websocket", "game", "tictactoe", "async", "axum"]
+categories = ["games", "network-programming"]
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# WebSocket server
+axum = { version = "0.8", features = ["ws"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "2"
+anyhow = "1"
+
+# Observability
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Terminal UI
+ratatui = "0.29"
+crossterm = "0.28"
+
+# Async utilities
+futures-util = "0.3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
