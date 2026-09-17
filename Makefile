@@ -6,7 +6,7 @@ SHELL := /bin/sh
 .DEFAULT_GOAL := help
 
 .PHONY: help build test lint fmt doc coverage clean demo demo-down \
-        attach-client-1 attach-client-2 run-server run-hacker
+        client-1 client-2 hacker run-server run-hacker
 
 help:
 	@printf '%s\n' \
@@ -18,10 +18,11 @@ help:
 		"  doc                cargo doc --workspace --no-deps" \
 		"  coverage           cargo llvm-cov --workspace --html" \
 		"  clean              remove build artifacts and docker resources" \
-		"  demo               build the image and start server + clients" \
+		"  demo               build the image and start the server" \
 		"  demo-down          stop the demo stack" \
-		"  attach-client-1    attach to client-1 TUI" \
-		"  attach-client-2    attach to client-2 TUI" \
+		"  client-1           run client-1 in the foreground (interactive TUI)" \
+		"  client-2           run client-2 in the foreground (interactive TUI)" \
+		"  hacker             run all hacker scenarios against the running server" \
 		"  run-server         run the server locally" \
 		"  run-hacker         run the hacker locally against a running server"
 
@@ -49,23 +50,29 @@ clean:
 
 demo:
 	docker compose build
-	docker compose up -d server client-1 client-2
+	docker compose up -d server
 	@printf '\n'
-	@printf 'Stack is up. Attach to a client with:\n'
-	@printf '  make attach-client-1\n'
-	@printf '  make attach-client-2\n'
+	@printf 'Server is up. In two separate terminals, run:\n'
+	@printf '  make client-1\n'
+	@printf '  make client-2\n'
 	@printf '\n'
-	@printf 'Run the hacker scenario with:\n'
-	@printf '  docker compose --profile demo run --rm hacker\n'
+	@printf 'Then, from a third terminal, run the hacker scenarios:\n'
+	@printf '  make hacker\n'
+	@printf '\n'
+	@printf 'Stop the stack with:\n'
+	@printf '  make demo-down\n'
 
 demo-down:
-	docker compose down --remove-orphans
+	docker compose --profile interactive --profile demo down --remove-orphans
 
-attach-client-1:
-	docker compose attach client-1
+client-1:
+	docker compose --profile interactive run --rm client-1
 
-attach-client-2:
-	docker compose attach client-2
+client-2:
+	docker compose --profile interactive run --rm client-2
+
+hacker:
+	docker compose --profile demo run --rm hacker
 
 run-server:
 	cargo run --release --bin server
