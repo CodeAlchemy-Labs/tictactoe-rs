@@ -1,5 +1,6 @@
 //! Binary entry point for the Tic-Tac-Toe WebSocket server.
 
+use std::io::IsTerminal;
 use std::sync::Arc;
 
 use anyhow::Context;
@@ -34,7 +35,49 @@ async fn main() -> anyhow::Result<()> {
 
 fn init_tracing() {
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_ansi(ansi_supported())
+        .init();
+}
+
+/// Returns `true` when the current stderr can render ANSI escape codes.
+///
+/// The check respects the two conventions that the wider CLI ecosystem
+/// follows:
+///
+/// - `NO_COLOR` disables color unconditionally when it is present.
+/// - `CLICOLOR_FORCE` (when not `"0"`) forces color even if the output is
+///   redirected.
+///
+/// When neither is set, color is enabled only when stderr is a terminal and
+/// the platform is known to interpret escapes. On Windows, the legacy
+/// `cmd.exe` console does not process ANSI unless Virtual Terminal
+/// Processing is explicitly enabled, so we require the marker environment
+/// variable of a modern terminal (Windows Terminal, ConEmu, or VS Code's
+/// integrated terminal). Emitting literal escape sequences is worse than
+/// emitting no color at all.
+fn ansi_supported() -> bool {
+    if std::env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    if std::env::var("CLICOLOR_FORCE").is_ok_and(|value| value != "0") {
+        return true;
+    }
+    if !std::io::stderr().is_terminal() {
+        return false;
+    }
+
+    #[cfg(windows)]
+    {
+        std::env::var_os("WT_SESSION").is_some()
+            || std::env::var_os("ConEmuANSI").is_some()
+            || std::env::var_os("TERM_PROGRAM").is_some()
+    }
+    #[cfg(not(windows))]
+    {
+        true
+    }
 }
 
 async fn shutdown_signal() {
