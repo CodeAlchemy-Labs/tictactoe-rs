@@ -52,7 +52,11 @@ mod tests {
 
     #[test]
     fn serde_round_trip() {
-        for cell in [Cell::Empty, Cell::Occupied(Player::X), Cell::Occupied(Player::O)] {
+        for cell in [
+            Cell::Empty,
+            Cell::Occupied(Player::X),
+            Cell::Occupied(Player::O),
+        ] {
             let json = serde_json::to_string(&cell).unwrap();
             let back: Cell = serde_json::from_str(&json).unwrap();
             assert_eq!(cell, back);

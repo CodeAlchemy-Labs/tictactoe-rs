@@ -118,9 +118,7 @@ mod tests {
     #[test]
     fn board_update_round_trip() {
         let mut board = Board::new();
-        board
-            .place(Position::new(4).unwrap(), Player::X)
-            .unwrap();
+        board.place(Position::new(4).unwrap(), Player::X).unwrap();
         let message = ServerMessage::BoardUpdate {
             board,
             current_turn: Player::O,
