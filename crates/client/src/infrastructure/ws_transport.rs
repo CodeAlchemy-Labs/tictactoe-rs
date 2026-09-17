@@ -55,18 +55,16 @@ impl Transport for WsTransport {
 
             while let Some(frame) = stream.next().await {
                 match frame {
-                    Ok(Message::Text(text)) => {
-                        match serde_json::from_str::<ServerMessage>(&text) {
-                            Ok(message) => {
-                                if incoming_tx.send(message).is_err() {
-                                    break;
-                                }
-                            }
-                            Err(error) => {
-                                tracing::warn!(%error, "malformed server message");
+                    Ok(Message::Text(text)) => match serde_json::from_str::<ServerMessage>(&text) {
+                        Ok(message) => {
+                            if incoming_tx.send(message).is_err() {
+                                break;
                             }
                         }
-                    }
+                        Err(error) => {
+                            tracing::warn!(%error, "malformed server message");
+                        }
+                    },
                     Ok(Message::Close(_)) => break,
                     Ok(Message::Ping(_) | Message::Pong(_) | Message::Binary(_)) => {}
                     Err(error) => {

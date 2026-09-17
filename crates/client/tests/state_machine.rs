@@ -1,8 +1,8 @@
 //! Integration tests for the client state machine driven by a mock transport.
 
+use client::app::AppState;
 use client::app::state::AppEvent;
 use client::app::update::{SideEffect, apply_event};
-use client::app::AppState;
 use client::domain::Screen;
 use client::infrastructure::{MockTransport, Transport};
 use common::domain::{Board, Player};
@@ -18,18 +18,22 @@ async fn full_happy_path_over_the_mock_transport() {
     let mut state = AppState::new("alice");
 
     // The main loop always starts by sending Hello.
-    outgoing.send(ClientMessage::Hello {
-        display_name: String::from("alice"),
-    }).unwrap();
+    outgoing
+        .send(ClientMessage::Hello {
+            display_name: String::from("alice"),
+        })
+        .unwrap();
 
     let sent = server_rx.recv().await.unwrap();
     assert!(matches!(sent, ClientMessage::Hello { .. }));
 
     // Server responds with Welcome; the client should ask for the list.
-    server_tx.send(ServerMessage::Welcome {
-        client_id: ClientId::new(1),
-        display_name: String::from("alice"),
-    }).unwrap();
+    server_tx
+        .send(ServerMessage::Welcome {
+            client_id: ClientId::new(1),
+            display_name: String::from("alice"),
+        })
+        .unwrap();
     let message = incoming.recv().await.unwrap();
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
@@ -37,7 +41,9 @@ async fn full_happy_path_over_the_mock_transport() {
     assert!(matches!(state.screen, Screen::Lobby { .. }));
 
     // Server sends the match list.
-    server_tx.send(ServerMessage::MatchList { matches: vec![] }).unwrap();
+    server_tx
+        .send(ServerMessage::MatchList { matches: vec![] })
+        .unwrap();
     let message = incoming.recv().await.unwrap();
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
@@ -48,18 +54,24 @@ async fn full_happy_path_over_the_mock_transport() {
     assert_eq!(effects, vec![SideEffect::Send(ClientMessage::CreateMatch)]);
 
     // Server confirms, then pairs the players.
-    server_tx.send(ServerMessage::MatchCreated { match_id: MatchId::new(0) }).unwrap();
+    server_tx
+        .send(ServerMessage::MatchCreated {
+            match_id: MatchId::new(0),
+        })
+        .unwrap();
     let message = incoming.recv().await.unwrap();
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
 
-    server_tx.send(ServerMessage::MatchReady {
-        match_id: MatchId::new(0),
-        opponent: String::from("bob"),
-        your_mark: Player::X,
-        board: Board::new(),
-        current_turn: Player::X,
-    }).unwrap();
+    server_tx
+        .send(ServerMessage::MatchReady {
+            match_id: MatchId::new(0),
+            opponent: String::from("bob"),
+            your_mark: Player::X,
+            board: Board::new(),
+            current_turn: Player::X,
+        })
+        .unwrap();
     let message = incoming.recv().await.unwrap();
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
@@ -71,10 +83,12 @@ async fn full_happy_path_over_the_mock_transport() {
     assert_eq!(effects.len(), 1);
 
     // Server reports the final board; the state transitions to Finished.
-    server_tx.send(ServerMessage::MatchOver {
-        board: Board::new(),
-        status: common::domain::GameStatus::Draw,
-    }).unwrap();
+    server_tx
+        .send(ServerMessage::MatchOver {
+            board: Board::new(),
+            status: common::domain::GameStatus::Draw,
+        })
+        .unwrap();
     let message = incoming.recv().await.unwrap();
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);

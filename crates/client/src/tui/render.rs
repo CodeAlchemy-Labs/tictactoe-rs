@@ -29,7 +29,11 @@ pub fn render(frame: &mut Frame<'_>, state: &AppState) {
 }
 
 fn render_header(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
-    let title = format!(" tictactoe-rs | {} | {} ", state.display_name, state.screen.title());
+    let title = format!(
+        " tictactoe-rs | {} | {} ",
+        state.display_name,
+        state.screen.title()
+    );
     let paragraph = Paragraph::new(title)
         .block(Block::default().borders(Borders::ALL))
         .alignment(Alignment::Center);
@@ -68,7 +72,12 @@ fn render_lobby(frame: &mut Frame<'_>, area: Rect, matches: &[common::protocol::
             .iter()
             .enumerate()
             .map(|(index, summary)| {
-                ListItem::new(format!("[{}] {} (host: {})", index + 1, summary.id, summary.host))
+                ListItem::new(format!(
+                    "[{}] {} (host: {})",
+                    index + 1,
+                    summary.id,
+                    summary.host
+                ))
             })
             .collect()
     };
@@ -105,7 +114,12 @@ fn render_game(frame: &mut Frame<'_>, area: Rect, active: &ActiveMatch) {
     frame.render_widget(side, columns[1]);
 }
 
-fn render_finished(frame: &mut Frame<'_>, area: Rect, board: common::domain::Board, status: GameStatus) {
+fn render_finished(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    board: common::domain::Board,
+    status: GameStatus,
+) {
     let outcome = match status {
         GameStatus::Won(player) => format!("{player:?} wins"),
         GameStatus::Draw => String::from("draw"),
@@ -138,10 +152,7 @@ fn build_board_lines_from(board: &common::domain::Board) -> Vec<Line<'static>> {
             let index = row * 3 + column;
             let position = common::domain::Position::new(index).expect("index is in range");
             let cell = board.get(position);
-            spans.push(Span::styled(
-                cell_glyph(cell),
-                cell_style(cell),
-            ));
+            spans.push(Span::styled(cell_glyph(cell), cell_style(cell)));
             if column < 2 {
                 spans.push(Span::raw(" | "));
             }
@@ -164,8 +175,12 @@ const fn cell_glyph(cell: Cell) -> &'static str {
 
 fn cell_style(cell: Cell) -> Style {
     match cell {
-        Cell::Occupied(Player::X) => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        Cell::Occupied(Player::O) => Style::default().fg(Color::Magenta).add_modifier(Modifier::BOLD),
+        Cell::Occupied(Player::X) => Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+        Cell::Occupied(Player::O) => Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD),
         Cell::Empty => Style::default(),
     }
 }

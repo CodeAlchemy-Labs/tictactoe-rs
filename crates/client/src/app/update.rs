@@ -66,7 +66,9 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
     match message {
         ServerMessage::Welcome { display_name, .. } => {
             state.display_name = display_name;
-            state.screen = Screen::Lobby { matches: Vec::new() };
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
             state.status = String::from("connected");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
@@ -110,7 +112,9 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.status = String::from("press q to exit");
         }
         ServerMessage::OpponentLeft { .. } => {
-            state.screen = Screen::Lobby { matches: Vec::new() };
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
             state.status = String::from("opponent left the match");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
@@ -188,7 +192,9 @@ mod tests {
     #[test]
     fn match_list_updates_the_lobby() {
         let mut state = AppState::new("alice");
-        state.screen = Screen::Lobby { matches: Vec::new() };
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
         let _ = apply(
             &mut state,
             AppEvent::Server(ServerMessage::MatchList {
@@ -225,7 +231,9 @@ mod tests {
     #[test]
     fn join_at_ignores_out_of_range_index() {
         let mut state = AppState::new("alice");
-        state.screen = Screen::Lobby { matches: Vec::new() };
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
         let effects = apply(&mut state, AppEvent::JoinMatchAt(3));
         assert!(effects.is_empty());
     }
