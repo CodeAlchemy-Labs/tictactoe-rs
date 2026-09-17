@@ -24,7 +24,7 @@ tracing-subscriber.workspace = true
 futures-util.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
-tokio-tungstenite = "0.26"
+tokio-tungstenite.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
