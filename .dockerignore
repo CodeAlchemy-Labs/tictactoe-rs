@@ -1,0 +1,28 @@
+# Build artifacts from the host. The image builds its own.
+target/
+coverage/
+*.profraw
+*.profdata
+lcov.info
+
+# Version control and editor configuration
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+
+# Local environment overrides
+.env
+.env.local
+docker-compose.override.yml
+
+# Documentation sources that are not needed in the build context
+docs/
+
+# The Makefile is a developer convenience; not needed in the image
+Makefile
+
+# OS noise
+.DS_Store
+Thumbs.db
