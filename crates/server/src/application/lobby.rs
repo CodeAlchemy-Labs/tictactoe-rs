@@ -176,9 +176,7 @@ impl LobbyService {
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    Some(m) if m.is_full() => {
-                        Some((ErrorCode::MatchFull, "match is already full"))
-                    }
+                    Some(m) if m.is_full() => Some((ErrorCode::MatchFull, "match is already full")),
                     Some(_) => None,
                 }
             }

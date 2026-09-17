@@ -59,7 +59,7 @@ async fn hello_returns_welcome_with_display_name() {
             display_name: String::from("alice"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Welcome { display_name, .. } => assert_eq!(display_name, "alice"),
         other => panic!("unexpected: {other:?}"),
@@ -76,7 +76,7 @@ async fn joining_a_nonexistent_match_fails() {
             display_name: String::from("alice"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut client).await;
     send(
         &mut client,
@@ -84,7 +84,7 @@ async fn joining_a_nonexistent_match_fails() {
             match_id: common::protocol::MatchId::new(999),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::MatchNotFound),
         other => panic!("unexpected: {other:?}"),
@@ -101,7 +101,7 @@ async fn disconnect_removes_the_session_from_the_lobby() {
             display_name: String::from("alice"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut client).await;
     assert_eq!(lobby.session_count(), 1);
 
