@@ -1,6 +1,6 @@
 //! In-memory match state.
 
-use common::domain::{Board, GameStatus, Player, Position};
+use common::domain::{Board, GameStatus, Player};
 use common::protocol::{ClientId, MatchId};
 
 /// A Tic-Tac-Toe match between a host and (once joined) a guest.
@@ -66,6 +66,8 @@ impl Match {
 
 #[cfg(test)]
 mod tests {
+    use common::domain::Position;
+
     use super::*;
 
     #[test]
