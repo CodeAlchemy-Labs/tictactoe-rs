@@ -18,6 +18,7 @@ pub enum Player {
 
 impl Player {
     /// Returns the opposite mark.
+    #[must_use]
     pub const fn other(self) -> Self {
         match self {
             Self::X => Self::O,
