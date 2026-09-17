@@ -8,6 +8,7 @@ use crossterm::terminal::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
 use tokio::sync::{mpsc, watch};
 use tracing_subscriber::EnvFilter;
 
@@ -42,9 +43,9 @@ async fn main() -> anyhow::Result<()> {
         let _ = server_events.send(AppEvent::Disconnected);
     });
 
-    // A `watch` channel broadcasts the current screen from the main loop to
-    // the keyboard thread. The keyboard thread is the only reader, and it
-    // must know which screen is showing to translate digits correctly.
+    // Broadcast the current screen from the main loop to the keyboard
+    // thread. The keyboard thread is the only reader and needs the screen
+    // to translate digits correctly (join in the lobby, move in a game).
     let mut state = AppState::new(config.display_name.clone());
     let (screen_tx, screen_rx) = watch::channel(state.screen.clone());
 
@@ -69,14 +70,12 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    // Send the initial Hello.
     outgoing
         .send(common::protocol::ClientMessage::Hello {
             display_name: config.display_name,
         })
         .map_err(|_| anyhow::anyhow!("transport closed before sending hello"))?;
 
-    // Main loop.
     while !state.should_quit {
         terminal
             .terminal
@@ -92,8 +91,6 @@ async fn main() -> anyhow::Result<()> {
         dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
 
-        // Publish the (possibly) updated screen to the keyboard thread. If
-        // no receiver is alive, the send is ignored silently.
         let _ = screen_tx.send(state.screen.clone());
     }
 
@@ -119,7 +116,8 @@ impl TerminalSession {
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen, Hide).context("failed to enter alternate screen")?;
         let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend).context("failed to create terminal")?;
+        let mut terminal = Terminal::new(backend).context("failed to create terminal")?;
+        force_terminal_resize(&mut terminal).context("failed to determine terminal size")?;
         Ok(Self { terminal })
     }
 }
@@ -130,4 +128,27 @@ impl Drop for TerminalSession {
         let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen, Show);
         let _ = self.terminal.show_cursor();
     }
+}
+
+/// Polls the terminal size until it is non-zero and forces ratatui to adopt
+/// it before the first frame is drawn.
+///
+/// Under Docker, the `ioctl` used to query the terminal size can report
+/// `0x0` until the PTY forwarding is fully established. Ratatui caches the
+/// size at construction time, so without this step the first frames are
+/// drawn into a zero-sized area and appear blank until a key press triggers
+/// a refresh. Polling for a non-zero size and calling `resize` makes the
+/// first frame visible immediately.
+fn force_terminal_resize(
+    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
+) -> anyhow::Result<()> {
+    for _ in 0..40 {
+        let (columns, rows) = crossterm::terminal::size()?;
+        if columns > 0 && rows > 0 {
+            terminal.resize(Rect::new(0, 0, columns, rows))?;
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    anyhow::bail!("terminal reported 0x0 dimensions after one second")
 }
