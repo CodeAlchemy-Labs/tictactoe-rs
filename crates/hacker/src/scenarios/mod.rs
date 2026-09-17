@@ -1,9 +1,9 @@
 //! The scenarios the hacker can execute.
 //!
 //! Each scenario is a self-contained asynchronous function that takes a
-//! WebSocket target URL and returns an [`Outcome`](crate::outcome::Outcome).
-//! The [`run`] dispatcher maps a scenario name to the corresponding function,
-//! which keeps the binary free of `match`-on-string noise.
+//! WebSocket target URL and returns an [`Outcome`]. The [`run`] dispatcher
+//! maps a scenario name to the corresponding function, which keeps the
+//! binary free of `match`-on-string noise.
 
 pub mod flood;
 pub mod port_reuse;
