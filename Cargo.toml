@@ -31,7 +31,7 @@ tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
 
 # CLI argument parsing
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 
 # URL parsing
 url = "2"
