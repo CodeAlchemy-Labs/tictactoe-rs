@@ -214,7 +214,13 @@ session guard dropping for every client, in order, without delay.
 make test
 ```
 
-Or, for the full suite with coverage:
+Or, for the full suite with coverage, install the required tools first:
+
+```fish
+make tools
+```
+
+This installs `cargo-llvm-cov` and the `llvm-tools-preview` component. Then:
 
 ```fish
 make coverage
