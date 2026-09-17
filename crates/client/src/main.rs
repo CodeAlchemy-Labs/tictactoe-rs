@@ -1,7 +1,5 @@
 //! Binary entry point for the terminal client.
 
-use std::sync::Arc;
-
 use anyhow::Context;
 use crossterm::cursor::{Hide, Show};
 use crossterm::execute;
@@ -13,7 +11,8 @@ use ratatui::backend::CrosstermBackend;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
-use client::app::{AppEvent, AppState, apply_event, state::SideEffect};
+use client::app::update::dispatch;
+use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
 use client::infrastructure::{Transport, WsTransport};
 use client::tui::{KeyAction, read_key_action, render};
@@ -86,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
         let mut effects = Vec::new();
         apply_event(&mut state, event, &mut effects);
         let mut quit = state.should_quit;
-        client::app::update::dispatch(effects, &outgoing, &mut quit);
+        dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
     }
 
