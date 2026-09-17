@@ -1,0 +1,97 @@
+//! Integration tests for the client state machine driven by a mock transport.
+
+use client::app::state::AppEvent;
+use client::app::update::{SideEffect, apply_event};
+use client::app::AppState;
+use client::domain::Screen;
+use client::infrastructure::{MockTransport, Transport};
+use common::domain::{Board, Player};
+use common::protocol::{ClientId, ClientMessage, MatchId, ServerMessage};
+
+#[tokio::test]
+async fn full_happy_path_over_the_mock_transport() {
+    let (transport, mut server_rx, server_tx) = MockTransport::new();
+    let handle = transport.start();
+    let outgoing = handle.outgoing;
+    let mut incoming = handle.incoming;
+
+    let mut state = AppState::new("alice");
+
+    // The main loop always starts by sending Hello.
+    outgoing.send(ClientMessage::Hello {
+        display_name: String::from("alice"),
+    }).unwrap();
+
+    let sent = server_rx.recv().await.unwrap();
+    assert!(matches!(sent, ClientMessage::Hello { .. }));
+
+    // Server responds with Welcome; the client should ask for the list.
+    server_tx.send(ServerMessage::Welcome {
+        client_id: ClientId::new(1),
+        display_name: String::from("alice"),
+    }).unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+    assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
+    assert!(matches!(state.screen, Screen::Lobby { .. }));
+
+    // Server sends the match list.
+    server_tx.send(ServerMessage::MatchList { matches: vec![] }).unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+
+    // The user creates a match.
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::CreateMatch, &mut effects);
+    assert_eq!(effects, vec![SideEffect::Send(ClientMessage::CreateMatch)]);
+
+    // Server confirms, then pairs the players.
+    server_tx.send(ServerMessage::MatchCreated { match_id: MatchId::new(0) }).unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+
+    server_tx.send(ServerMessage::MatchReady {
+        match_id: MatchId::new(0),
+        opponent: String::from("bob"),
+        your_mark: Player::X,
+        board: Board::new(),
+        current_turn: Player::X,
+    }).unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+    assert!(matches!(state.screen, Screen::InGame(_)));
+
+    // The user plays a move; verify the outgoing message is well formed.
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::PlayMove(5), &mut effects);
+    assert_eq!(effects.len(), 1);
+
+    // Server reports the final board; the state transitions to Finished.
+    server_tx.send(ServerMessage::MatchOver {
+        board: Board::new(),
+        status: common::domain::GameStatus::Draw,
+    }).unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+    assert!(matches!(state.screen, Screen::Finished { .. }));
+}
+
+#[tokio::test]
+async fn server_disconnect_marks_state_as_fatal() {
+    let (transport, _server_rx, server_tx) = MockTransport::new();
+    let handle = transport.start();
+    let mut incoming = handle.incoming;
+
+    let mut state = AppState::new("alice");
+    drop(server_tx);
+    assert!(incoming.recv().await.is_none());
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Disconnected, &mut effects);
+    assert!(matches!(state.screen, Screen::Fatal(_)));
+    assert!(state.should_quit);
+}
