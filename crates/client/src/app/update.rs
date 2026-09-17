@@ -5,8 +5,8 @@
 //! state through a sequence of events and inspects both the resulting state
 //! and the list of [`SideEffect`] values produced.
 
-use common::domain::{Board, GameStatus};
-use common::protocol::{ClientMessage, ErrorCode, MatchSummary, ServerMessage};
+use common::domain::GameStatus;
+use common::protocol::{ClientMessage, ServerMessage};
 use tokio::sync::mpsc;
 
 use crate::app::state::{AppEvent, AppState};
@@ -143,8 +143,10 @@ pub fn dispatch(
 
 #[cfg(test)]
 mod tests {
+    use common::domain::{Board, Position};
+    use common::protocol::{ClientId, ErrorCode, MatchId, MatchSummary};
+
     use super::*;
-    use common::protocol::{ClientId, MatchId};
 
     fn apply(state: &mut AppState, event: AppEvent) -> Vec<SideEffect> {
         let mut effects = Vec::new();
