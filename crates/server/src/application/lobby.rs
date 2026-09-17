@@ -13,7 +13,7 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use common::domain::{GameStatus, Player, Position};
+use common::domain::{Board, GameStatus, Player, Position};
 use common::protocol::{ClientId, ErrorCode, MatchId, MatchSummary, ServerMessage};
 use tokio::sync::mpsc;
 
@@ -30,6 +30,11 @@ struct LobbyState {
     sessions: HashMap<ClientId, Session>,
     matches: HashMap<MatchId, Match>,
 }
+
+/// Tuple returned by [`apply_move`] on success.
+///
+/// The fields are `(host, guest, board, next_turn, status)`.
+type MoveOutcome = (ClientId, Option<ClientId>, Board, Player, GameStatus);
 
 /// Coordinates sessions and matches for all connected clients.
 pub struct LobbyService {
@@ -64,7 +69,7 @@ impl LobbyService {
     }
 
     /// Handles `Hello`.
-    pub fn hello(&self, client: ClientId, display_name: String) {
+    pub fn hello(&self, client: ClientId, display_name: &str) {
         let mut state = self.lock();
         let Some(session) = state.sessions.get_mut(&client) else {
             return;
@@ -92,6 +97,14 @@ impl LobbyService {
             client_id: client,
             display_name: owned,
         });
+    }
+
+    /// Handles `Ping`.
+    pub fn pong(&self, client: ClientId) {
+        let state = self.lock();
+        if let Some(session) = state.sessions.get(&client) {
+            session.try_send(ServerMessage::Pong);
+        }
     }
 
     /// Handles `ListMatches`.
@@ -150,7 +163,9 @@ impl LobbyService {
     pub fn join_match(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
-        let join_error = {
+        // Validation first. The block ends the immutable borrow of `state`
+        // before we mutate.
+        let validation: Option<(ErrorCode, &'static str)> = {
             let Some(session) = state.sessions.get(&client) else {
                 return;
             };
@@ -158,16 +173,17 @@ impl LobbyService {
                 Some((ErrorCode::InvalidState, "send hello before joining a match"))
             } else if session.current_match.is_some() {
                 Some((ErrorCode::InvalidState, "already in a match"))
-            } else if !state.matches.contains_key(&match_id) {
-                Some((ErrorCode::MatchNotFound, "match not found"))
-            } else if state.matches.get(&match_id).is_some_and(Match::is_full) {
-                Some((ErrorCode::MatchFull, "match is already full"))
             } else {
-                None
+                match state.matches.get(&match_id) {
+                    None => Some((ErrorCode::MatchNotFound, "match not found")),
+                    Some(m) if m.is_full() => {
+                        Some((ErrorCode::MatchFull, "match is already full"))
+                    }
+                    Some(_) => None,
+                }
             }
         };
-
-        if let Some((code, message)) = join_error {
+        if let Some((code, message)) = validation {
             if let Some(session) = state.sessions.get(&client) {
                 session.try_send(ServerMessage::Error {
                     code,
@@ -177,55 +193,52 @@ impl LobbyService {
             return;
         }
 
-        // From here the match exists, is not full, and the client can join.
-        let (host, host_display, guest_display) = {
-            let m = state
-                .matches
-                .get_mut(&match_id)
-                .expect("checked above");
-            m.guest = Some(client);
-            let host = m.host;
-            let host_display = state
-                .sessions
-                .get(&host)
-                .and_then(|s| s.display_name.clone())
-                .unwrap_or_else(|| String::from("unknown"));
-            let guest_display = state
-                .sessions
-                .get(&client)
-                .and_then(|s| s.display_name.clone())
-                .unwrap_or_else(|| String::from("unknown"));
-            (host, host_display, guest_display)
+        // Snapshot the values we need after the mutation. `Board`, `Player`,
+        // and `ClientId` are `Copy`, so no clone is necessary.
+        let (host, board, first_turn) = {
+            let Some(m) = state.matches.get(&match_id) else {
+                return;
+            };
+            (m.host, m.board, m.current_turn)
         };
+        let host_display = state
+            .sessions
+            .get(&host)
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_else(|| String::from("unknown"));
+        let guest_display = state
+            .sessions
+            .get(&client)
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_else(|| String::from("unknown"));
 
+        // Mutate.
+        if let Some(m) = state.matches.get_mut(&match_id) {
+            m.guest = Some(client);
+        }
         if let Some(session) = state.sessions.get_mut(&client) {
             session.current_match = Some(match_id);
             session.mark = Some(Player::O);
         }
 
         // Notify both players.
-        let m = state.matches.get(&match_id).expect("checked above");
-        let board = m.board;
-        let first_turn = m.current_turn;
-        let host_message = ServerMessage::MatchReady {
-            match_id,
-            opponent: guest_display,
-            your_mark: Player::X,
-            board,
-            current_turn: first_turn,
-        };
-        let guest_message = ServerMessage::MatchReady {
-            match_id,
-            opponent: host_display,
-            your_mark: Player::O,
-            board,
-            current_turn: first_turn,
-        };
-        if let Some(host) = state.sessions.get(&host) {
-            host.try_send(host_message);
+        if let Some(host_session) = state.sessions.get(&host) {
+            host_session.try_send(ServerMessage::MatchReady {
+                match_id,
+                opponent: guest_display,
+                your_mark: Player::X,
+                board,
+                current_turn: first_turn,
+            });
         }
-        if let Some(guest) = state.sessions.get(&client) {
-            guest.try_send(guest_message);
+        if let Some(guest_session) = state.sessions.get(&client) {
+            guest_session.try_send(ServerMessage::MatchReady {
+                match_id,
+                opponent: host_display,
+                your_mark: Player::O,
+                board,
+                current_turn: first_turn,
+            });
         }
     }
 
@@ -233,22 +246,18 @@ impl LobbyService {
     pub fn make_move(&self, client: ClientId, position: Position) {
         let mut state = self.lock();
 
-        let match_id = match state.sessions.get(&client).and_then(|s| s.current_match) {
-            Some(id) => id,
-            None => {
-                if let Some(session) = state.sessions.get(&client) {
-                    session.try_send(ServerMessage::Error {
-                        code: ErrorCode::NotInMatch,
-                        message: String::from("not in a match"),
-                    });
-                }
-                return;
+        let Some(match_id) = state.sessions.get(&client).and_then(|s| s.current_match) else {
+            if let Some(session) = state.sessions.get(&client) {
+                session.try_send(ServerMessage::Error {
+                    code: ErrorCode::NotInMatch,
+                    message: String::from("not in a match"),
+                });
             }
+            return;
         };
 
-        // Apply the move. We deliberately scope the mutable borrow of
-        // `state.matches` so the compiler can prove disjointness with the
-        // subsequent access to `state.sessions`.
+        // Apply the move inside a scope that ends the mutable borrow of
+        // `state.matches` before we access `state.sessions`.
         let outcome = {
             let Some(m) = state.matches.get_mut(&match_id) else {
                 if let Some(session) = state.sessions.get(&client) {
@@ -280,20 +289,20 @@ impl LobbyService {
                 if let Some(host) = state.sessions.get(&host) {
                     host.try_send(update.clone());
                 }
-                if let Some(guest_id) = guest {
-                    if let Some(guest) = state.sessions.get(&guest_id) {
-                        guest.try_send(update);
-                    }
+                if let Some(guest_id) = guest
+                    && let Some(guest) = state.sessions.get(&guest_id)
+                {
+                    guest.try_send(update);
                 }
                 if status.is_finished() {
                     let over = ServerMessage::MatchOver { board, status };
                     if let Some(host) = state.sessions.get(&host) {
                         host.try_send(over.clone());
                     }
-                    if let Some(guest_id) = guest {
-                        if let Some(guest) = state.sessions.get(&guest_id) {
-                            guest.try_send(over);
-                        }
+                    if let Some(guest_id) = guest
+                        && let Some(guest) = state.sessions.get(&guest_id)
+                    {
+                        guest.try_send(over);
                     }
                 }
             }
@@ -353,14 +362,6 @@ impl LobbyService {
     fn lock(&self) -> MutexGuard<'_, LobbyState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
-
-    /// Handles `Ping`.
-    pub fn pong(&self, client: ClientId) {
-        let state = self.lock();
-        if let Some(session) = state.sessions.get(&client) {
-            session.try_send(ServerMessage::Pong);
-        }
-    }
 }
 
 /// Removes `client` from `match_id`, notifies the opponent, and drops the
@@ -392,15 +393,15 @@ fn detach_from_match(state: &mut LobbyState, match_id: MatchId, client: ClientId
 
 /// Applies `position` as a move by `client` to `m`.
 ///
-/// On success returns the (host, guest, board, next_turn, status) tuple the
-/// caller needs to broadcast. On failure returns the `(ErrorCode, message)`
-/// pair the caller should send to the offending client.
-#[allow(clippy::type_complexity)]
+/// On success returns the `(host, guest, board, next_turn, status)` tuple
+/// the caller needs to broadcast. On failure returns the
+/// `(ErrorCode, message)` pair the caller should send to the offending
+/// client.
 fn apply_move(
     m: &mut Match,
     client: ClientId,
     position: Position,
-) -> Result<(ClientId, Option<ClientId>, common::domain::Board, Player, GameStatus), (ErrorCode, &'static str)> {
+) -> Result<MoveOutcome, (ErrorCode, &'static str)> {
     if m.status.is_finished() {
         return Err((ErrorCode::InvalidState, "match is already over"));
     }
@@ -427,7 +428,11 @@ fn apply_move(
 mod tests {
     use super::*;
 
-    fn lobby_with_client() -> (LobbyService, ClientId, mpsc::UnboundedReceiver<ServerMessage>) {
+    fn lobby_with_client() -> (
+        LobbyService,
+        ClientId,
+        mpsc::UnboundedReceiver<ServerMessage>,
+    ) {
         let lobby = LobbyService::new();
         let (tx, rx) = mpsc::unbounded_channel();
         let id = lobby.register(tx);
@@ -443,7 +448,7 @@ mod tests {
     #[test]
     fn hello_sends_welcome() {
         let (lobby, id, mut rx) = lobby_with_client();
-        lobby.hello(id, String::from("alice"));
+        lobby.hello(id, "alice");
         match rx.try_recv().unwrap() {
             ServerMessage::Welcome { display_name, .. } => assert_eq!(display_name, "alice"),
             other => panic!("unexpected: {other:?}"),
@@ -453,7 +458,7 @@ mod tests {
     #[test]
     fn empty_display_name_is_rejected() {
         let (lobby, id, mut rx) = lobby_with_client();
-        lobby.hello(id, String::from("   "));
+        lobby.hello(id, "   ");
         match rx.try_recv().unwrap() {
             ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::InvalidDisplayName),
             other => panic!("unexpected: {other:?}"),
@@ -477,9 +482,9 @@ mod tests {
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register(host_tx);
         let guest = lobby.register(guest_tx);
-        lobby.hello(host, String::from("host"));
+        lobby.hello(host, "host");
         let _ = host_rx.try_recv(); // Welcome
-        lobby.hello(guest, String::from("guest"));
+        lobby.hello(guest, "guest");
         let _ = guest_rx.try_recv(); // Welcome
 
         lobby.create_match(host);
@@ -490,14 +495,22 @@ mod tests {
         lobby.join_match(guest, match_id);
 
         match host_rx.try_recv().unwrap() {
-            ServerMessage::MatchReady { your_mark, opponent, .. } => {
+            ServerMessage::MatchReady {
+                your_mark,
+                opponent,
+                ..
+            } => {
                 assert_eq!(your_mark, Player::X);
                 assert_eq!(opponent, "guest");
             }
             other => panic!("unexpected: {other:?}"),
         }
         match guest_rx.try_recv().unwrap() {
-            ServerMessage::MatchReady { your_mark, opponent, .. } => {
+            ServerMessage::MatchReady {
+                your_mark,
+                opponent,
+                ..
+            } => {
                 assert_eq!(your_mark, Player::O);
                 assert_eq!(opponent, "host");
             }
@@ -512,27 +525,20 @@ mod tests {
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register(host_tx);
         let guest = lobby.register(guest_tx);
-        lobby.hello(host, String::from("host"));
+        lobby.hello(host, "host");
         let _ = host_rx.try_recv();
-        lobby.hello(guest, String::from("guest"));
+        lobby.hello(guest, "guest");
         let _ = guest_rx.try_recv();
         lobby.create_match(host);
-        let match_id = match host_rx.try_recv().unwrap() {
-            ServerMessage::MatchCreated { match_id } => match_id,
-            _ => unreachable!(),
+        let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+            unreachable!("first message must be MatchCreated")
         };
         lobby.join_match(guest, match_id);
         let _ = host_rx.try_recv(); // MatchReady
         let _ = guest_rx.try_recv(); // MatchReady
 
         // X: 0, 1, 2 wins. O plays 3, 4.
-        for (client, pos) in [
-            (host, 0u8),
-            (guest, 3),
-            (host, 1),
-            (guest, 4),
-            (host, 2),
-        ] {
+        for (client, pos) in [(host, 0u8), (guest, 3), (host, 1), (guest, 4), (host, 2)] {
             lobby.make_move(client, Position::new(pos).unwrap());
         }
 
@@ -551,7 +557,7 @@ mod tests {
         let lobby = LobbyService::new();
         let (tx, _rx) = mpsc::unbounded_channel();
         let host = lobby.register(tx);
-        lobby.hello(host, String::from("host"));
+        lobby.hello(host, "host");
         lobby.create_match(host);
         assert_eq!(lobby.session_count(), 1);
         assert_eq!(lobby.match_count(), 1);
@@ -568,19 +574,14 @@ mod tests {
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register(host_tx);
         let guest = lobby.register(guest_tx);
-        lobby.hello(host, String::from("host"));
+        lobby.hello(host, "host");
         let _ = host_rx.try_recv();
-        lobby.hello(guest, String::from("guest"));
+        lobby.hello(guest, "guest");
         let _ = guest_rx.try_recv();
         lobby.create_match(host);
-        let _ = host_rx.try_recv();
-        let match_id = lobby
-            .lock()
-            .matches
-            .keys()
-            .copied()
-            .next()
-            .expect("match exists");
+        let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+            unreachable!("first message must be MatchCreated")
+        };
         lobby.join_match(guest, match_id);
         let _ = host_rx.try_recv();
         let _ = guest_rx.try_recv();
