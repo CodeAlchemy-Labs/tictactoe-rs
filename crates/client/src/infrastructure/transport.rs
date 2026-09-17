@@ -82,7 +82,7 @@ mod tests {
     #[tokio::test]
     async fn mock_transport_forwards_messages_both_ways() {
         let (transport, mut server_rx, server_tx) = MockTransport::new();
-        let handle = transport.start();
+        let mut handle = transport.start();
 
         handle
             .outgoing
