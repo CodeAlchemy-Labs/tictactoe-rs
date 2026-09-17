@@ -25,7 +25,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut terminal = TerminalSession::enter()?;
 
-    let transport = WsTransport::new(config.server_url.clone());
+    let transport = WsTransport::new(config.server_url.clone(), config.insecure);
     let handle = transport.start();
     let outgoing = handle.outgoing;
     let mut incoming = handle.incoming;
