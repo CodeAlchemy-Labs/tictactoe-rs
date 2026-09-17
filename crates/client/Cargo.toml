@@ -26,6 +26,8 @@ ratatui.workspace = true
 crossterm.workspace = true
 tokio-tungstenite.workspace = true
 rustls.workspace = true
+clap.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
