@@ -33,6 +33,29 @@ pub enum KeyAction {
     Ignored,
 }
 
+/// Blocks until a key is pressed and returns the raw [`KeyCode`].
+///
+/// The caller is expected to fetch the current screen and call
+/// [`translate_key`] itself. This split guarantees that the screen used for
+/// translation is the one that is current **at the moment the key arrives**,
+/// not a stale snapshot taken before the read blocked.
+///
+/// # Errors
+///
+/// Returns [`InputError::Io`] on terminal failures.
+pub fn read_key_code() -> Result<KeyCode, InputError> {
+    loop {
+        let event = event::read()?;
+        let Event::Key(key) = event else {
+            continue;
+        };
+        if key.kind != KeyEventKind::Press {
+            continue;
+        }
+        return Ok(key.code);
+    }
+}
+
 /// Blocks until a key is pressed and returns the corresponding action,
 /// translated according to the screen currently shown.
 ///
