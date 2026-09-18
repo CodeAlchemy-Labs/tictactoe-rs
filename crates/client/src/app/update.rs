@@ -65,10 +65,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             }
         }
         AppEvent::JoinMatchAt(index) => {
-            if let Screen::Lobby { matches, .. } = &state.screen
-                && let Some(summary) = matches.get(index)
-            {
-                let match_id = summary.id;
+            if let Some(match_id) = state.screen.visible_matches().get(index).map(|s| s.id) {
                 if state.is_authenticated() {
                     effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
                 } else {
@@ -91,10 +88,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             }
         }
         AppEvent::SpectateAt(index) => {
-            if let Screen::Lobby { matches, .. } = &state.screen
-                && let Some(summary) = matches.get(index)
-            {
-                let match_id = summary.id;
+            if let Some(match_id) = state.screen.visible_matches().get(index).map(|s| s.id) {
                 state.status = String::from("connecting to the match...");
                 effects.push(SideEffect::Send(ClientMessage::Spectate { match_id }));
             }
@@ -562,6 +556,7 @@ mod tests {
                 id: MatchId::new(id),
                 host: String::from("bob"),
                 spectator_count: 0,
+                is_full: false
             }],
             spectator_mode: false,
         }
@@ -615,6 +610,7 @@ mod tests {
                     id: MatchId::new(0),
                     host: String::from("bob"),
                     spectator_count: 0,
+                    is_full: false
                 }],
             }),
         );
@@ -1192,5 +1188,43 @@ mod tests {
             Screen::Lobby { spectator_mode, .. } => assert!(*spectator_mode),
             other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    #[test]
+    fn join_at_ignores_full_matches() {
+        let mut state = AppState::new("alice");
+        state.authenticated_as = Some(Username::new("alice_99").unwrap());
+        state.screen = Screen::Lobby {
+            matches: vec![MatchSummary {
+                id: MatchId::new(7),
+                host: String::from("bob"),
+                spectator_count: 0,
+                is_full: true,
+            }],
+            spectator_mode: false,
+        };
+        let effects = apply(&mut state, AppEvent::JoinMatchAt(0));
+        assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn spectate_at_reaches_full_matches() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Lobby {
+            matches: vec![MatchSummary {
+                id: MatchId::new(3),
+                host: String::from("bob"),
+                spectator_count: 0,
+                is_full: true,
+            }],
+            spectator_mode: true,
+        };
+        let effects = apply(&mut state, AppEvent::SpectateAt(0));
+        assert_eq!(
+            effects,
+            vec![SideEffect::Send(ClientMessage::Spectate {
+                match_id: MatchId::new(3)
+            })]
+        );
     }
 }
