@@ -270,7 +270,11 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
 
 /// Applies an authentication failure: shows the error on the auth form when
 /// the client is on that screen, otherwise on the status line.
-fn apply_auth_failure(state: &mut AppState, reason: common::protocol::AuthFailureReason, message: &str) {
+fn apply_auth_failure(
+    state: &mut AppState,
+    reason: common::protocol::AuthFailureReason,
+    message: &str,
+) {
     if let Screen::Auth(form) = &mut state.screen {
         form.error = Some(format!("{reason:?}: {message}"));
     } else {
