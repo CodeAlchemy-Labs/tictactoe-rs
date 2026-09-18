@@ -23,6 +23,8 @@ anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 futures-util.workspace = true
+argon2.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
