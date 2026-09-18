@@ -151,19 +151,19 @@ impl AuthService {
 async fn hash_password(password: String, params: Params) -> Result<String, AuthError> {
     tokio::task::spawn_blocking(move || {
         let mut bytes = password.into_bytes();
-        let result = (|| {
+        let result = {
             let salt = SaltString::generate(&mut OsRng);
             let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
             argon2
                 .hash_password(&bytes, &salt)
                 .map(|hash| hash.to_string())
                 .map_err(|_| AuthError::Hashing)
-        })();
+        };
         bytes.zeroize();
         result
     })
-    .await
-    .map_err(|_| AuthError::TaskFailed)?
+        .await
+        .map_err(|_| AuthError::TaskFailed)?
 }
 
 async fn verify_password(
@@ -173,16 +173,16 @@ async fn verify_password(
 ) -> Result<bool, AuthError> {
     tokio::task::spawn_blocking(move || {
         let mut bytes = password.into_bytes();
-        let result = (|| {
+        let result = {
             let parsed = PasswordHash::new(&stored_hash).map_err(|_| AuthError::Hashing)?;
             let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
             Ok(argon2.verify_password(&bytes, &parsed).is_ok())
-        })();
+        };
         bytes.zeroize();
         result
     })
-    .await
-    .map_err(|_| AuthError::TaskFailed)?
+        .await
+        .map_err(|_| AuthError::TaskFailed)?
 }
 
 #[cfg(test)]
@@ -190,8 +190,14 @@ mod tests {
     use super::*;
     use common::domain::Age;
 
+    /// Argon2 parameters tuned for test speed.
+    ///
+    /// The values are the minimum accepted by the crate: 8 KiB of memory
+    /// (the spec requires at least `8 * parallelism`), 1 iteration, and
+    /// parallelism of 1. This hashes in microseconds while still exercising
+    /// the same code path as production.
     fn fast_params() -> Params {
-        Params::new(1, 1, 1, None).expect("test parameters are valid")
+        Params::new(8, 1, 1, None).expect("test parameters are within the accepted range")
     }
 
     fn fast_service() -> AuthService {
