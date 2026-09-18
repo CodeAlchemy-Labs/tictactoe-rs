@@ -217,7 +217,9 @@ impl LobbyService {
     pub fn list_ranking(&self, client: ClientId) {
         let state = self.lock();
         if let Some(session) = state.sessions.get(&client) {
-            session.try_send(ServerMessage::Ranking { entries: Vec::new() });
+            session.try_send(ServerMessage::Ranking {
+                entries: Vec::new(),
+            });
         }
     }
 }
