@@ -54,6 +54,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ANSI escape sequences are no longer emitted on Windows consoles that do
   not process Virtual Terminal codes. The server, client, and hacker
   binaries all detect the console capability and fall back to plain text.
+- `ServerMessage::Error` now tolerates a missing `code` field. Servers
+  deployed before the introduction of error codes omit it, and the client
+  falls back to `ErrorCode::Unknown` instead of failing to deserialize.
+  This restores compatibility between newer clients and older servers.
 
 ## [0.1.0] - 2026-09-17
 
