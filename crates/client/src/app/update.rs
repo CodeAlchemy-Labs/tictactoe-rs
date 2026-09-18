@@ -109,6 +109,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
+        AppEvent::Noop => {}
         AppEvent::Send(message) => {
             effects.push(SideEffect::Send(message));
         }
