@@ -10,7 +10,7 @@ use common::domain::{Cell, GameStatus, Player, RankingEntry};
 
 use crate::app::AppState;
 use crate::domain::auth_form::{AuthField, AuthForm, AuthMode};
-use crate::domain::screen::{ActiveMatch, Screen};
+use crate::domain::screen::{ActiveMatch, Screen, SpectatedMatch};
 
 /// Renders the whole UI for the current state.
 pub fn render(frame: &mut Frame<'_>, state: &AppState) {
@@ -52,9 +52,13 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
             );
         }
         Screen::Auth(form) => render_auth(frame, area, form),
-        Screen::Lobby { matches } => render_lobby(frame, area, matches),
+        Screen::Lobby {
+            matches,
+            spectator_mode,
+        } => render_lobby(frame, area, matches, *spectator_mode),
         Screen::Ranking { entries } => render_ranking(frame, area, entries),
         Screen::InGame(active) => render_game(frame, area, active),
+        Screen::Spectating(active) => render_spectating(frame, area, active),
         Screen::Finished {
             board,
             status,
@@ -71,7 +75,36 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
     }
 }
 
-fn render_lobby(frame: &mut Frame<'_>, area: Rect, matches: &[common::protocol::MatchSummary]) {
+fn render_lobby(
+    frame: &mut Frame<'_>,
+    area: Rect,
+    matches: &[common::protocol::MatchSummary],
+    spectator_mode: bool,
+) {
+    let columns = if spectator_mode {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(3), Constraint::Min(5)])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(5)])
+            .split(area)
+    };
+
+    if spectator_mode {
+        let banner = Paragraph::new(
+            "Spectator mode: press 1-9 to watch a match, Esc to cancel",
+        )
+            .block(Block::default().borders(Borders::ALL))
+            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .alignment(Alignment::Center);
+        frame.render_widget(banner, columns[0]);
+    }
+
+    let body_area = if spectator_mode { columns[1] } else { columns[0] };
+
     let items: Vec<ListItem<'_>> = if matches.is_empty() {
         vec![ListItem::new("no open matches; press c to create one")]
     } else {
@@ -79,17 +112,23 @@ fn render_lobby(frame: &mut Frame<'_>, area: Rect, matches: &[common::protocol::
             .iter()
             .enumerate()
             .map(|(index, summary)| {
+                let spectators = if summary.spectator_count > 0 {
+                    format!(", {} watching", summary.spectator_count)
+                } else {
+                    String::new()
+                };
                 ListItem::new(format!(
-                    "[{}] {} (host: {})",
+                    "[{}] {} (host: {}{})",
                     index + 1,
                     summary.id,
-                    summary.host
+                    summary.host,
+                    spectators
                 ))
             })
             .collect()
     };
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Lobby"));
-    frame.render_widget(list, area);
+    frame.render_widget(list, body_area);
 }
 
 fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
@@ -120,7 +159,7 @@ fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
                 entry.name.clone(),
                 format!("{}", entry.wins),
             ])
-            .style(style)
+                .style(style)
         })
         .collect();
 
@@ -147,7 +186,7 @@ fn render_game(frame: &mut Frame<'_>, area: Rect, active: &ActiveMatch) {
         .constraints([Constraint::Length(31), Constraint::Min(20)])
         .split(area);
 
-    let board_lines = build_board_lines(active);
+    let board_lines = build_board_lines_from(&active.board);
     let board = Paragraph::new(board_lines)
         .block(Block::default().borders(Borders::ALL).title("Board"))
         .alignment(Alignment::Center);
@@ -166,6 +205,39 @@ fn render_game(frame: &mut Frame<'_>, area: Rect, active: &ActiveMatch) {
     ];
     let side = Paragraph::new(side_text)
         .block(Block::default().borders(Borders::ALL).title("Status"))
+        .wrap(Wrap { trim: true });
+    frame.render_widget(side, columns[1]);
+}
+
+fn render_spectating(frame: &mut Frame<'_>, area: Rect, active: &SpectatedMatch) {
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Length(31), Constraint::Min(20)])
+        .split(area);
+
+    let board_lines = build_board_lines_from(&active.board);
+    let board = Paragraph::new(board_lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Board (read-only)"),
+        )
+        .alignment(Alignment::Center);
+    frame.render_widget(board, columns[0]);
+
+    let side_text = vec![
+        Line::from(format!("match:       {}", active.id)),
+        Line::from(format!("host:        {}", active.host_name)),
+        Line::from(format!("guest:       {}", active.guest_name)),
+        Line::from(format!("turn:        {:?}", active.current_turn)),
+        Line::from(format!("status:      {:?}", active.status)),
+        Line::from(format!("spectators:  {}", active.spectator_count)),
+        Line::from(""),
+        Line::from("you are observing this match."),
+        Line::from("Esc to leave."),
+    ];
+    let side = Paragraph::new(side_text)
+        .block(Block::default().borders(Borders::ALL).title("Spectating"))
         .wrap(Wrap { trim: true });
     frame.render_widget(side, columns[1]);
 }
@@ -246,7 +318,7 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
     let help = Paragraph::new(
         "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
     )
-    .block(Block::default().borders(Borders::ALL));
+        .block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, rows[2]);
 }
 
@@ -271,10 +343,6 @@ fn render_footer(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
         .block(Block::default().borders(Borders::ALL))
         .wrap(Wrap { trim: true });
     frame.render_widget(paragraph, area);
-}
-
-fn build_board_lines(active: &ActiveMatch) -> Vec<Line<'static>> {
-    build_board_lines_from(&active.board)
 }
 
 fn build_board_lines_from(board: &common::domain::Board) -> Vec<Line<'static>> {
