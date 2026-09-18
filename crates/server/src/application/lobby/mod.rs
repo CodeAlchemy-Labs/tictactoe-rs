@@ -166,6 +166,14 @@ impl LobbyService {
             .is_some_and(Session::is_authenticated)
     }
 
+    fn is_spectating(&self, client_id: ClientId) -> bool {
+        let state = self.lock();
+        state
+            .sessions
+            .get(&client_id)
+            .is_some_and(Session::is_spectating)
+    }
+
     fn is_username_active(&self, username: &Username) -> bool {
         self.lock().active_sessions.contains_key(username)
     }
