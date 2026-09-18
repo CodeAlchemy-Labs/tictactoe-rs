@@ -807,3 +807,66 @@ async fn after_a_win_the_player_can_start_a_new_match() {
         other => panic!("expected MatchCreated, got {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn host_cannot_join_its_own_match() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+
+    // The host tries to join its own match. The server must reject it.
+    lobby.join_match(host, match_id);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::Error { code, .. } => {
+            assert_eq!(code, ErrorCode::CannotJoinOwnMatch);
+        }
+        other => panic!("expected CannotJoinOwnMatch, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn guest_leaving_destroys_the_match_and_frees_the_host() {
+    // Regression test: previously, when the guest left, the match survived
+    // with `guest = None`. The host could then join its own match as guest,
+    // and afterwards could not create a new one with "already in a match".
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+    assert_eq!(lobby.match_count(), 1);
+
+    // The guest leaves.
+    lobby.leave_match(guest);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::OpponentLeft { .. } => {}
+        other => panic!("expected OpponentLeft, got {other:?}"),
+    }
+    assert_eq!(lobby.match_count(), 0);
+
+    // The host is free to create another match.
+    lobby.create_match(host);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::MatchCreated { .. } => {}
+        other => panic!("expected MatchCreated, got {other:?}"),
+    }
+}
