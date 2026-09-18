@@ -207,6 +207,8 @@ pub enum ErrorCode {
     SpectatorLimitReached,
     /// The client is already spectating a match.
     AlreadySpectating,
+    /// The server has reached its maximum concurrent sessions limit.
+    TooManySessions,
     /// The server did not provide a code, or provided one the client does
     /// not recognize. Used as the fallback for older servers.
     #[default]

@@ -26,6 +26,8 @@ pub enum AuthFailureReason {
     AlreadyAuthenticated,
     /// The account is already signed in on another connection.
     AlreadyLoggedIn,
+    /// The client has exceeded the authentication rate limit.
+    RateLimited,
     /// The server failed to complete the operation for an infrastructure
     /// reason. Retrying may work; the details are in the server logs.
     InternalError,
@@ -43,6 +45,8 @@ mod tests {
         assert_eq!(value, "\"invalid_credentials\"");
         let value = serde_json::to_string(&AuthFailureReason::AlreadyLoggedIn).unwrap();
         assert_eq!(value, "\"already_logged_in\"");
+        let value = serde_json::to_string(&AuthFailureReason::RateLimited).unwrap();
+        assert_eq!(value, "\"rate_limited\"");
         let value = serde_json::to_string(&AuthFailureReason::InternalError).unwrap();
         assert_eq!(value, "\"internal_error\"");
     }
@@ -58,6 +62,7 @@ mod tests {
             AuthFailureReason::InvalidCredentials,
             AuthFailureReason::AlreadyAuthenticated,
             AuthFailureReason::AlreadyLoggedIn,
+            AuthFailureReason::RateLimited,
             AuthFailureReason::InternalError,
         ] {
             let json = serde_json::to_string(&reason).unwrap();
