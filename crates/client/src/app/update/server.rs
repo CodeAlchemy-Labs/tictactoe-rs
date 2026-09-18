@@ -1,7 +1,7 @@
 //! Server-message dispatch.
 
-use common::domain::GameStatus;
-use common::protocol::{ClientMessage, ErrorCode, ServerMessage};
+use common::domain::{Board, GameStatus, Player};
+use common::protocol::{ClientMessage, ErrorCode, MatchId, ServerMessage};
 
 use crate::app::state::AppState;
 use crate::domain::{ActiveMatch, AuthMode, Screen};
@@ -21,6 +21,9 @@ pub(super) fn apply_server(
         return;
     }
     if apply_spectator_message(state, &message, effects) {
+        return;
+    }
+    if apply_in_game_opponent_notice(state, &message) {
         return;
     }
     match message {
@@ -58,15 +61,7 @@ pub(super) fn apply_server(
             board,
             current_turn,
         } => {
-            state.screen = Screen::InGame(Box::new(ActiveMatch {
-                id: match_id,
-                opponent,
-                your_mark,
-                board,
-                current_turn,
-                status: GameStatus::InProgress,
-            }));
-            state.status = String::from("1-9 to play, q to leave");
+            enter_game(state, match_id, opponent, your_mark, board, current_turn);
         }
         ServerMessage::BoardUpdate {
             board,
@@ -92,39 +87,10 @@ pub(super) fn apply_server(
             state.status = String::from("press Esc to return to the lobby");
         }
         ServerMessage::MatchAbandoned { .. } => {
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-                spectator_mode: false,
-            };
-            state.status = String::from("the match was abandoned");
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            return_to_lobby(state, effects, "the match was abandoned");
         }
         ServerMessage::OpponentLeft { .. } => {
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-                spectator_mode: false,
-            };
-            state.status = String::from("opponent left the match");
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
-        }
-        ServerMessage::OpponentDisconnected {
-            match_id,
-            grace_seconds,
-        } => {
-            if let Screen::InGame(active) = &mut state.screen
-                && active.id == match_id
-            {
-                state.status = format!(
-                    "opponent disconnected; waiting up to {grace_seconds}s for reconnection"
-                );
-            }
-        }
-        ServerMessage::OpponentReconnected { match_id } => {
-            if let Screen::InGame(active) = &state.screen
-                && active.id == match_id
-            {
-                state.status = String::from("opponent reconnected; game resumed");
-            }
+            return_to_lobby(state, effects, "opponent left the match");
         }
         ServerMessage::Error { code, message } => {
             apply_error(state, code, message);
@@ -136,8 +102,72 @@ pub(super) fn apply_server(
         | ServerMessage::SpectateStarted { .. }
         | ServerMessage::SpectatorJoined { .. }
         | ServerMessage::SpectatorLeft { .. }
+        | ServerMessage::OpponentDisconnected { .. }
+        | ServerMessage::OpponentReconnected { .. }
         | ServerMessage::Pong => {}
     }
+}
+
+/// Handles the opponent notices that only apply while the local client is
+/// playing a match.
+///
+/// Returns `true` when the message was consumed here. A message about a
+/// different match is also consumed: the local client cannot act on it.
+fn apply_in_game_opponent_notice(state: &mut AppState, message: &ServerMessage) -> bool {
+    let Screen::InGame(active) = &state.screen else {
+        return false;
+    };
+    let active_id = active.id;
+    match message {
+        ServerMessage::OpponentDisconnected {
+            match_id,
+            grace_seconds,
+        } => {
+            if *match_id == active_id {
+                state.status = format!(
+                    "opponent disconnected; waiting up to {grace_seconds}s for reconnection"
+                );
+            }
+            true
+        }
+        ServerMessage::OpponentReconnected { match_id } => {
+            if *match_id == active_id {
+                state.status = String::from("opponent reconnected; game resumed");
+            }
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Switches the client into the in-game screen with the given state.
+fn enter_game(
+    state: &mut AppState,
+    match_id: MatchId,
+    opponent: String,
+    your_mark: Player,
+    board: Board,
+    current_turn: Player,
+) {
+    state.screen = Screen::InGame(Box::new(ActiveMatch {
+        id: match_id,
+        opponent,
+        your_mark,
+        board,
+        current_turn,
+        status: GameStatus::InProgress,
+    }));
+    state.status = String::from("1-9 to play, q to leave");
+}
+
+/// Returns the client to the lobby and requests a fresh match list.
+fn return_to_lobby(state: &mut AppState, effects: &mut Vec<SideEffect>, status: &str) {
+    state.screen = Screen::Lobby {
+        matches: Vec::new(),
+        spectator_mode: false,
+    };
+    state.status = String::from(status);
+    effects.push(SideEffect::Send(ClientMessage::ListMatches));
 }
 
 /// Applies `MatchList` and `Ranking`.
