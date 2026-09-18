@@ -6,15 +6,17 @@ use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
+
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
 use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
+use client::domain::screen::Screen;
 use client::infrastructure::{Transport, WsTransport};
 use client::tui::{KeyAction, read_key_action, render};
 use std::io::IsTerminal;
@@ -44,25 +46,40 @@ async fn main() -> anyhow::Result<()> {
         let _ = server_events.send(AppEvent::Disconnected);
     });
 
-    // Broadcast the current screen from the main loop to the keyboard
-    // thread. The keyboard thread is the only reader and needs the screen
-    // to translate digits correctly (join in the lobby, move in a game).
     let mut state = AppState::new(config.display_name.clone());
-    let (screen_tx, screen_rx) = watch::channel(state.screen.clone());
 
-    // Task: read the keyboard in a blocking thread.
+    // The keyboard thread and the main loop are synchronized through a
+    // capacity-one channel. The main loop pushes the current screen after
+    // every processed event; the keyboard thread blocks on receiving a
+    // screen before reading the next key. That guarantees the translation
+    // always uses the freshest screen, so keys that depend on context
+    // (like digits in spectator mode) never see a stale value.
+    let (screen_tx, mut screen_rx) = mpsc::channel::<Screen>(1);
+    screen_tx
+        .send(state.screen.clone())
+        .await
+        .context("failed to prime the keyboard channel")?;
+
     let keyboard_events = event_tx.clone();
-    let keyboard_screen = screen_rx;
     tokio::task::spawn_blocking(move || {
         loop {
-            let screen = keyboard_screen.borrow().clone();
+            let screen = match screen_rx.blocking_recv() {
+                Some(screen) => screen,
+                None => return,
+            };
             match read_key_action(&screen) {
                 Ok(KeyAction::Event(event)) => {
                     if keyboard_events.send(event).is_err() {
                         return;
                     }
                 }
-                Ok(KeyAction::Ignored) => {}
+                Ok(KeyAction::Ignored) => {
+                    // Wake the main loop so it can publish the next screen,
+                    // even though this key produced no event.
+                    if keyboard_events.send(AppEvent::Noop).is_err() {
+                        return;
+                    }
+                }
                 Err(error) => {
                     tracing::warn!(%error, "keyboard input failed");
                     return;
@@ -92,7 +109,9 @@ async fn main() -> anyhow::Result<()> {
         dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
 
-        let _ = screen_tx.send(state.screen.clone());
+        if screen_tx.send(state.screen.clone()).await.is_err() {
+            break;
+        }
     }
 
     Ok(())
