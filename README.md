@@ -1,5 +1,9 @@
 # tictactoe-rs
 
+[![ci](https://github.com/CodeAlchemy-Labs/tictactoe-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/CodeAlchemy-Labs/tictactoe-rs/actions/workflows/ci.yml)
+[![release](https://github.com/CodeAlchemy-Labs/tictactoe-rs/actions/workflows/release.yml/badge.svg)](https://github.com/CodeAlchemy-Labs/tictactoe-rs/actions/workflows/release.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A WebSocket-based Tic-Tac-Toe game written in Rust, built as a teaching
 reference for secure concurrent network programming. The project demonstrates
 how Rust's ownership model and deterministic destruction eliminate whole
