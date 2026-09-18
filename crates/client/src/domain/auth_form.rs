@@ -21,6 +21,7 @@ impl AuthMode {
     }
 
     /// Toggles between login and register.
+    #[must_use]
     pub const fn toggled(self) -> Self {
         match self {
             Self::Login => Self::Register,
@@ -302,12 +303,25 @@ mod tests {
     }
 
     #[test]
-    fn toggle_mode_switches_to_register_and_resets_focus() {
+    fn toggle_mode_keeps_focus_when_field_is_visible_in_both_modes() {
+        // Password exists in both modes, so switching from Login to
+        // Register must not move the cursor away from it.
         let mut form = AuthForm::new(AuthMode::Login, None);
         form.focused = AuthField::Password;
         form.toggle_mode();
         assert_eq!(form.mode, AuthMode::Register);
-        assert_eq!(form.focused, AuthField::Name);
+        assert_eq!(form.focused, AuthField::Password);
+    }
+
+    #[test]
+    fn toggle_mode_resets_focus_when_field_is_not_visible_in_the_new_mode() {
+        // Name exists only in Register mode, so switching back to Login
+        // must move the cursor to the first visible field.
+        let mut form = AuthForm::new(AuthMode::Register, None);
+        form.focused = AuthField::Name;
+        form.toggle_mode();
+        assert_eq!(form.mode, AuthMode::Login);
+        assert_eq!(form.focused, AuthField::Username);
     }
 
     #[test]
