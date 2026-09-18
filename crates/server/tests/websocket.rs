@@ -284,3 +284,200 @@ async fn login_after_the_first_session_disconnects_succeeds() {
         other => panic!("unexpected: {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn spectator_receives_the_snapshot_and_board_updates() {
+    let (addr, _) = spawn_server().await;
+    let mut host = connect(addr).await;
+    let mut guest = connect(addr).await;
+    let mut spec = connect(addr).await;
+
+    register(&mut host, "host_99").await;
+    register(&mut guest, "guest_99").await;
+    register(&mut spec, "watch_99").await;
+
+    send(&mut host, &ClientMessage::CreateMatch).await;
+    let match_id = match recv(&mut host).await {
+        ServerMessage::MatchCreated { match_id } => match_id,
+        other => panic!("unexpected: {other:?}"),
+    };
+    send(&mut guest, &ClientMessage::JoinMatch { match_id }).await;
+    let _ = recv(&mut host).await; // MatchReady
+    let _ = recv(&mut guest).await; // MatchReady
+
+    send(&mut spec, &ClientMessage::Spectate { match_id }).await;
+    match recv(&mut spec).await {
+        ServerMessage::SpectateStarted {
+            match_id: got_id,
+            host_name,
+            guest_name,
+            spectator_count,
+            ..
+        } => {
+            assert_eq!(got_id, match_id);
+            assert_eq!(host_name, "host_99 name");
+            assert_eq!(guest_name, "guest_99 name");
+            assert_eq!(spectator_count, 1);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+    // The players were notified about the new spectator.
+    let _ = recv(&mut host).await; // SpectatorJoined
+    let _ = recv(&mut guest).await; // SpectatorJoined
+
+    // The host plays a move. All three should receive a BoardUpdate.
+    send(
+        &mut host,
+        &ClientMessage::MakeMove {
+            position: common::domain::Position::new(0).unwrap(),
+        },
+    )
+        .await;
+
+    assert!(matches!(
+        recv(&mut host).await,
+        ServerMessage::BoardUpdate { .. }
+    ));
+    assert!(matches!(
+        recv(&mut guest).await,
+        ServerMessage::BoardUpdate { .. }
+    ));
+    assert!(matches!(
+        recv(&mut spec).await,
+        ServerMessage::BoardUpdate { .. }
+    ));
+}
+
+#[tokio::test]
+async fn spectator_cannot_act_on_the_match() {
+    let (addr, _) = spawn_server().await;
+    let mut host = connect(addr).await;
+    let mut guest = connect(addr).await;
+    let mut spec = connect(addr).await;
+
+    register(&mut host, "host_99").await;
+    register(&mut guest, "guest_99").await;
+    register(&mut spec, "watch_99").await;
+
+    send(&mut host, &ClientMessage::CreateMatch).await;
+    let match_id = match recv(&mut host).await {
+        ServerMessage::MatchCreated { match_id } => match_id,
+        other => panic!("unexpected: {other:?}"),
+    };
+    send(&mut guest, &ClientMessage::JoinMatch { match_id }).await;
+    let _ = recv(&mut host).await;
+    let _ = recv(&mut guest).await;
+
+    send(&mut spec, &ClientMessage::Spectate { match_id }).await;
+    let _ = recv(&mut spec).await;
+    let _ = recv(&mut host).await;
+    let _ = recv(&mut guest).await;
+
+    // Probe 1: try to make a move from the spectator. The server must
+    // reject it because the spectator is not a participant of the match.
+    send(
+        &mut spec,
+        &ClientMessage::MakeMove {
+            position: common::domain::Position::new(4).unwrap(),
+        },
+    )
+        .await;
+    match recv(&mut spec).await {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::NotInMatch),
+        other => panic!("unexpected: {other:?}"),
+    }
+
+    // Probe 2: try to join the match as a player while spectating it.
+    send(&mut spec, &ClientMessage::JoinMatch { match_id }).await;
+    match recv(&mut spec).await {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::AlreadySpectating),
+        other => panic!("unexpected: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn spectator_can_spectate_another_match_after_the_first_one_finishes() {
+    let (addr, _) = spawn_server().await;
+    let mut host = connect(addr).await;
+    let mut guest = connect(addr).await;
+    let mut spec = connect(addr).await;
+
+    register(&mut host, "host_99").await;
+    register(&mut guest, "guest_99").await;
+    register(&mut spec, "watch_99").await;
+
+    // First match: host wins with 0,1,2.
+    send(&mut host, &ClientMessage::CreateMatch).await;
+    let match_id_1 = match recv(&mut host).await {
+        ServerMessage::MatchCreated { match_id } => match_id,
+        other => panic!("unexpected: {other:?}"),
+    };
+    send(
+        &mut guest,
+        &ClientMessage::JoinMatch {
+            match_id: match_id_1,
+        },
+    )
+        .await;
+    let _ = recv(&mut host).await;
+    let _ = recv(&mut guest).await;
+
+    send(
+        &mut spec,
+        &ClientMessage::Spectate {
+            match_id: match_id_1,
+        },
+    )
+        .await;
+    let _ = recv(&mut spec).await; // SpectateStarted
+    let _ = recv(&mut host).await; // SpectatorJoined
+    let _ = recv(&mut guest).await; // SpectatorJoined
+
+    for (client, pos) in [
+        (&mut host, 0u8),
+        (&mut guest, 3),
+        (&mut host, 1),
+        (&mut guest, 4),
+        (&mut host, 2),
+    ] {
+        send(
+            client,
+            &ClientMessage::MakeMove {
+                position: common::domain::Position::new(pos).unwrap(),
+            },
+        )
+            .await;
+    }
+
+    // Drain every message until MatchOver on all three connections.
+    for client in [&mut host, &mut guest, &mut spec] {
+        loop {
+            if matches!(recv(client).await, ServerMessage::MatchOver { .. }) {
+                break;
+            }
+        }
+    }
+
+    // The spectator dismisses the result screen.
+    send(&mut spec, &ClientMessage::LeaveSpectate).await;
+
+    // The same host creates a second match.
+    send(&mut host, &ClientMessage::CreateMatch).await;
+    let match_id_2 = match recv(&mut host).await {
+        ServerMessage::MatchCreated { match_id } => match_id,
+        other => panic!("unexpected: {other:?}"),
+    };
+
+    // The spectator joins the second match without error.
+    send(
+        &mut spec,
+        &ClientMessage::Spectate {
+            match_id: match_id_2,
+        },
+    )
+        .await;
+    match recv(&mut spec).await {
+        ServerMessage::SpectateStarted { match_id, .. } => assert_eq!(match_id, match_id_2),
+        other => panic!("unexpected: {other:?}"),
+    }
+}
