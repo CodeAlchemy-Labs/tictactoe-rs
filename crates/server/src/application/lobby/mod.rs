@@ -6,12 +6,14 @@
 //! No method holds the lock across an `.await` point.
 //!
 //! Authentication is delegated to [`AuthService`], which owns the user
-//! registry. `LobbyService` orchestrates the interaction: it validates the
-//! raw input, awaits the hashing or verification, and updates the session
-//! once the auth service confirms the operation.
+//! registry. The win counter is delegated to
+//! [`RankingService`](crate::application::ranking::RankingService).
+//! `LobbyService` orchestrates the interaction between the two: it validates
+//! input, awaits hashing or verification, updates the session, and records
+//! wins when a match ends with a real victory.
 //!
 //! Only authenticated sessions may create or join matches. Guests can list
-//! matches, ping, and (once implemented) spectate.
+//! matches, view the ranking, and ping.
 //!
 //! A given username may be signed in on at most one connection at a time.
 //! The `LobbyState::active_sessions` map tracks which `Username` is bound to
@@ -20,13 +22,14 @@
 //! that `disconnect` runs synchronously when the connection ends, there is
 //! no window during which a dead session blocks a legitimate login.
 //!
-//! The implementation is split across three files:
+//! The implementation is split across four files:
 //!
 //! - `auth_ops` contains the session lifecycle for authentication
-//!   (`hello`, `register_user`, `login_user`, `pong`).
+//!   (`hello`, `register_user`, `login_user`, `list_ranking`, `pong`).
 //! - `match_ops` contains the match lifecycle (`list_matches`,
 //!   `create_match`, `join_match`, `make_move`, `leave_match`) and the two
 //!   free helpers that operate on matches.
+//! - `tests` contains the unit tests.
 //! - this file contains the type definitions, the constructors, the client
 //!   lifecycle (`register_client`, `disconnect`), and the shared helpers.
 
@@ -43,6 +46,7 @@ use common::protocol::{AuthFailureReason, ClientId, MatchId, ServerMessage};
 use tokio::sync::mpsc;
 
 use crate::application::auth::AuthService;
+use crate::application::ranking::RankingService;
 use crate::domain::{Match, Session};
 
 /// Maximum length of a display name, in bytes.
@@ -70,6 +74,7 @@ struct LobbyState {
 pub struct LobbyService {
     state: Mutex<LobbyState>,
     auth: Arc<AuthService>,
+    ranking: Arc<RankingService>,
 }
 
 impl Default for LobbyService {
@@ -79,22 +84,32 @@ impl Default for LobbyService {
 }
 
 impl LobbyService {
-    /// Creates an empty lobby with a default-configured auth service.
+    /// Creates an empty lobby with default-configured services.
     pub fn new() -> Self {
-        Self {
-            state: Mutex::new(LobbyState::default()),
-            auth: Arc::new(AuthService::default()),
-        }
+        Self::with_services(Arc::new(AuthService::default()), Arc::new(RankingService::new()))
     }
 
-    /// Creates an empty lobby with a caller-provided auth service.
+    /// Creates an empty lobby with a caller-provided auth service and a
+    /// fresh ranking service.
     ///
-    /// Intended for tests that want to use cheaper Argon2 parameters.
+    /// Intended for tests that want cheaper Argon2 parameters without
+    /// caring about the ranking.
     pub fn with_auth(auth: Arc<AuthService>) -> Self {
+        Self::with_services(auth, Arc::new(RankingService::new()))
+    }
+
+    /// Creates an empty lobby with caller-provided services.
+    pub fn with_services(auth: Arc<AuthService>, ranking: Arc<RankingService>) -> Self {
         Self {
             state: Mutex::new(LobbyState::default()),
             auth,
+            ranking,
         }
+    }
+
+    /// Returns the ranking service owned by this lobby.
+    pub fn ranking(&self) -> &RankingService {
+        &self.ranking
     }
 
     /// Registers a new client and returns its identifier.
