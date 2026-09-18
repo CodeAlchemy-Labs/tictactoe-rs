@@ -1,10 +1,9 @@
 //! Keyboard input handling.
 //!
 //! The translation from a raw `KeyCode` to an [`AppEvent`] is context
-//! sensitive. In the lobby, the digits `1` through `9` select a match from
-//! the list. In a game, the same digits play a move. The translator needs to
-//! know which screen is currently shown, and that is why [`read_key_action`]
-//! takes the current screen as an argument.
+//! sensitive. In the auth screen, printable characters go to the form. In
+//! the lobby, digits select a match. In a game, digits play a move. The
+//! translator receives the current screen so it can pick the right mapping.
 
 use std::io;
 
@@ -57,6 +56,27 @@ pub fn read_key_action(screen: &Screen) -> Result<KeyAction, InputError> {
 /// Extracted from [`read_key_action`] so it can be unit-tested without a
 /// terminal.
 pub fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
+    match screen {
+        Screen::Auth(_) => translate_auth_key(code),
+        _ => translate_default_key(code, screen),
+    }
+}
+
+fn translate_auth_key(code: KeyCode) -> KeyAction {
+    match code {
+        KeyCode::Esc => KeyAction::Event(AppEvent::AuthCancel),
+        KeyCode::Enter => KeyAction::Event(AppEvent::AuthSubmit),
+        KeyCode::Tab => KeyAction::Event(AppEvent::AuthNextField),
+        KeyCode::BackTab => KeyAction::Event(AppEvent::AuthPreviousField),
+        KeyCode::Backspace => KeyAction::Event(AppEvent::AuthBackspace),
+        KeyCode::F(2) => KeyAction::Event(AppEvent::AuthToggleMode),
+        KeyCode::F(3) => KeyAction::Event(AppEvent::AuthToggleReveal),
+        KeyCode::Char(character) => KeyAction::Event(AppEvent::AuthInput(character)),
+        _ => KeyAction::Ignored,
+    }
+}
+
+fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match code {
         KeyCode::Char('q') | KeyCode::Esc => KeyAction::Event(AppEvent::Quit),
         KeyCode::Char('r') => KeyAction::Event(AppEvent::RefreshLobby),
@@ -69,9 +89,10 @@ pub fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
                     KeyAction::Event(AppEvent::JoinMatchAt((value - 1) as usize))
                 }
                 Screen::InGame(_) => KeyAction::Event(AppEvent::PlayMove(value)),
-                Screen::Connecting | Screen::Finished { .. } | Screen::Fatal(_) => {
-                    KeyAction::Ignored
-                }
+                Screen::Connecting
+                | Screen::Auth(_)
+                | Screen::Finished { .. }
+                | Screen::Fatal(_) => KeyAction::Ignored,
             }
         }
         _ => KeyAction::Ignored,
@@ -84,6 +105,7 @@ mod tests {
     use common::protocol::{MatchId, MatchSummary};
 
     use super::*;
+    use crate::domain::auth_form::{AuthForm, AuthMode};
     use crate::domain::screen::ActiveMatch;
 
     fn lobby() -> Screen {
@@ -106,22 +128,35 @@ mod tests {
         }))
     }
 
+    fn auth() -> Screen {
+        Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)))
+    }
+
     #[test]
     fn digit_one_in_the_lobby_joins_the_first_match() {
         let action = translate_key(KeyCode::Char('1'), &lobby());
-        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(0))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::JoinMatchAt(0))
+        ));
     }
 
     #[test]
     fn digit_nine_in_the_lobby_joins_the_ninth_match() {
         let action = translate_key(KeyCode::Char('9'), &lobby());
-        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(8))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::JoinMatchAt(8))
+        ));
     }
 
     #[test]
     fn digit_one_in_a_game_plays_a_move() {
         let action = translate_key(KeyCode::Char('1'), &in_game());
-        assert!(matches!(action, KeyAction::Event(AppEvent::PlayMove(1))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::PlayMove(1))
+        ));
     }
 
     #[test]
@@ -131,7 +166,7 @@ mod tests {
     }
 
     #[test]
-    fn q_quits_from_anywhere() {
+    fn q_quits_from_anywhere_outside_auth() {
         let action = translate_key(KeyCode::Char('q'), &lobby());
         assert!(matches!(action, KeyAction::Event(AppEvent::Quit)));
     }
@@ -140,5 +175,50 @@ mod tests {
     fn unknown_key_is_ignored() {
         let action = translate_key(KeyCode::Char('z'), &lobby());
         assert!(matches!(action, KeyAction::Ignored));
+    }
+
+    #[test]
+    fn printable_char_in_auth_is_forwarded_as_input() {
+        let action = translate_key(KeyCode::Char('a'), &auth());
+        assert!(matches!(action, KeyAction::Event(AppEvent::AuthInput('a'))));
+    }
+
+    #[test]
+    fn tab_in_auth_moves_focus_forward() {
+        let action = translate_key(KeyCode::Tab, &auth());
+        assert!(matches!(action, KeyAction::Event(AppEvent::AuthNextField)));
+    }
+
+    #[test]
+    fn back_tab_in_auth_moves_focus_backwards() {
+        let action = translate_key(KeyCode::BackTab, &auth());
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::AuthPreviousField)
+        ));
+    }
+
+    #[test]
+    fn esc_in_auth_cancels_the_screen() {
+        let action = translate_key(KeyCode::Esc, &auth());
+        assert!(matches!(action, KeyAction::Event(AppEvent::AuthCancel)));
+    }
+
+    #[test]
+    fn f2_in_auth_toggles_the_mode() {
+        let action = translate_key(KeyCode::F(2), &auth());
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::AuthToggleMode)
+        ));
+    }
+
+    #[test]
+    fn f3_in_auth_toggles_password_reveal() {
+        let action = translate_key(KeyCode::F(3), &auth());
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::AuthToggleReveal)
+        ));
     }
 }
