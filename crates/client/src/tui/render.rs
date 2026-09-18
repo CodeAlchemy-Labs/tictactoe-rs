@@ -4,9 +4,9 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap};
 
-use common::domain::{Cell, GameStatus, Player};
+use common::domain::{Cell, GameStatus, Player, RankingEntry};
 
 use crate::app::AppState;
 use crate::domain::auth_form::{AuthField, AuthForm, AuthMode};
@@ -53,6 +53,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
         }
         Screen::Auth(form) => render_auth(frame, area, form),
         Screen::Lobby { matches } => render_lobby(frame, area, matches),
+        Screen::Ranking { entries } => render_ranking(frame, area, entries),
         Screen::InGame(active) => render_game(frame, area, active),
         Screen::Finished { board, status } => render_finished(frame, area, *board, *status),
         Screen::Fatal(message) => {
@@ -85,6 +86,55 @@ fn render_lobby(frame: &mut Frame<'_>, area: Rect, matches: &[common::protocol::
     };
     let list = List::new(items).block(Block::default().borders(Borders::ALL).title("Lobby"));
     frame.render_widget(list, area);
+}
+
+fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
+    if entries.is_empty() {
+        frame.render_widget(
+            Paragraph::new("no wins recorded yet")
+                .block(Block::default().borders(Borders::ALL).title("Top players"))
+                .alignment(Alignment::Center),
+            area,
+        );
+        return;
+    }
+
+    let rows: Vec<Row<'_>> = entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| {
+            let style = if index == 0 {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+            Row::new(vec![
+                format!("{}", index + 1),
+                entry.username.to_string(),
+                entry.name.clone(),
+                format!("{}", entry.wins),
+            ])
+                .style(style)
+        })
+        .collect();
+
+    let widths = [
+        Constraint::Length(4),
+        Constraint::Min(12),
+        Constraint::Min(16),
+        Constraint::Length(6),
+    ];
+
+    let table = Table::new(rows, widths)
+        .header(
+            Row::new(vec!["#", "Username", "Name", "Wins"])
+                .style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED)),
+        )
+        .block(Block::default().borders(Borders::ALL).title("Top players"))
+        .column_spacing(2);
+    frame.render_widget(table, area);
 }
 
 fn render_game(frame: &mut Frame<'_>, area: Rect, active: &ActiveMatch) {
@@ -185,7 +235,7 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
     let help = Paragraph::new(
         "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
     )
-    .block(Block::default().borders(Borders::ALL));
+        .block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, rows[2]);
 }
 
