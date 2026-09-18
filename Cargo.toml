@@ -33,6 +33,10 @@ rustls = { version = "0.23", default-features = false, features = ["std", "ring"
 # Password hashing
 argon2 = "0.5"
 
+# Cryptographic randomness. The `getrandom` feature pulls in the OS RNG
+# that Argon2 uses to generate salts.
+rand_core = { version = "0.6", features = ["getrandom"] }
+
 # Secure zeroing of sensitive buffers
 zeroize = "1"
 
