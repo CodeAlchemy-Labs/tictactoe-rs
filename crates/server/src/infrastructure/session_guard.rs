@@ -11,8 +11,16 @@
 //! unspecified later time. During that window the session can remain
 //! reachable and the port associated with the connection can remain open,
 //! which is exactly the class of bug this demo eliminates.
+//!
+//! In addition to freeing the socket, the guard is the point where the
+//! grace-period timer for a pending reconnection is scheduled. The lobby
+//! performs the bookkeeping, but it cannot know whether it is being called
+//! from a context that has an active Tokio runtime. The guard is always
+//! invoked from inside the WebSocket handler, which runs on the runtime,
+//! so it is the natural place to spawn the timer.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use common::protocol::ClientId;
 
@@ -23,7 +31,8 @@ use crate::application::lobby::LobbyService;
 /// Create one immediately after calling
 /// [`LobbyService::register_client`](crate::application::lobby::LobbyService::register_client)
 /// and keep it alive for the duration of the connection handler. When the
-/// handler returns, the guard drops and the session is removed.
+/// handler returns, the guard drops and the session is removed. If the
+/// client was in a live match, a reconnection timer is also scheduled.
 pub struct SessionGuard {
     client_id: ClientId,
     lobby: Arc<LobbyService>,
@@ -44,7 +53,16 @@ impl SessionGuard {
 impl Drop for SessionGuard {
     fn drop(&mut self) {
         tracing::info!(client_id = %self.client_id, "session guard dropping");
-        self.lobby.disconnect(self.client_id);
+        let disconnection = self.lobby.disconnect(self.client_id);
+        if let Some(disconnection) = disconnection {
+            let lobby = Arc::clone(&self.lobby);
+            let username = disconnection.username;
+            let grace = Duration::from_secs(u64::from(common::protocol::GRACE_PERIOD_SECS));
+            tokio::spawn(async move {
+                tokio::time::sleep(grace).await;
+                lobby.expire_disconnection(username);
+            });
+        }
     }
 }
 
