@@ -5,22 +5,29 @@
 //! method locks it, mutates the state, and releases the lock before returning.
 //! No method holds the lock across an `.await` point.
 //!
-//! The service is the aggregate root for both [`Session`] and [`Match`].
-//! Splitting it into two services would require sharing the same mutex and
-//! would create artificial coupling; keeping it together makes the single
-//! atomicity boundary explicit.
+//! Authentication is delegated to [`AuthService`], which owns the user
+//! registry. `LobbyService` orchestrates the interaction: it validates the
+//! raw input, awaits the hashing or verification, and updates the session
+//! once the auth service confirms the operation.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use common::domain::{Board, GameStatus, Player, Position};
-use common::protocol::{ClientId, ErrorCode, MatchId, MatchSummary, ServerMessage};
+use common::domain::{Age, Board, GameStatus, Player, Position, UserProfile, Username};
+use common::protocol::{AuthFailureReason, ClientId, ErrorCode, MatchId, MatchSummary, ServerMessage};
 use tokio::sync::mpsc;
 
+use crate::application::auth::AuthService;
 use crate::domain::{Match, Session};
 
 /// Maximum length of a display name, in bytes.
 const MAX_DISPLAY_NAME_LEN: usize = 32;
+
+/// Minimum length of a password, in characters.
+const MIN_PASSWORD_LEN: usize = 8;
+
+/// Maximum length of a password, in characters.
+const MAX_PASSWORD_LEN: usize = 256;
 
 /// Internal state guarded by the lobby mutex.
 #[derive(Default)]
@@ -39,6 +46,7 @@ type MoveOutcome = (ClientId, Option<ClientId>, Board, Player, GameStatus);
 /// Coordinates sessions and matches for all connected clients.
 pub struct LobbyService {
     state: Mutex<LobbyState>,
+    auth: Arc<AuthService>,
 }
 
 impl Default for LobbyService {
@@ -48,10 +56,21 @@ impl Default for LobbyService {
 }
 
 impl LobbyService {
-    /// Creates an empty lobby.
+    /// Creates an empty lobby with a default-configured auth service.
     pub fn new() -> Self {
         Self {
             state: Mutex::new(LobbyState::default()),
+            auth: Arc::new(AuthService::default()),
+        }
+    }
+
+    /// Creates an empty lobby with a caller-provided auth service.
+    ///
+    /// Intended for tests that want to use cheaper Argon2 parameters.
+    pub fn with_auth(auth: Arc<AuthService>) -> Self {
+        Self {
+            state: Mutex::new(LobbyState::default()),
+            auth,
         }
     }
 
@@ -60,7 +79,7 @@ impl LobbyService {
     /// The caller keeps ownership of the lifecycle by way of a
     /// [`SessionGuard`](crate::infrastructure::session_guard::SessionGuard);
     /// when the guard drops it calls [`LobbyService::disconnect`].
-    pub fn register(&self, sender: mpsc::UnboundedSender<ServerMessage>) -> ClientId {
+    pub fn register_client(&self, sender: mpsc::UnboundedSender<ServerMessage>) -> ClientId {
         let mut state = self.lock();
         let id = ClientId::new(state.next_client_id);
         state.next_client_id += 1;
@@ -97,6 +116,145 @@ impl LobbyService {
             client_id: client,
             display_name: owned,
         });
+    }
+
+    /// Handles `Register`.
+    ///
+    /// Validates the raw input, delegates the hashing to
+    /// [`AuthService::register`], and marks the session as authenticated on
+    /// success. Every failure is reported as `AuthenticationFailed` with a
+    /// stable reason.
+    pub async fn register_user(
+        &self,
+        client_id: ClientId,
+        name: String,
+        username: String,
+        age: u8,
+        password: String,
+    ) {
+        if self.is_authenticated(client_id) {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::AlreadyAuthenticated,
+                reason_message(AuthFailureReason::AlreadyAuthenticated),
+            );
+            return;
+        }
+
+        let trimmed_name = name.trim();
+        if trimmed_name.is_empty() {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::NameEmpty,
+                reason_message(AuthFailureReason::NameEmpty),
+            );
+            return;
+        }
+        if trimmed_name.chars().count() > 64 {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::NameEmpty,
+                "name must be at most 64 characters",
+            );
+            return;
+        }
+
+        let username = match Username::new(&username) {
+            Ok(value) => value,
+            Err(error) => {
+                let rendered = error.to_string();
+                self.send_auth_failure(client_id, AuthFailureReason::UsernameInvalid, &rendered);
+                return;
+            }
+        };
+
+        let age = match Age::new(age) {
+            Ok(value) => value,
+            Err(error) => {
+                let rendered = error.to_string();
+                self.send_auth_failure(client_id, AuthFailureReason::AgeOutOfRange, &rendered);
+                return;
+            }
+        };
+
+        let password_len = password.chars().count();
+        if password_len < MIN_PASSWORD_LEN {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::PasswordTooShort,
+                &format!("password must be at least {MIN_PASSWORD_LEN} characters"),
+            );
+            return;
+        }
+        if password_len > MAX_PASSWORD_LEN {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::PasswordTooShort,
+                &format!("password must be at most {MAX_PASSWORD_LEN} characters"),
+            );
+            return;
+        }
+
+        let profile = UserProfile {
+            name: trimmed_name.to_string(),
+            username,
+            age,
+        };
+
+        match self.auth.register(profile.clone(), password).await {
+            Ok(()) => {
+                let mut state = self.lock();
+                if let Some(session) = state.sessions.get_mut(&client_id) {
+                    session.authenticated_as = Some(profile.username.clone());
+                    session.display_name = Some(profile.name.clone());
+                    session.try_send(ServerMessage::Registered { profile });
+                }
+            }
+            Err(reason) => {
+                self.send_auth_failure(client_id, reason, reason_message(reason));
+            }
+        }
+    }
+
+    /// Handles `Login`.
+    pub async fn login_user(&self, client_id: ClientId, username: String, password: String) {
+        if self.is_authenticated(client_id) {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::AlreadyAuthenticated,
+                reason_message(AuthFailureReason::AlreadyAuthenticated),
+            );
+            return;
+        }
+
+        let username = match Username::new(&username) {
+            Ok(value) => value,
+            Err(_) => {
+                // Do not reveal whether the username is well-formed. From
+                // the caller's perspective, an invalid username and a wrong
+                // password are indistinguishable.
+                self.send_auth_failure(
+                    client_id,
+                    AuthFailureReason::InvalidCredentials,
+                    reason_message(AuthFailureReason::InvalidCredentials),
+                );
+                return;
+            }
+        };
+
+        match self.auth.authenticate(&username, password).await {
+            Ok(profile) => {
+                let mut state = self.lock();
+                if let Some(session) = state.sessions.get_mut(&client_id) {
+                    session.authenticated_as = Some(profile.username.clone());
+                    session.display_name = Some(profile.name.clone());
+                    session.try_send(ServerMessage::LoginSucceeded { profile });
+                }
+            }
+            Err(reason) => {
+                self.send_auth_failure(client_id, reason, reason_message(reason));
+            }
+        }
     }
 
     /// Handles `Ping`.
@@ -163,8 +321,6 @@ impl LobbyService {
     pub fn join_match(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
-        // Validation first. The block ends the immutable borrow of `state`
-        // before we mutate.
         let validation: Option<(ErrorCode, &'static str)> = {
             let Some(session) = state.sessions.get(&client) else {
                 return;
@@ -176,7 +332,9 @@ impl LobbyService {
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    Some(m) if m.is_full() => Some((ErrorCode::MatchFull, "match is already full")),
+                    Some(m) if m.is_full() => {
+                        Some((ErrorCode::MatchFull, "match is already full"))
+                    }
                     Some(_) => None,
                 }
             }
@@ -191,8 +349,6 @@ impl LobbyService {
             return;
         }
 
-        // Snapshot the values we need after the mutation. `Board`, `Player`,
-        // and `ClientId` are `Copy`, so no clone is necessary.
         let (host, board, first_turn) = {
             let Some(m) = state.matches.get(&match_id) else {
                 return;
@@ -210,7 +366,6 @@ impl LobbyService {
             .and_then(|s| s.display_name.clone())
             .unwrap_or_else(|| String::from("unknown"));
 
-        // Mutate.
         if let Some(m) = state.matches.get_mut(&match_id) {
             m.guest = Some(client);
         }
@@ -219,7 +374,6 @@ impl LobbyService {
             session.mark = Some(Player::O);
         }
 
-        // Notify both players.
         if let Some(host_session) = state.sessions.get(&host) {
             host_session.try_send(ServerMessage::MatchReady {
                 match_id,
@@ -254,8 +408,6 @@ impl LobbyService {
             return;
         };
 
-        // Apply the move inside a scope that ends the mutable borrow of
-        // `state.matches` before we access `state.sessions`.
         let outcome = {
             let Some(m) = state.matches.get_mut(&match_id) else {
                 if let Some(session) = state.sessions.get(&client) {
@@ -357,8 +509,45 @@ impl LobbyService {
         self.lock().matches.len()
     }
 
+    fn is_authenticated(&self, client_id: ClientId) -> bool {
+        let state = self.lock();
+        state
+            .sessions
+            .get(&client_id)
+            .is_some_and(Session::is_authenticated)
+    }
+
+    fn send_auth_failure(
+        &self,
+        client_id: ClientId,
+        reason: AuthFailureReason,
+        message: &str,
+    ) {
+        let state = self.lock();
+        if let Some(session) = state.sessions.get(&client_id) {
+            session.try_send(ServerMessage::AuthenticationFailed {
+                reason,
+                message: message.to_string(),
+            });
+        }
+    }
+
     fn lock(&self) -> MutexGuard<'_, LobbyState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Returns the default human-readable message for an auth failure reason.
+const fn reason_message(reason: AuthFailureReason) -> &'static str {
+    match reason {
+        AuthFailureReason::NameEmpty => "name must not be empty",
+        AuthFailureReason::UsernameTaken => "username is already taken",
+        AuthFailureReason::UsernameInvalid => "invalid username",
+        AuthFailureReason::AgeOutOfRange => "age is out of range",
+        AuthFailureReason::PasswordTooShort => "password is too short",
+        AuthFailureReason::InvalidCredentials => "invalid username or password",
+        AuthFailureReason::AlreadyAuthenticated => "this connection is already authenticated",
+        AuthFailureReason::InternalError => "internal server error",
     }
 }
 
@@ -370,8 +559,6 @@ fn detach_from_match(state: &mut LobbyState, match_id: MatchId, client: ClientId
     };
     let opponent = m.opponent_of(client);
     let is_host = m.host == client;
-    // The host leaving ends the match; the guest leaving leaves the match
-    // open for another opponent.
     let drop_match = is_host || m.guest.is_none() || opponent.is_none();
     if let Some(opponent_id) = opponent {
         if let Some(opponent_session) = state.sessions.get(&opponent_id) {
@@ -433,7 +620,7 @@ mod tests {
     ) {
         let lobby = LobbyService::new();
         let (tx, rx) = mpsc::unbounded_channel();
-        let id = lobby.register(tx);
+        let id = lobby.register_client(tx);
         (lobby, id, rx)
     }
 
@@ -478,12 +665,12 @@ mod tests {
         let lobby = LobbyService::new();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-        let host = lobby.register(host_tx);
-        let guest = lobby.register(guest_tx);
+        let host = lobby.register_client(host_tx);
+        let guest = lobby.register_client(guest_tx);
         lobby.hello(host, "host");
-        let _ = host_rx.try_recv(); // Welcome
+        let _ = host_rx.try_recv();
         lobby.hello(guest, "guest");
-        let _ = guest_rx.try_recv(); // Welcome
+        let _ = guest_rx.try_recv();
 
         lobby.create_match(host);
         let match_id = match host_rx.try_recv().unwrap() {
@@ -521,8 +708,8 @@ mod tests {
         let lobby = LobbyService::new();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-        let host = lobby.register(host_tx);
-        let guest = lobby.register(guest_tx);
+        let host = lobby.register_client(host_tx);
+        let guest = lobby.register_client(guest_tx);
         lobby.hello(host, "host");
         let _ = host_rx.try_recv();
         lobby.hello(guest, "guest");
@@ -532,10 +719,9 @@ mod tests {
             unreachable!("first message must be MatchCreated")
         };
         lobby.join_match(guest, match_id);
-        let _ = host_rx.try_recv(); // MatchReady
-        let _ = guest_rx.try_recv(); // MatchReady
+        let _ = host_rx.try_recv();
+        let _ = guest_rx.try_recv();
 
-        // X: 0, 1, 2 wins. O plays 3, 4.
         for (client, pos) in [(host, 0u8), (guest, 3), (host, 1), (guest, 4), (host, 2)] {
             lobby.make_move(client, Position::new(pos).unwrap());
         }
@@ -554,7 +740,7 @@ mod tests {
     fn disconnect_removes_the_session_and_the_open_match() {
         let lobby = LobbyService::new();
         let (tx, _rx) = mpsc::unbounded_channel();
-        let host = lobby.register(tx);
+        let host = lobby.register_client(tx);
         lobby.hello(host, "host");
         lobby.create_match(host);
         assert_eq!(lobby.session_count(), 1);
@@ -570,8 +756,8 @@ mod tests {
         let lobby = LobbyService::new();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-        let host = lobby.register(host_tx);
-        let guest = lobby.register(guest_tx);
+        let host = lobby.register_client(host_tx);
+        let guest = lobby.register_client(guest_tx);
         lobby.hello(host, "host");
         let _ = host_rx.try_recv();
         lobby.hello(guest, "guest");
@@ -591,5 +777,224 @@ mod tests {
         }
         assert_eq!(lobby.session_count(), 1);
         assert_eq!(lobby.match_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn register_marks_the_session_as_authenticated() {
+        let lobby = LobbyService::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let client = lobby.register_client(tx);
+        lobby
+            .register_user(
+                client,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::Registered { profile } => {
+                assert_eq!(profile.username.as_str(), "alice_99");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+        assert!(lobby.is_authenticated(client));
+    }
+
+    #[tokio::test]
+    async fn register_rejects_short_password() {
+        let lobby = LobbyService::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let client = lobby.register_client(tx);
+        lobby
+            .register_user(
+                client,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("short"),
+            )
+            .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::PasswordTooShort);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+        assert!(!lobby.is_authenticated(client));
+    }
+
+    #[tokio::test]
+    async fn register_rejects_duplicate_username() {
+        let lobby = LobbyService::new();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+        lobby
+            .register_user(
+                client2,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("otherpassword"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::UsernameTaken);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn login_succeeds_after_registration() {
+        let lobby = LobbyService::new();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+        lobby
+            .login_user(
+                client2,
+                String::from("alice_99"),
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::LoginSucceeded { profile } => {
+                assert_eq!(profile.username.as_str(), "alice_99");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn login_rejects_wrong_password() {
+        let lobby = LobbyService::new();
+        let (tx1, _rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        lobby
+            .login_user(
+                client2,
+                String::from("alice_99"),
+                String::from("wrongpassword"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::InvalidCredentials);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn double_registration_is_rejected() {
+        let lobby = LobbyService::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let client = lobby.register_client(tx);
+        lobby
+            .register_user(
+                client,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx.try_recv();
+        lobby
+            .register_user(
+                client,
+                String::from("Bob"),
+                String::from("bob_77"),
+                25,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::AlreadyAuthenticated);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn register_rejects_invalid_username() {
+        let lobby = LobbyService::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let client = lobby.register_client(tx);
+        lobby
+            .register_user(
+                client,
+                String::from("Alice"),
+                String::from("a!"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::UsernameInvalid);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn register_rejects_invalid_age() {
+        let lobby = LobbyService::new();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let client = lobby.register_client(tx);
+        lobby
+            .register_user(
+                client,
+                String::from("Alice"),
+                String::from("alice_99"),
+                91,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::AgeOutOfRange);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 }
