@@ -76,9 +76,11 @@ mod tests {
 
     #[test]
     fn dropping_the_guard_removes_the_session() {
-        let lobby = Arc::new(LobbyService::new());
+        let lobby = Arc::new(LobbyService::default());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let client = lobby.register_client(tx);
+        let client = lobby
+            .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            .unwrap();
         assert_eq!(lobby.session_count(), 1);
         {
             let _guard = SessionGuard::new(client, Arc::clone(&lobby));
@@ -89,9 +91,11 @@ mod tests {
 
     #[test]
     fn client_id_is_accessible() {
-        let lobby = Arc::new(LobbyService::new());
+        let lobby = Arc::new(LobbyService::default());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let client = lobby.register_client(tx);
+        let client = lobby
+            .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            .unwrap();
         let guard = SessionGuard::new(client, lobby);
         assert_eq!(guard.client_id(), client);
     }

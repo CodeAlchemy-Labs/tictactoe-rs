@@ -12,7 +12,10 @@ use super::*;
 
 fn fast_lobby() -> LobbyService {
     let params = Params::new(8, 1, 1, None).expect("test parameters are within range");
-    LobbyService::with_auth(Arc::new(AuthService::with_params(params)))
+    LobbyService::with_auth(
+        crate::config::ServerConfig::default(),
+        Arc::new(AuthService::with_params(params)),
+    )
 }
 
 fn lobby_with_client() -> (
@@ -22,7 +25,9 @@ fn lobby_with_client() -> (
 ) {
     let lobby = fast_lobby();
     let (tx, rx) = mpsc::unbounded_channel();
-    let id = lobby.register_client(tx);
+    let id = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     (lobby, id, rx)
 }
 
@@ -105,8 +110,15 @@ async fn joining_a_match_notifies_both_players() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -148,8 +160,15 @@ async fn playing_a_full_game_ends_in_a_win_and_records_it() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -194,7 +213,9 @@ async fn playing_a_full_game_ends_in_a_win_and_records_it() {
 async fn disconnect_removes_the_session_but_keeps_the_match_during_the_grace_period() {
     let lobby = fast_lobby();
     let (tx, _rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(tx);
+    let host = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     lobby.create_match(host);
     assert_eq!(lobby.session_count(), 1);
@@ -215,8 +236,15 @@ async fn disconnect_notifies_the_opponent_with_a_grace_period() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -250,7 +278,9 @@ async fn disconnect_notifies_the_opponent_with_a_grace_period() {
 async fn register_marks_the_session_as_authenticated() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client,
@@ -273,7 +303,9 @@ async fn register_marks_the_session_as_authenticated() {
 async fn register_rejects_short_password() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client,
@@ -297,8 +329,12 @@ async fn register_rejects_duplicate_username() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -331,8 +367,12 @@ async fn login_succeeds_after_registration() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -367,8 +407,12 @@ async fn login_rejects_wrong_password() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -408,8 +452,12 @@ async fn already_logged_in_takes_precedence_over_password_check() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -440,7 +488,9 @@ async fn already_logged_in_takes_precedence_over_password_check() {
 async fn double_registration_is_rejected() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client,
@@ -472,7 +522,9 @@ async fn double_registration_is_rejected() {
 async fn register_rejects_invalid_username() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client,
@@ -494,7 +546,9 @@ async fn register_rejects_invalid_username() {
 async fn register_rejects_invalid_age() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client,
@@ -517,8 +571,12 @@ async fn login_rejects_when_account_is_already_active() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -552,8 +610,12 @@ async fn login_succeeds_after_the_first_session_disconnects() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -591,8 +653,12 @@ async fn register_rejects_username_taken_by_an_active_session() {
     let lobby = fast_lobby();
     let (tx1, mut rx1) = mpsc::unbounded_channel();
     let (tx2, mut rx2) = mpsc::unbounded_channel();
-    let client1 = lobby.register_client(tx1);
-    let client2 = lobby.register_client(tx2);
+    let client1 = lobby
+        .register_client(tx1, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let client2 = lobby
+        .register_client(tx2, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     lobby
         .register_user(
             client1,
@@ -626,8 +692,15 @@ async fn draws_do_not_record_wins() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -683,8 +756,15 @@ async fn multiple_wins_accumulate_in_the_ranking() {
     {
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-        let host = lobby.register_client(host_tx);
-        let guest = lobby.register_client(guest_tx);
+        let host = lobby
+            .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            .unwrap();
+        let guest = lobby
+            .register_client(
+                guest_tx,
+                std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            )
+            .unwrap();
 
         lobby
             .register_user(
@@ -727,8 +807,15 @@ async fn multiple_wins_accumulate_in_the_ranking() {
     {
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-        let host = lobby.register_client(host_tx);
-        let guest = lobby.register_client(guest_tx);
+        let host = lobby
+            .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            .unwrap();
+        let guest = lobby
+            .register_client(
+                guest_tx,
+                std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+            )
+            .unwrap();
 
         lobby
             .login_user(
@@ -779,8 +866,15 @@ async fn after_a_win_the_player_can_start_a_new_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -825,7 +919,9 @@ async fn after_a_win_the_player_can_start_a_new_match() {
 async fn host_cannot_join_its_own_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
 
@@ -852,8 +948,15 @@ async fn guest_leaving_destroys_the_match_and_frees_the_host() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -890,9 +993,18 @@ async fn spectator_receives_the_started_snapshot() {
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -958,9 +1070,18 @@ async fn spectator_receives_board_updates() {
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -1000,7 +1121,9 @@ async fn spectator_receives_board_updates() {
 async fn spectate_rejects_non_existent_match() {
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, client, "watch_99").await;
     let _ = rx.try_recv();
 
@@ -1018,8 +1141,15 @@ async fn spectate_rejects_a_full_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -1036,7 +1166,9 @@ async fn spectate_rejects_a_full_match() {
     // Fill the match with spectators.
     for index in 0..MAX_SPECTATORS {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let spectator = lobby.register_client(tx);
+        let spectator = lobby
+            .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+            .unwrap();
         authenticate(&lobby, spectator, &format!("fan_{index:02}")).await;
         let _ = rx.try_recv();
         lobby.spectate(spectator, match_id);
@@ -1048,7 +1180,9 @@ async fn spectate_rejects_a_full_match() {
 
     // The next spectator is rejected.
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let overflow = lobby.register_client(tx);
+    let overflow = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, overflow, "late_fan").await;
     let _ = rx.try_recv();
     lobby.spectate(overflow, match_id);
@@ -1062,7 +1196,9 @@ async fn spectate_rejects_a_full_match() {
 async fn spectate_rejects_a_player_of_the_same_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
 
@@ -1083,8 +1219,12 @@ async fn spectate_rejects_a_second_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, spectator, "watch_99").await;
@@ -1110,8 +1250,12 @@ async fn leave_spectate_notifies_players() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, spectator, "watch_99").await;
@@ -1147,9 +1291,18 @@ async fn match_abandoned_reaches_spectators() {
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -1196,8 +1349,15 @@ async fn expiring_a_disconnection_awards_the_win_to_the_opponent() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -1234,8 +1394,15 @@ async fn reconnecting_within_the_grace_period_resumes_the_match() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     let _ = host_rx.try_recv();
     authenticate(&lobby, guest, "guest_99").await;
@@ -1254,7 +1421,12 @@ async fn reconnecting_within_the_grace_period_resumes_the_match() {
 
     // A new connection logs in with the same credentials.
     let (guest2_tx, mut guest2_rx) = mpsc::unbounded_channel();
-    let guest2 = lobby.register_client(guest2_tx);
+    let guest2 = lobby
+        .register_client(
+            guest2_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     lobby
         .login_user(
             guest2,
@@ -1278,8 +1450,15 @@ async fn a_third_party_cannot_reclaim_the_slot_during_the_grace_period() {
     let lobby = fast_lobby();
     let (host_tx, _host_rx) = mpsc::unbounded_channel();
     let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
+    let host = lobby
+        .register_client(host_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
+    let guest = lobby
+        .register_client(
+            guest_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     authenticate(&lobby, host, "host_99").await;
     authenticate(&lobby, guest, "guest_99").await;
     lobby.create_match(host);
@@ -1290,7 +1469,12 @@ async fn a_third_party_cannot_reclaim_the_slot_during_the_grace_period() {
 
     // A different connection tries to log in with the same username.
     let (attacker_tx, mut attacker_rx) = mpsc::unbounded_channel();
-    let attacker = lobby.register_client(attacker_tx);
+    let attacker = lobby
+        .register_client(
+            attacker_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
     lobby
         .login_user(
             attacker,
@@ -1318,7 +1502,9 @@ async fn leave_spectate_is_idempotent() {
     // second time must also succeed without noise.
     let lobby = fast_lobby();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let client = lobby.register_client(tx);
+    let client = lobby
+        .register_client(tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, client, "watch_99").await;
     let _ = rx.try_recv(); // Registered
 
@@ -1340,9 +1526,21 @@ async fn spectator_can_spectate_another_match_after_the_first_one_ends() {
     let (host1_tx, mut host1_rx) = mpsc::unbounded_channel();
     let (guest1_tx, mut guest1_rx) = mpsc::unbounded_channel();
     let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
-    let host1 = lobby.register_client(host1_tx);
-    let guest1 = lobby.register_client(guest1_tx);
-    let spectator = lobby.register_client(spec_tx);
+    let host1 = lobby
+        .register_client(
+            host1_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
+    let guest1 = lobby
+        .register_client(
+            guest1_tx,
+            std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        )
+        .unwrap();
+    let spectator = lobby
+        .register_client(spec_tx, std::net::IpAddr::V4(std::net::Ipv4Addr::LOCALHOST))
+        .unwrap();
     authenticate(&lobby, host1, "host1_99").await;
     let _ = host1_rx.try_recv();
     authenticate(&lobby, guest1, "guest1_99").await;
@@ -1391,4 +1589,69 @@ async fn spectator_can_spectate_another_match_after_the_first_one_ends() {
         ServerMessage::SpectateStarted { match_id, .. } => assert_eq!(match_id, match2),
         other => panic!("expected SpectateStarted, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn test_auth_rate_limiting() {
+    let config = crate::config::ServerConfig {
+        auth_rate_limit_per_minute: 1, // 1 token per minute
+        ..crate::config::ServerConfig::default()
+    };
+
+    let lobby = Arc::new(LobbyService::new(config));
+
+    let (tx1, _rx1) = mpsc::unbounded_channel();
+    let ip = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 1, 100));
+    let client1 = lobby.register_client(tx1, ip).unwrap();
+
+    // First token consumed should succeed
+    assert!(lobby.consume_auth_token(client1));
+
+    // Second token consumed immediately should fail
+    assert!(!lobby.consume_auth_token(client1));
+}
+
+#[test]
+fn test_session_limits() {
+    let config = crate::config::ServerConfig {
+        max_sessions: 3,
+        max_sessions_per_ip: 2,
+        ..crate::config::ServerConfig::default()
+    };
+
+    let lobby = Arc::new(LobbyService::new(config));
+    let ip1 = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 1, 100));
+    let ip2 = std::net::IpAddr::V4(std::net::Ipv4Addr::new(192, 168, 1, 101));
+
+    let (tx1, _rx1) = mpsc::unbounded_channel();
+    let (tx2, _rx2) = mpsc::unbounded_channel();
+    let (tx3, _rx3) = mpsc::unbounded_channel();
+    let (tx4, _rx4) = mpsc::unbounded_channel();
+
+    // IP1 connects 2 clients (success)
+    let c1 = lobby.register_client(tx1, ip1).unwrap();
+    let _c2 = lobby.register_client(tx2, ip1).unwrap();
+
+    // IP1 attempts 3rd client (fails per IP limit)
+    assert_eq!(
+        lobby.register_client(tx3, ip1).unwrap_err(),
+        common::protocol::ErrorCode::TooManySessions
+    );
+
+    // IP2 connects 1 client (success, hits global limit of 3)
+    let _c4 = lobby.register_client(tx4, ip2).unwrap();
+
+    let (tx5, _rx5) = mpsc::unbounded_channel();
+    // IP2 attempts 2nd client (fails global limit)
+    assert_eq!(
+        lobby.register_client(tx5, ip2).unwrap_err(),
+        common::protocol::ErrorCode::TooManySessions
+    );
+
+    // Disconnect c1, frees up global space and IP1 space
+    lobby.disconnect(c1);
+
+    let (tx6, _rx6) = mpsc::unbounded_channel();
+    // Now IP2 can connect again
+    let _c6 = lobby.register_client(tx6, ip2).unwrap();
 }
