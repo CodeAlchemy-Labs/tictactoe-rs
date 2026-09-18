@@ -379,9 +379,12 @@ impl LobbyService {
 
     /// Handles `LeaveMatch`.
     ///
-    /// The player is scheduled for reconnection with the same grace period
-    /// as an implicit disconnect. The opponent and the spectators are
-    /// notified immediately; the match is not dissolved yet.
+    /// An explicit leave is a deliberate action by the player; there is
+    /// nothing to recover from. The match is dissolved immediately and
+    /// every remaining participant receives `MatchAbandoned`. Only
+    /// unexpected disconnections (handled by
+    /// [`LobbyService::disconnect`](LobbyService::disconnect)) go through
+    /// the reconnection grace period.
     pub fn leave_match(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(match_id) = state.sessions.get(&client).and_then(|s| s.current_match) else {
@@ -393,57 +396,11 @@ impl LobbyService {
             }
             return;
         };
-
-        let Some(username) = state
-            .sessions
-            .get(&client)
-            .and_then(|s| s.authenticated_as.clone())
-        else {
-            // Should not happen: only authenticated clients can be in a
-            // match. Fall back to immediate detachment.
-            if let Some(session) = state.sessions.get_mut(&client) {
-                session.current_match = None;
-                session.mark = None;
-            }
-            detach_from_match(&mut state, match_id, client);
-            return;
-        };
-
         if let Some(session) = state.sessions.get_mut(&client) {
             session.current_match = None;
             session.mark = None;
         }
-
-        let was_host = state
-            .matches
-            .get(&match_id)
-            .is_some_and(|m| m.host == client);
-
-        let notice = ServerMessage::OpponentDisconnected {
-            match_id,
-            grace_seconds: common::protocol::GRACE_PERIOD_SECS,
-        };
-        if let Some(m) = state.matches.get(&match_id) {
-            if let Some(opponent_id) = m.opponent_of(client)
-                && let Some(session) = state.sessions.get(&opponent_id)
-            {
-                session.try_send(notice.clone());
-            }
-            for spectator in &m.spectators {
-                if let Some(session) = state.sessions.get(spectator) {
-                    session.try_send(notice.clone());
-                }
-            }
-        }
-
-        state.pending_disconnections.insert(
-            username,
-            super::PendingDisconnection {
-                match_id,
-                client_id: client,
-                was_host,
-            },
-        );
+        detach_from_match(&mut state, match_id, client);
     }
 
     /// Called by the grace-period timer when a disconnected player did not
