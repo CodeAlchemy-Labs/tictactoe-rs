@@ -107,8 +107,8 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
 async fn probe_spectator_move<S>(spectator: &mut S) -> anyhow::Result<Option<Outcome>>
 where
     S: SinkExt<Message>
-    + Unpin
-    + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
     <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
 {
     send(
@@ -117,7 +117,7 @@ where
             position: Position::new(4).context("hard-coded position")?,
         },
     )
-        .await?;
+    .await?;
     match recv(spectator).await? {
         ServerMessage::Error {
             code: ErrorCode::NotInMatch,
@@ -137,8 +137,8 @@ async fn probe_spectator_join<S>(
 ) -> anyhow::Result<Option<Outcome>>
 where
     S: SinkExt<Message>
-    + Unpin
-    + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
     <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
 {
     send(spectator, &ClientMessage::JoinMatch { match_id }).await?;
@@ -157,8 +157,8 @@ where
 async fn register<S>(ws: &mut S, username: &str) -> anyhow::Result<()>
 where
     S: SinkExt<Message>
-    + Unpin
-    + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
     <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
 {
     send(
@@ -170,7 +170,7 @@ where
             password: HACKER_PASSWORD.to_string(),
         },
     )
-        .await?;
+    .await?;
     match recv(ws).await? {
         ServerMessage::Registered { .. } => Ok(()),
         other => anyhow::bail!("expected Registered, got {other:?}"),

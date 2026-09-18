@@ -332,7 +332,7 @@ async fn spectator_receives_the_snapshot_and_board_updates() {
             position: common::domain::Position::new(0).unwrap(),
         },
     )
-        .await;
+    .await;
 
     assert!(matches!(
         recv(&mut host).await,
@@ -381,7 +381,7 @@ async fn spectator_cannot_act_on_the_match() {
             position: common::domain::Position::new(4).unwrap(),
         },
     )
-        .await;
+    .await;
     match recv(&mut spec).await {
         ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::NotInMatch),
         other => panic!("unexpected: {other:?}"),
@@ -418,7 +418,7 @@ async fn spectator_can_spectate_another_match_after_the_first_one_finishes() {
             match_id: match_id_1,
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut host).await;
     let _ = recv(&mut guest).await;
 
@@ -428,26 +428,45 @@ async fn spectator_can_spectate_another_match_after_the_first_one_finishes() {
             match_id: match_id_1,
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut spec).await; // SpectateStarted
     let _ = recv(&mut host).await; // SpectatorJoined
     let _ = recv(&mut guest).await; // SpectatorJoined
 
-    for (client, pos) in [
-        (&mut host, 0u8),
-        (&mut guest, 3),
-        (&mut host, 1),
-        (&mut guest, 4),
-        (&mut host, 2),
-    ] {
+    // First 4 moves: wait for BoardUpdate to synchronize.
+    for (is_host, pos) in [(true, 0u8), (false, 3), (true, 1), (false, 4)] {
+        let client = if is_host { &mut host } else { &mut guest };
+
         send(
             client,
             &ClientMessage::MakeMove {
                 position: common::domain::Position::new(pos).unwrap(),
             },
         )
-            .await;
+        .await;
+
+        assert!(matches!(
+            recv(&mut host).await,
+            ServerMessage::BoardUpdate { .. }
+        ));
+        assert!(matches!(
+            recv(&mut guest).await,
+            ServerMessage::BoardUpdate { .. }
+        ));
+        assert!(matches!(
+            recv(&mut spec).await,
+            ServerMessage::BoardUpdate { .. }
+        ));
     }
+
+    // Final move that wins the game.
+    send(
+        &mut host,
+        &ClientMessage::MakeMove {
+            position: common::domain::Position::new(2).unwrap(),
+        },
+    )
+    .await;
 
     // Drain every message until MatchOver on all three connections.
     for client in [&mut host, &mut guest, &mut spec] {
@@ -468,14 +487,15 @@ async fn spectator_can_spectate_another_match_after_the_first_one_finishes() {
         other => panic!("unexpected: {other:?}"),
     };
 
-    // The spectator joins the second match without error.
+    // The spectator spectates the new match.
     send(
         &mut spec,
         &ClientMessage::Spectate {
             match_id: match_id_2,
         },
     )
-        .await;
+    .await;
+
     match recv(&mut spec).await {
         ServerMessage::SpectateStarted { match_id, .. } => assert_eq!(match_id, match_id_2),
         other => panic!("unexpected: {other:?}"),
