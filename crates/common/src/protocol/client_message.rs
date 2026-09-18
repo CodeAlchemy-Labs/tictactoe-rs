@@ -49,6 +49,10 @@ pub enum ClientMessage {
     },
     /// Requests the current list of open matches.
     ListMatches,
+    /// Requests the top-players ranking.
+    ///
+    /// The ranking is public: guests and authenticated users can request it.
+    ListRanking,
     /// Creates a new match hosted by the caller.
     CreateMatch,
     /// Joins an existing match.
@@ -86,6 +90,12 @@ mod tests {
         let value = serde_json::to_value(ClientMessage::Ping).unwrap();
         assert_eq!(value["type"], "ping");
         assert!(value.get("display_name").is_none());
+    }
+
+    #[test]
+    fn list_ranking_serializes_as_bare_tag() {
+        let value = serde_json::to_value(ClientMessage::ListRanking).unwrap();
+        assert_eq!(value["type"], "list_ranking");
     }
 
     #[test]
