@@ -8,12 +8,14 @@
 //! Messages are tagged with a `type` field in `snake_case`, which makes the
 //! wire format self-describing and easy to inspect in logs.
 
+mod auth_failure;
 mod client_id;
 mod client_message;
 mod match_id;
 mod match_summary;
 mod server_message;
 
+pub use auth_failure::AuthFailureReason;
 pub use client_id::ClientId;
 pub use client_message::ClientMessage;
 pub use match_id::MatchId;
