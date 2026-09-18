@@ -19,8 +19,8 @@ pub enum ClientMessage {
     /// Announces the client's display name and asks to enter the lobby as a
     /// guest.
     ///
-    /// Guest clients can list matches, view the ranking, and spectate, but
-    /// they cannot create or join matches. Registration or login is
+    /// Guest clients can list matches, view the ranking, spectate, and ping,
+    /// but they cannot create or join matches. Registration or login is
     /// required to play.
     Hello {
         /// The display name chosen by the player.
@@ -60,6 +60,13 @@ pub enum ClientMessage {
         /// The identifier of the match to join.
         match_id: MatchId,
     },
+    /// Watches an existing match without joining it as a player.
+    Spectate {
+        /// The identifier of the match to spectate.
+        match_id: MatchId,
+    },
+    /// Stops watching the match the caller is currently spectating.
+    LeaveSpectate,
     /// Plays a move in the caller's current match.
     MakeMove {
         /// The position the player wants to claim.
@@ -96,6 +103,22 @@ mod tests {
     fn list_ranking_serializes_as_bare_tag() {
         let value = serde_json::to_value(ClientMessage::ListRanking).unwrap();
         assert_eq!(value["type"], "list_ranking");
+    }
+
+    #[test]
+    fn leave_spectate_serializes_as_bare_tag() {
+        let value = serde_json::to_value(ClientMessage::LeaveSpectate).unwrap();
+        assert_eq!(value["type"], "leave_spectate");
+    }
+
+    #[test]
+    fn spectate_round_trips() {
+        let message = ClientMessage::Spectate {
+            match_id: MatchId::new(3),
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ClientMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
     }
 
     #[test]
