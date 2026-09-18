@@ -2,13 +2,17 @@
 //!
 //! This file implements the public methods that drive the match lifecycle
 //! (`list_matches`, `create_match`, `join_match`, `make_move`,
-//! `leave_match`) and the two free helpers that mutate match state:
+//! `leave_match`, `spectate`, `leave_spectate`) and the free helpers that
+//! mutate match state:
 //!
-//! - [`detach_from_match`] removes a client from a match, notifies the
-//!   opponent, and drops the match when it becomes empty. It is called from
-//!   both `leave_match` and `disconnect`.
+//! - [`detach_from_match`] removes a client from a match, notifies every
+//!   remaining participant and spectator, and drops the match.
+//! - [`detach_spectator_from_match`] removes a single spectator from a
+//!   match that keeps running.
 //! - [`apply_move`] mutates the board and returns everything the caller
 //!   needs to broadcast.
+//! - [`finish_match`] broadcasts the final state, records the winner, and
+//!   releases both players.
 
 use common::domain::{Board, GameStatus, Player, Position, Username};
 use common::protocol::{ClientId, ErrorCode, MatchId, ServerMessage};
@@ -39,10 +43,7 @@ impl LobbyService {
                     .get(&m.host)
                     .and_then(|s| s.display_name.clone())
                     .unwrap_or_else(|| String::from("unknown")),
-                // The spectator count is computed from `Match::spectators`
-                // once the spectator feature lands in the next sub-block.
-                // For now it reports zero.
-                spectator_count: 0,
+                spectator_count: m.spectator_count(),
             })
             .collect();
         session.try_send(ServerMessage::MatchList { matches });
@@ -75,6 +76,13 @@ impl LobbyService {
             });
             return;
         }
+        if session.is_spectating() {
+            session.try_send(ServerMessage::Error {
+                code: ErrorCode::AlreadySpectating,
+                message: String::from("leave the spectated match first"),
+            });
+            return;
+        }
         let match_id = MatchId::new(state.next_match_id);
         state.next_match_id += 1;
         state.matches.insert(match_id, Match::new(match_id, client));
@@ -103,15 +111,16 @@ impl LobbyService {
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    // Checked before `current_match` so that a host that
-                    // tries to join its own match receives the specific
-                    // error instead of the generic "already in a match".
                     Some(m) if m.host == client => {
                         Some((ErrorCode::CannotJoinOwnMatch, "you already host this match"))
                     }
                     _ if session.current_match.is_some() => {
                         Some((ErrorCode::InvalidState, "already in a match"))
                     }
+                    _ if session.is_spectating() => Some((
+                        ErrorCode::AlreadySpectating,
+                        "leave the spectated match first",
+                    )),
                     Some(m) if m.is_full() => Some((ErrorCode::MatchFull, "match is already full")),
                     Some(_) => None,
                 }
@@ -143,6 +152,11 @@ impl LobbyService {
             .get(&client)
             .and_then(|s| s.display_name.clone())
             .unwrap_or_else(|| String::from("unknown"));
+        let spectators: Vec<ClientId> = state
+            .matches
+            .get(&match_id)
+            .map(|m| m.spectators.clone())
+            .unwrap_or_default();
 
         if let Some(m) = state.matches.get_mut(&match_id) {
             m.guest = Some(client);
@@ -155,7 +169,7 @@ impl LobbyService {
         if let Some(host_session) = state.sessions.get(&host) {
             host_session.try_send(ServerMessage::MatchReady {
                 match_id,
-                opponent: guest_display,
+                opponent: guest_display.clone(),
                 your_mark: Player::X,
                 board,
                 current_turn: first_turn,
@@ -164,20 +178,172 @@ impl LobbyService {
         if let Some(guest_session) = state.sessions.get(&client) {
             guest_session.try_send(ServerMessage::MatchReady {
                 match_id,
-                opponent: host_display,
+                opponent: host_display.clone(),
                 your_mark: Player::O,
                 board,
                 current_turn: first_turn,
             });
         }
+
+        // The guest slot is now filled, so a spectator that was watching an
+        // empty match needs a fresh snapshot with the guest name populated.
+        let update = ServerMessage::SpectateStarted {
+            match_id,
+            host_name: host_display,
+            guest_name: guest_display,
+            board,
+            current_turn: first_turn,
+            status: GameStatus::InProgress,
+            spectator_count: u32::try_from(spectators.len()).unwrap_or(u32::MAX),
+        };
+        for spectator in &spectators {
+            if let Some(session) = state.sessions.get(spectator) {
+                session.try_send(update.clone());
+            }
+        }
+    }
+
+    /// Handles `Spectate`.
+    pub fn spectate(&self, client: ClientId, match_id: MatchId) {
+        let mut state = self.lock();
+
+        let validation: Option<(ErrorCode, &'static str)> = {
+            let Some(session) = state.sessions.get(&client) else {
+                return;
+            };
+            if session.display_name.is_none() {
+                Some((ErrorCode::InvalidState, "send hello before spectating"))
+            } else if session.current_match.is_some() {
+                Some((ErrorCode::InvalidState, "cannot spectate while playing"))
+            } else if session.spectating.is_some() {
+                Some((ErrorCode::AlreadySpectating, "already spectating a match"))
+            } else {
+                match state.matches.get(&match_id) {
+                    None => Some((ErrorCode::MatchNotFound, "match not found")),
+                    Some(m) if m.is_player(client) => {
+                        Some((ErrorCode::CannotJoinOwnMatch, "cannot spectate your own match"))
+                    }
+                    Some(m) if !m.has_room_for_spectator() => Some((
+                        ErrorCode::SpectatorLimitReached,
+                        "the match has reached the spectator limit",
+                    )),
+                    Some(_) => None,
+                }
+            }
+        };
+        if let Some((code, message)) = validation {
+            if let Some(session) = state.sessions.get(&client) {
+                session.try_send(ServerMessage::Error {
+                    code,
+                    message: String::from(message),
+                });
+            }
+            return;
+        }
+
+        let display_name = state
+            .sessions
+            .get(&client)
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_else(|| String::from("spectator"));
+
+        let (host, guest, board, current_turn, status, count) = {
+            let Some(m) = state.matches.get_mut(&match_id) else {
+                return;
+            };
+            if !m.add_spectator(client, display_name.clone()) {
+                return;
+            }
+            (
+                m.host,
+                m.guest,
+                m.board,
+                m.current_turn,
+                m.status,
+                m.spectator_count(),
+            )
+        };
+        if let Some(session) = state.sessions.get_mut(&client) {
+            session.spectating = Some(match_id);
+        }
+
+        let host_name = state
+            .sessions
+            .get(&host)
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_else(|| String::from("unknown"));
+        let guest_name = guest
+            .and_then(|id| state.sessions.get(&id))
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_default();
+
+        if let Some(session) = state.sessions.get(&client) {
+            session.try_send(ServerMessage::SpectateStarted {
+                match_id,
+                host_name,
+                guest_name,
+                board,
+                current_turn,
+                status,
+                spectator_count: count,
+            });
+        }
+
+        let joined = ServerMessage::SpectatorJoined {
+            username: display_name,
+            spectator_count: count,
+        };
+        if let Some(session) = state.sessions.get(&host) {
+            session.try_send(joined.clone());
+        }
+        if let Some(guest_id) = guest
+            && let Some(session) = state.sessions.get(&guest_id)
+        {
+            session.try_send(joined.clone());
+        }
+        let other_spectators: Vec<ClientId> = state
+            .matches
+            .get(&match_id)
+            .map(|m| {
+                m.spectators
+                    .iter()
+                    .copied()
+                    .filter(|id| *id != client)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for id in other_spectators {
+            if let Some(session) = state.sessions.get(&id) {
+                session.try_send(joined.clone());
+            }
+        }
+    }
+
+    /// Handles `LeaveSpectate`.
+    pub fn leave_spectate(&self, client: ClientId) {
+        let mut state = self.lock();
+        let Some(match_id) = state.sessions.get(&client).and_then(|s| s.spectating) else {
+            if let Some(session) = state.sessions.get(&client) {
+                session.try_send(ServerMessage::Error {
+                    code: ErrorCode::InvalidState,
+                    message: String::from("not spectating any match"),
+                });
+            }
+            return;
+        };
+        if let Some(session) = state.sessions.get_mut(&client) {
+            session.spectating = None;
+        }
+        detach_spectator_from_match(&mut state, match_id, client);
     }
 
     /// Handles `MakeMove`.
     ///
     /// When the move ends the match, the server broadcasts `MatchOver` with
     /// the winner's display name, releases both players from the match, and
-    /// removes the match from the lobby. The win is recorded in the ranking
-    /// service after the lobby lock is released.
+    /// removes the match from the lobby. Spectators receive the same
+    /// broadcasts as the players. The win is recorded in the ranking service
+    /// after the lobby lock is released.
     pub fn make_move(&self, client: ClientId, position: Position) {
         let mut state = self.lock();
 
@@ -231,14 +397,7 @@ impl LobbyService {
                     current_turn: next_turn,
                     status,
                 };
-                if let Some(host_session) = state.sessions.get(&host) {
-                    host_session.try_send(update.clone());
-                }
-                if let Some(guest_id) = guest
-                    && let Some(guest_session) = state.sessions.get(&guest_id)
-                {
-                    guest_session.try_send(update);
-                }
+                broadcast_to_participants(&state, match_id, host, guest, &update);
 
                 if status.is_finished() {
                     finish_match(&mut state, match_id, host, guest, board, status)
@@ -275,26 +434,108 @@ impl LobbyService {
     }
 }
 
+/// Sends `message` to the two players of a match and to every spectator.
+///
+/// Used for `BoardUpdate`, where the same content goes to everyone.
+fn broadcast_to_participants(
+    state: &LobbyState,
+    match_id: MatchId,
+    host: ClientId,
+    guest: Option<ClientId>,
+    message: &ServerMessage,
+) {
+    if let Some(session) = state.sessions.get(&host) {
+        session.try_send(message.clone());
+    }
+    if let Some(guest_id) = guest
+        && let Some(session) = state.sessions.get(&guest_id)
+    {
+        session.try_send(message.clone());
+    }
+    if let Some(m) = state.matches.get(&match_id) {
+        for spectator in &m.spectators {
+            if let Some(session) = state.sessions.get(spectator) {
+                session.try_send(message.clone());
+            }
+        }
+    }
+}
+
 /// Removes `client` from `match_id` and eliminates the match.
 ///
 /// The policy for this version is that a match ends as soon as one of its
-/// players leaves, regardless of whether it is the host or the guest. That
-/// keeps the lobby state simple: no match survives with a single player,
-/// and the remaining player is returned to the lobby by the caller through
-/// `OpponentLeft`. This avoids the confusing situation where the host sees
-/// its own abandoned match still listed for other guests to join.
+/// players leaves. Every remaining participant (the other player, if any)
+/// and every spectator receives `MatchAbandoned` and is returned to the
+/// lobby. This replaces the earlier `OpponentLeft` message, which described
+/// only the player-to-player perspective and left spectators without a
+/// signal.
 pub(super) fn detach_from_match(state: &mut LobbyState, match_id: MatchId, client: ClientId) {
     let Some(m) = state.matches.remove(&match_id) else {
         return;
     };
     let opponent = m.opponent_of(client);
+    let spectators = m.spectators;
+
+    let abandoned = ServerMessage::MatchAbandoned { match_id };
     if let Some(opponent_id) = opponent {
-        if let Some(opponent_session) = state.sessions.get(&opponent_id) {
-            opponent_session.try_send(ServerMessage::OpponentLeft { match_id });
+        if let Some(session) = state.sessions.get(&opponent_id) {
+            session.try_send(abandoned.clone());
         }
-        if let Some(opponent_session) = state.sessions.get_mut(&opponent_id) {
-            opponent_session.current_match = None;
-            opponent_session.mark = None;
+        if let Some(session) = state.sessions.get_mut(&opponent_id) {
+            session.current_match = None;
+            session.mark = None;
+        }
+    }
+    for spectator in spectators {
+        if let Some(session) = state.sessions.get(&spectator) {
+            session.try_send(abandoned.clone());
+        }
+        if let Some(session) = state.sessions.get_mut(&spectator) {
+            session.spectating = None;
+        }
+    }
+}
+
+/// Removes a single spectator from a match that keeps running.
+///
+/// Called by `leave_spectate` and by `disconnect` when the departing client
+/// was spectating.
+pub(super) fn detach_spectator_from_match(
+    state: &mut LobbyState,
+    match_id: MatchId,
+    client: ClientId,
+) {
+    let Some(m) = state.matches.get_mut(&match_id) else {
+        return;
+    };
+    let Some(removed_name) = m.remove_spectator(client) else {
+        return;
+    };
+    let count = m.spectator_count();
+    let host = m.host;
+    let guest = m.guest;
+    let other_spectators: Vec<ClientId> = m
+        .spectators
+        .iter()
+        .copied()
+        .filter(|id| *id != client)
+        .collect();
+
+    let left = ServerMessage::SpectatorLeft {
+        username: removed_name,
+        spectator_count: count,
+    };
+    if let Some(session) = state.sessions.get(&host) {
+        session.try_send(left.clone());
+    }
+    if let Some(guest_id) = guest
+        && let Some(session) = state.sessions.get(&guest_id)
+    {
+        session.try_send(left.clone());
+    }
+    for id in other_spectators {
+        if let Some(session) = state.sessions.get(&id) {
+            session.try_send(left.clone());
         }
     }
 }
@@ -339,8 +580,9 @@ fn winner_from_session(state: &LobbyState, client: ClientId) -> Option<(Username
     Some((username, name))
 }
 
-/// Finalizes a match: broadcasts `MatchOver`, releases both players so they
-/// can start a new one, and drops the match from the lobby.
+/// Finalizes a match: broadcasts `MatchOver` to the players and the
+/// spectators, releases the players so they can start a new one, returns
+/// the spectators to the lobby, and drops the match.
 ///
 /// Returns the winner's authenticated identity for the ranking update, or
 /// `None` when the match ended in a draw or the winner has no account.
@@ -371,20 +613,13 @@ fn finish_match(
         GameStatus::InProgress | GameStatus::Draw => None,
     };
 
-    // Broadcast the final state to both players.
+    // Broadcast the final state to players and spectators.
     let over = ServerMessage::MatchOver {
         board,
         status,
         winner_name,
     };
-    if let Some(session) = state.sessions.get(&host) {
-        session.try_send(over.clone());
-    }
-    if let Some(guest_id) = guest
-        && let Some(session) = state.sessions.get(&guest_id)
-    {
-        session.try_send(over);
-    }
+    broadcast_to_participants(state, match_id, host, guest, &over);
 
     // Release both players so they can create or join a new match.
     if let Some(session) = state.sessions.get_mut(&host) {
@@ -396,6 +631,15 @@ fn finish_match(
     {
         session.current_match = None;
         session.mark = None;
+    }
+
+    // Return spectators to the lobby.
+    if let Some(m) = state.matches.get(&match_id) {
+        for spectator in &m.spectators {
+            if let Some(session) = state.sessions.get_mut(spectator) {
+                session.spectating = None;
+            }
+        }
     }
 
     state.matches.remove(&match_id);
