@@ -81,7 +81,9 @@ fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match code {
         KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
         KeyCode::Esc => match screen {
-            Screen::Ranking { .. } => KeyAction::Event(AppEvent::BackToLobby),
+            Screen::Ranking { .. } | Screen::Finished { .. } => {
+                KeyAction::Event(AppEvent::BackToLobby)
+            }
             _ => KeyAction::Event(AppEvent::Quit),
         },
         KeyCode::Char('r') => KeyAction::Event(AppEvent::RefreshLobby),
@@ -246,5 +248,16 @@ mod tests {
     fn esc_outside_the_ranking_screen_quits() {
         let action = translate_key(KeyCode::Esc, &lobby());
         assert!(matches!(action, KeyAction::Event(AppEvent::Quit)));
+    }
+
+    #[test]
+    fn esc_on_the_finished_screen_returns_to_the_lobby() {
+        let screen = Screen::Finished {
+            board: Board::new(),
+            status: GameStatus::Draw,
+            winner_name: None,
+        };
+        let action = translate_key(KeyCode::Esc, &screen);
+        assert!(matches!(action, KeyAction::Event(AppEvent::BackToLobby)));
     }
 }
