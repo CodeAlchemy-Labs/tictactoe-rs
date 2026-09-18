@@ -176,6 +176,9 @@ fn apply_auth_event(state: &mut AppState, event: &AppEvent, effects: &mut Vec<Si
 }
 
 fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<SideEffect>) {
+    if apply_spectator_message(state, &message) {
+        return;
+    }
     match message {
         ServerMessage::Welcome { display_name, .. } => {
             state.display_name = display_name;
@@ -268,21 +271,39 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.status = String::from("opponent left the match");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
+        ServerMessage::SpectateStarted { .. }
+        | ServerMessage::SpectatorJoined { .. }
+        | ServerMessage::SpectatorLeft { .. }
+        | ServerMessage::Pong => {
+            // These are handled by `apply_spectator_message` before the
+            // main match runs. The arms stay here to keep the match
+            // exhaustive.
+        }
+        ServerMessage::Error { code, message } => {
+            apply_error(state, code, message);
+        }
+    }
+}
+
+/// Applies spectator-related messages.
+///
+/// Returns `true` when the message was handled here. The main server match
+/// calls this first so that the spectator logic stays in one place.
+fn apply_spectator_message(state: &mut AppState, message: &ServerMessage) -> bool {
+    match message {
         ServerMessage::SpectateStarted { .. } => {
             // The spectating screen arrives in a later change. Until then,
             // the message is accepted and logged so the wire stays
             // compatible.
             tracing::debug!("spectate_started received but not yet handled");
+            true
         }
-        ServerMessage::SpectatorJoined { .. }
-        | ServerMessage::SpectatorLeft { .. }
-        | ServerMessage::Pong => {
+        ServerMessage::SpectatorJoined { .. } | ServerMessage::SpectatorLeft { .. } => {
             // The spectator counter is not shown yet; the messages are
             // accepted so the wire stays compatible.
+            true
         }
-        ServerMessage::Error { code, message } => {
-            apply_error(state, code, message);
-        }
+        _ => false,
     }
 }
 
@@ -424,6 +445,7 @@ mod tests {
                 matches: vec![MatchSummary {
                     id: MatchId::new(0),
                     host: String::from("bob"),
+                    spectator_count: 0,
                 }],
             }),
         );
@@ -439,8 +461,9 @@ mod tests {
         state.authenticated_as = Some(Username::new("alice_99").unwrap());
         state.screen = Screen::Lobby {
             matches: vec![MatchSummary {
-                id: MatchId::new(7),
+                id: MatchId::new(0),
                 host: String::from("bob"),
+                spectator_count: 0,
             }],
         };
         let effects = apply(&mut state, AppEvent::JoinMatchAt(0));
@@ -484,8 +507,9 @@ mod tests {
         let mut state = AppState::new("alice");
         state.screen = Screen::Lobby {
             matches: vec![MatchSummary {
-                id: MatchId::new(5),
+                id: MatchId::new(0),
                 host: String::from("bob"),
+                spectator_count: 0,
             }],
         };
         let effects = apply(&mut state, AppEvent::JoinMatchAt(0));
