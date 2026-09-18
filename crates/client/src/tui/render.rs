@@ -6,9 +6,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 
-use common::domain::{Cell, GameStatus, Player};
+use common::domain::{Board, Cell, GameStatus, Player};
 
 use crate::app::AppState;
+use crate::domain::auth_form::{AuthField, AuthForm, AuthMode};
 use crate::domain::screen::{ActiveMatch, Screen};
 
 /// Renders the whole UI for the current state.
@@ -50,6 +51,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
                 area,
             );
         }
+        Screen::Auth(form) => render_auth(frame, area, form),
         Screen::Lobby { matches } => render_lobby(frame, area, matches),
         Screen::InGame(active) => render_game(frame, area, active),
         Screen::Finished { board, status } => render_finished(frame, area, *board, *status),
@@ -131,6 +133,75 @@ fn render_finished(
         .block(Block::default().borders(Borders::ALL).title("Result"))
         .alignment(Alignment::Center);
     frame.render_widget(paragraph, area);
+}
+
+fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(6),
+            Constraint::Length(3),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    let title = form.mode.title();
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    if form.mode == AuthMode::Register {
+        lines.push(field_line(
+            "Name",
+            &form.name,
+            form.focused == AuthField::Name,
+        ));
+    }
+    lines.push(field_line(
+        "Username",
+        &form.username,
+        form.focused == AuthField::Username,
+    ));
+    if form.mode == AuthMode::Register {
+        lines.push(field_line("Age", &form.age, form.focused == AuthField::Age));
+    }
+    let password_rendered = if form.reveal_password {
+        form.password.clone()
+    } else {
+        "*".repeat(form.password.chars().count())
+    };
+    lines.push(field_line(
+        "Password",
+        &password_rendered,
+        form.focused == AuthField::Password,
+    ));
+
+    let fields = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL).title(title));
+    frame.render_widget(fields, rows[0]);
+
+    let error_text = form.error.clone().unwrap_or_default();
+    let error = Paragraph::new(error_text)
+        .block(Block::default().borders(Borders::ALL).title("Message"))
+        .style(Style::default().fg(Color::Red));
+    frame.render_widget(error, rows[1]);
+
+    let help = Paragraph::new(
+        "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
+    )
+        .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(help, rows[2]);
+}
+
+fn field_line(label: &str, value: &str, focused: bool) -> Line<'static> {
+    let style = if focused {
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default()
+    };
+    let marker = if focused { "> " } else { "  " };
+    Line::from(vec![
+        Span::styled(marker.to_string(), style),
+        Span::styled(format!("{label:>9}: "), style),
+        Span::styled(value.to_string(), style),
+    ])
 }
 
 fn render_footer(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
