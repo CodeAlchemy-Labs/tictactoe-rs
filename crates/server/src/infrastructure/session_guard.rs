@@ -60,7 +60,7 @@ impl Drop for SessionGuard {
             let grace = Duration::from_secs(u64::from(common::protocol::GRACE_PERIOD_SECS));
             tokio::spawn(async move {
                 tokio::time::sleep(grace).await;
-                lobby.expire_disconnection(username);
+                lobby.expire_disconnection(&username);
             });
         }
     }
