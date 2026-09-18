@@ -9,6 +9,9 @@
 //! registry. `LobbyService` orchestrates the interaction: it validates the
 //! raw input, awaits the hashing or verification, and updates the session
 //! once the auth service confirms the operation.
+//!
+//! Only authenticated sessions may create or join matches. Guests can list
+//! matches, ping, and (once implemented) spectate.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -41,8 +44,6 @@ struct LobbyState {
 }
 
 /// Tuple returned by [`apply_move`] on success.
-///
-/// The fields are `(host, guest, board, next_turn, status)`.
 type MoveOutcome = (ClientId, Option<ClientId>, Board, Player, GameStatus);
 
 /// Coordinates sessions and matches for all connected clients.
@@ -77,10 +78,6 @@ impl LobbyService {
     }
 
     /// Registers a new client and returns its identifier.
-    ///
-    /// The caller keeps ownership of the lifecycle by way of a
-    /// [`SessionGuard`](crate::infrastructure::session_guard::SessionGuard);
-    /// when the guard drops it calls [`LobbyService::disconnect`].
     pub fn register_client(&self, sender: mpsc::UnboundedSender<ServerMessage>) -> ClientId {
         let mut state = self.lock();
         let id = ClientId::new(state.next_client_id);
@@ -121,11 +118,6 @@ impl LobbyService {
     }
 
     /// Handles `Register`.
-    ///
-    /// Validates the raw input, delegates the hashing to
-    /// [`AuthService::register`], and marks the session as authenticated on
-    /// success. Every failure is reported as `AuthenticationFailed` with a
-    /// stable reason.
     pub async fn register_user(
         &self,
         client_id: ClientId,
@@ -287,6 +279,8 @@ impl LobbyService {
     }
 
     /// Handles `CreateMatch`.
+    ///
+    /// Guests are rejected with [`ErrorCode::AuthenticationRequired`].
     pub fn create_match(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(session) = state.sessions.get(&client) else {
@@ -296,6 +290,13 @@ impl LobbyService {
             session.try_send(ServerMessage::Error {
                 code: ErrorCode::InvalidState,
                 message: String::from("send hello before creating a match"),
+            });
+            return;
+        }
+        if !session.is_authenticated() {
+            session.try_send(ServerMessage::Error {
+                code: ErrorCode::AuthenticationRequired,
+                message: String::from("register or log in before creating a match"),
             });
             return;
         }
@@ -317,6 +318,8 @@ impl LobbyService {
     }
 
     /// Handles `JoinMatch`.
+    ///
+    /// Guests are rejected with [`ErrorCode::AuthenticationRequired`].
     pub fn join_match(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
@@ -326,6 +329,11 @@ impl LobbyService {
             };
             if session.display_name.is_none() {
                 Some((ErrorCode::InvalidState, "send hello before joining a match"))
+            } else if !session.is_authenticated() {
+                Some((
+                    ErrorCode::AuthenticationRequired,
+                    "register or log in before joining a match",
+                ))
             } else if session.current_match.is_some() {
                 Some((ErrorCode::InvalidState, "already in a match"))
             } else {
@@ -395,14 +403,25 @@ impl LobbyService {
     pub fn make_move(&self, client: ClientId, position: Position) {
         let mut state = self.lock();
 
-        let Some(match_id) = state.sessions.get(&client).and_then(|s| s.current_match) else {
-            if let Some(session) = state.sessions.get(&client) {
+        let match_id = {
+            let Some(session) = state.sessions.get(&client) else {
+                return;
+            };
+            if !session.is_authenticated() {
+                session.try_send(ServerMessage::Error {
+                    code: ErrorCode::AuthenticationRequired,
+                    message: String::from("register or log in before making a move"),
+                });
+                return;
+            }
+            let Some(id) = session.current_match else {
                 session.try_send(ServerMessage::Error {
                     code: ErrorCode::NotInMatch,
                     message: String::from("not in a match"),
                 });
-            }
-            return;
+                return;
+            };
+            id
         };
 
         let outcome = {
@@ -476,12 +495,6 @@ impl LobbyService {
     }
 
     /// Removes the client and any match it was part of.
-    ///
-    /// This is the method invoked by
-    /// [`SessionGuard`](crate::infrastructure::session_guard::SessionGuard)'s
-    /// `Drop`, which is what makes cleanup deterministic: the guard runs
-    /// synchronously when the connection handler returns, and there is no
-    /// window during which a stale session is observable by other clients.
     pub fn disconnect(&self, client: ClientId) {
         let mut state = self.lock();
         if let Some(session) = state.sessions.remove(&client) {
@@ -493,15 +506,11 @@ impl LobbyService {
     }
 
     /// Returns the number of currently registered sessions.
-    ///
-    /// Intended for observability and tests.
     pub fn session_count(&self) -> usize {
         self.lock().sessions.len()
     }
 
     /// Returns the number of currently open matches.
-    ///
-    /// Intended for observability and tests.
     pub fn match_count(&self) -> usize {
         self.lock().matches.len()
     }
@@ -569,11 +578,6 @@ fn detach_from_match(state: &mut LobbyState, match_id: MatchId, client: ClientId
 }
 
 /// Applies `position` as a move by `client` to `m`.
-///
-/// On success returns the `(host, guest, board, next_turn, status)` tuple
-/// the caller needs to broadcast. On failure returns the
-/// `(ErrorCode, message)` pair the caller should send to the offending
-/// client.
 fn apply_move(
     m: &mut Match,
     client: ClientId,
@@ -603,17 +607,38 @@ fn apply_move(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use argon2::Params;
+
     use super::*;
+
+    fn fast_lobby() -> LobbyService {
+        let params = Params::new(8, 1, 1, None).expect("test parameters are within range");
+        LobbyService::with_auth(Arc::new(AuthService::with_params(params)))
+    }
 
     fn lobby_with_client() -> (
         LobbyService,
         ClientId,
         mpsc::UnboundedReceiver<ServerMessage>,
     ) {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, rx) = mpsc::unbounded_channel();
         let id = lobby.register_client(tx);
         (lobby, id, rx)
+    }
+
+    async fn authenticate(lobby: &LobbyService, client: ClientId, username: &str) {
+        lobby
+            .register_user(
+                client,
+                format!("{username} name"),
+                username.to_string(),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
     }
 
     #[test]
@@ -653,15 +678,41 @@ mod tests {
     }
 
     #[test]
-    fn joining_a_match_notifies_both_players() {
-        let lobby = LobbyService::new();
+    fn create_match_requires_authentication() {
+        let (lobby, id, mut rx) = lobby_with_client();
+        lobby.hello(id, "guest");
+        let _ = rx.try_recv();
+        lobby.create_match(id);
+        match rx.try_recv().unwrap() {
+            ServerMessage::Error { code, .. } => {
+                assert_eq!(code, ErrorCode::AuthenticationRequired);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn authenticated_client_can_create_a_match() {
+        let (lobby, id, mut rx) = lobby_with_client();
+        authenticate(&lobby, id, "alice_99").await;
+        let _ = rx.try_recv(); // Registered
+        lobby.create_match(id);
+        match rx.try_recv().unwrap() {
+            ServerMessage::MatchCreated { .. } => {}
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn joining_a_match_notifies_both_players() {
+        let lobby = fast_lobby();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register_client(host_tx);
         let guest = lobby.register_client(guest_tx);
-        lobby.hello(host, "host");
+        authenticate(&lobby, host, "host_99").await;
         let _ = host_rx.try_recv();
-        lobby.hello(guest, "guest");
+        authenticate(&lobby, guest, "guest_99").await;
         let _ = guest_rx.try_recv();
 
         lobby.create_match(host);
@@ -678,7 +729,7 @@ mod tests {
                 ..
             } => {
                 assert_eq!(your_mark, Player::X);
-                assert_eq!(opponent, "guest");
+                assert_eq!(opponent, "guest_99 name");
             }
             other => panic!("unexpected: {other:?}"),
         }
@@ -689,22 +740,22 @@ mod tests {
                 ..
             } => {
                 assert_eq!(your_mark, Player::O);
-                assert_eq!(opponent, "host");
+                assert_eq!(opponent, "host_99 name");
             }
             other => panic!("unexpected: {other:?}"),
         }
     }
 
-    #[test]
-    fn playing_a_full_game_ends_in_a_win() {
-        let lobby = LobbyService::new();
+    #[tokio::test]
+    async fn playing_a_full_game_ends_in_a_win() {
+        let lobby = fast_lobby();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register_client(host_tx);
         let guest = lobby.register_client(guest_tx);
-        lobby.hello(host, "host");
+        authenticate(&lobby, host, "host_99").await;
         let _ = host_rx.try_recv();
-        lobby.hello(guest, "guest");
+        authenticate(&lobby, guest, "guest_99").await;
         let _ = guest_rx.try_recv();
         lobby.create_match(host);
         let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
@@ -728,12 +779,12 @@ mod tests {
         assert!(saw_match_over);
     }
 
-    #[test]
-    fn disconnect_removes_the_session_and_the_open_match() {
-        let lobby = LobbyService::new();
+    #[tokio::test]
+    async fn disconnect_removes_the_session_and_the_open_match() {
+        let lobby = fast_lobby();
         let (tx, _rx) = mpsc::unbounded_channel();
         let host = lobby.register_client(tx);
-        lobby.hello(host, "host");
+        authenticate(&lobby, host, "host_99").await;
         lobby.create_match(host);
         assert_eq!(lobby.session_count(), 1);
         assert_eq!(lobby.match_count(), 1);
@@ -743,16 +794,16 @@ mod tests {
         assert_eq!(lobby.match_count(), 0);
     }
 
-    #[test]
-    fn disconnect_notifies_the_opponent() {
-        let lobby = LobbyService::new();
+    #[tokio::test]
+    async fn disconnect_notifies_the_opponent() {
+        let lobby = fast_lobby();
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register_client(host_tx);
         let guest = lobby.register_client(guest_tx);
-        lobby.hello(host, "host");
+        authenticate(&lobby, host, "host_99").await;
         let _ = host_rx.try_recv();
-        lobby.hello(guest, "guest");
+        authenticate(&lobby, guest, "guest_99").await;
         let _ = guest_rx.try_recv();
         lobby.create_match(host);
         let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
@@ -773,7 +824,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_marks_the_session_as_authenticated() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let client = lobby.register_client(tx);
         lobby
@@ -796,7 +847,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_rejects_short_password() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let client = lobby.register_client(tx);
         lobby
@@ -819,7 +870,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_rejects_duplicate_username() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx1, mut rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
         let client1 = lobby.register_client(tx1);
@@ -853,7 +904,7 @@ mod tests {
 
     #[tokio::test]
     async fn login_succeeds_after_registration() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx1, mut rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
         let client1 = lobby.register_client(tx1);
@@ -885,7 +936,7 @@ mod tests {
 
     #[tokio::test]
     async fn login_rejects_wrong_password() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx1, _rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
         let client1 = lobby.register_client(tx1);
@@ -916,7 +967,7 @@ mod tests {
 
     #[tokio::test]
     async fn double_registration_is_rejected() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let client = lobby.register_client(tx);
         lobby
@@ -948,7 +999,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_rejects_invalid_username() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let client = lobby.register_client(tx);
         lobby
@@ -970,7 +1021,7 @@ mod tests {
 
     #[tokio::test]
     async fn register_rejects_invalid_age() {
-        let lobby = LobbyService::new();
+        let lobby = fast_lobby();
         let (tx, mut rx) = mpsc::unbounded_channel();
         let client = lobby.register_client(tx);
         lobby
