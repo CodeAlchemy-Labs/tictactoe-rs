@@ -198,11 +198,7 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             retry_pending(state, effects);
         }
         ServerMessage::AuthenticationFailed { reason, message } => {
-            if let Screen::Auth(form) = &mut state.screen {
-                form.error = Some(format!("{reason:?}: {message}"));
-            } else {
-                state.status = format!("{reason:?}: {message}");
-            }
+            apply_auth_failure(state, reason, message);
         }
         ServerMessage::MatchList { matches } => {
             state.screen = Screen::Lobby { matches };
@@ -266,21 +262,37 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         ServerMessage::Error { code, message } => {
-            if code == ErrorCode::AuthenticationRequired && state.is_authenticated() {
-                // The server thinks we are not authenticated but our local
-                // state disagrees. Keep the local state as the source of
-                // truth and surface the message.
-                state.status = format!("{code:?}: {message}");
-            } else if code == ErrorCode::AuthenticationRequired {
-                show_auth(state, AuthMode::Login, None);
-                if let Screen::Auth(form) = &mut state.screen {
-                    form.error = Some(message);
-                }
-            } else {
-                state.status = format!("{code:?}: {message}");
-            }
+            apply_error(state, code, message);
         }
         ServerMessage::Pong => {}
+    }
+}
+
+/// Applies an authentication failure: shows the error on the auth form when
+/// the client is on that screen, otherwise on the status line.
+fn apply_auth_failure(
+    state: &mut AppState,
+    reason: common::protocol::AuthFailureReason,
+    message: String,
+) {
+    if let Screen::Auth(form) = &mut state.screen {
+        form.error = Some(format!("{reason:?}: {message}"));
+    } else {
+        state.status = format!("{reason:?}: {message}");
+    }
+}
+
+/// Applies a protocol error. `AuthenticationRequired` moves the client to
+/// the auth screen when it is not already authenticated; any other code is
+/// surfaced on the status line.
+fn apply_error(state: &mut AppState, code: ErrorCode, message: String) {
+    if code == ErrorCode::AuthenticationRequired && !state.is_authenticated() {
+        show_auth(state, AuthMode::Login, None);
+        if let Screen::Auth(form) = &mut state.screen {
+            form.error = Some(message);
+        }
+    } else {
+        state.status = format!("{code:?}: {message}");
     }
 }
 
