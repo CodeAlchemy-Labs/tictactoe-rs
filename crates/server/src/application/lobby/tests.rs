@@ -226,7 +226,7 @@ async fn disconnect_notifies_the_opponent() {
 
     lobby.disconnect(host);
     match guest_rx.try_recv().unwrap() {
-        ServerMessage::OpponentLeft { .. } => {}
+        ServerMessage::MatchAbandoned { .. } => {}
         other => panic!("unexpected: {other:?}"),
     }
     assert_eq!(lobby.session_count(), 1);
@@ -858,8 +858,8 @@ async fn guest_leaving_destroys_the_match_and_frees_the_host() {
     // The guest leaves.
     lobby.leave_match(guest);
     match host_rx.try_recv().unwrap() {
-        ServerMessage::OpponentLeft { .. } => {}
-        other => panic!("expected OpponentLeft, got {other:?}"),
+        ServerMessage::MatchAbandoned { .. } => {}
+        other => panic!("expected MatchAbandoned, got {other:?}"),
     }
     assert_eq!(lobby.match_count(), 0);
 
@@ -869,4 +869,294 @@ async fn guest_leaving_destroys_the_match_and_frees_the_host() {
         ServerMessage::MatchCreated { .. } => {}
         other => panic!("expected MatchCreated, got {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn spectator_receives_the_started_snapshot() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+    // The spectator is authenticated but does not play.
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+
+    lobby.spectate(spectator, match_id);
+
+    match spec_rx.try_recv().unwrap() {
+        ServerMessage::SpectateStarted {
+            match_id: got_id,
+            host_name,
+            guest_name,
+            spectator_count,
+            status,
+            ..
+        } => {
+            assert_eq!(got_id, match_id);
+            assert_eq!(host_name, "host_99 name");
+            assert_eq!(guest_name, "guest_99 name");
+            assert_eq!(spectator_count, 1);
+            assert_eq!(status, GameStatus::InProgress);
+        }
+        other => panic!("expected SpectateStarted, got {other:?}"),
+    }
+
+    // The players were notified that a spectator joined.
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::SpectatorJoined {
+            username,
+            spectator_count,
+        } => {
+            assert_eq!(username, "watch_99 name");
+            assert_eq!(spectator_count, 1);
+        }
+        other => panic!("expected SpectatorJoined, got {other:?}"),
+    }
+    match guest_rx.try_recv().unwrap() {
+        ServerMessage::SpectatorJoined {
+            username,
+            spectator_count,
+        } => {
+            assert_eq!(username, "watch_99 name");
+            assert_eq!(spectator_count, 1);
+        }
+        other => panic!("expected SpectatorJoined, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn spectator_receives_board_updates() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+    lobby.spectate(spectator, match_id);
+    let _ = spec_rx.try_recv(); // SpectateStarted
+    let _ = host_rx.try_recv(); // SpectatorJoined
+    let _ = guest_rx.try_recv(); // SpectatorJoined
+
+    // X plays a move. All three receive a BoardUpdate.
+    lobby.make_move(host, Position::new(0).unwrap());
+    assert!(matches!(
+        host_rx.try_recv().unwrap(),
+        ServerMessage::BoardUpdate { .. }
+    ));
+    assert!(matches!(
+        guest_rx.try_recv().unwrap(),
+        ServerMessage::BoardUpdate { .. }
+    ));
+    assert!(matches!(
+        spec_rx.try_recv().unwrap(),
+        ServerMessage::BoardUpdate { .. }
+    ));
+}
+
+#[tokio::test]
+async fn spectate_rejects_non_existent_match() {
+    let lobby = fast_lobby();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let client = lobby.register_client(tx);
+    authenticate(&lobby, client, "watch_99").await;
+    let _ = rx.try_recv();
+
+    lobby.spectate(client, MatchId::new(999));
+    match rx.try_recv().unwrap() {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::MatchNotFound),
+        other => panic!("expected MatchNotFound, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn spectate_rejects_a_full_match() {
+    use common::protocol::MAX_SPECTATORS;
+
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+
+    // Fill the match with spectators.
+    for index in 0..MAX_SPECTATORS {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let spectator = lobby.register_client(tx);
+        authenticate(&lobby, spectator, &format!("fan_{index:02}")).await;
+        let _ = rx.try_recv();
+        lobby.spectate(spectator, match_id);
+        // Drain SpectateStarted and the joined notifications.
+        let _ = rx.try_recv();
+        while host_rx.try_recv().is_ok() {}
+        while guest_rx.try_recv().is_ok() {}
+    }
+
+    // The next spectator is rejected.
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let overflow = lobby.register_client(tx);
+    authenticate(&lobby, overflow, "late_fan").await;
+    let _ = rx.try_recv();
+    lobby.spectate(overflow, match_id);
+    match rx.try_recv().unwrap() {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::SpectatorLimitReached),
+        other => panic!("expected SpectatorLimitReached, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn spectate_rejects_a_player_of_the_same_match() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+
+    lobby.spectate(host, match_id);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::InvalidState),
+        other => panic!("expected InvalidState, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn spectate_rejects_a_second_match() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.spectate(spectator, match_id);
+    let _ = spec_rx.try_recv();
+    let _ = host_rx.try_recv();
+
+    lobby.spectate(spectator, match_id);
+    match spec_rx.try_recv().unwrap() {
+        ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::AlreadySpectating),
+        other => panic!("expected AlreadySpectating, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn leave_spectate_notifies_players() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.spectate(spectator, match_id);
+    let _ = spec_rx.try_recv();
+    let _ = host_rx.try_recv();
+
+    lobby.leave_spectate(spectator);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::SpectatorLeft {
+            username,
+            spectator_count,
+        } => {
+            assert_eq!(username, "watch_99 name");
+            assert_eq!(spectator_count, 0);
+        }
+        other => panic!("expected SpectatorLeft, got {other:?}"),
+    }
+
+    // The session is no longer marked as spectating.
+    assert!(!lobby.is_spectating(spectator));
+}
+
+#[tokio::test]
+async fn match_abandoned_reaches_spectators() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest, match_id);
+    lobby.spectate(spectator, match_id);
+    let _ = spec_rx.try_recv();
+    while host_rx.try_recv().is_ok() {}
+
+    // The guest disconnects; the match is dissolved.
+    lobby.disconnect(guest);
+    match spec_rx.try_recv().unwrap() {
+        ServerMessage::MatchAbandoned { .. } => {}
+        other => panic!("expected MatchAbandoned, got {other:?}"),
+    }
+    assert!(!lobby.is_spectating(spectator));
 }
