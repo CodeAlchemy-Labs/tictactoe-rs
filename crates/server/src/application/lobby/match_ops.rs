@@ -39,6 +39,10 @@ impl LobbyService {
                     .get(&m.host)
                     .and_then(|s| s.display_name.clone())
                     .unwrap_or_else(|| String::from("unknown")),
+                // The spectator count is computed from `Match::spectators`
+                // once the spectator feature lands in the next sub-block.
+                // For now it reports zero.
+                spectator_count: 0,
             })
             .collect();
         session.try_send(ServerMessage::MatchList { matches });
