@@ -6,7 +6,7 @@
 //! `BoardUpdate` reach both players (via the general handler) and
 //! spectators (via this module).
 
-use common::domain::GameStatus;
+use common::domain::{Board, GameStatus};
 use common::protocol::{ClientMessage, ServerMessage};
 
 use crate::app::state::AppState;
@@ -49,8 +49,6 @@ pub(super) fn apply_spectator_message(
             username,
             spectator_count,
         } => {
-            // Only meaningful while spectating. Otherwise fall through so
-            // the general handler can decide what to do.
             let Screen::Spectating(active) = &mut state.screen else {
                 return false;
             };
@@ -89,42 +87,16 @@ pub(super) fn apply_spectator_message(
             board,
             status,
             winner_name,
-        } => {
-            let Screen::Spectating(_) = &state.screen else {
-                return false;
-            };
-            // The match ended. Show the result on the spectating client
-            // instead of pushing it straight back to the lobby. The user
-            // dismisses the screen with Esc; the client then sends
-            // `LeaveSpectate` which the server accepts even if the match no
-            // longer exists.
-            state.screen = Screen::Finished {
-                board: *board,
-                status: *status,
-                winner_name: winner_name.clone(),
-            };
-            state.status = String::from("press Esc to return to the lobby");
-            true
-        }
-        ServerMessage::MatchAbandoned { .. } => {
-            if !matches!(state.screen, Screen::Spectating(_)) {
-                return false;
-            }
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-                spectator_mode: false,
-            };
-            state.status = String::from("the match was abandoned by both players");
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
-            true
-        }
+        } => apply_spectator_match_over(state, *board, *status, winner_name.clone()),
+        ServerMessage::MatchAbandoned { .. } => apply_spectator_match_abandoned(state, effects),
         ServerMessage::OpponentDisconnected {
             match_id,
             grace_seconds,
         } => {
-            if let Screen::Spectating(active) = &state.screen
-                && active.id == *match_id
-            {
+            let Screen::Spectating(active) = &state.screen else {
+                return false;
+            };
+            if active.id == *match_id {
                 state.status = format!(
                     "a player disconnected; waiting up to {grace_seconds}s for reconnection"
                 );
@@ -132,13 +104,56 @@ pub(super) fn apply_spectator_message(
             true
         }
         ServerMessage::OpponentReconnected { match_id } => {
-            if let Screen::Spectating(active) = &state.screen
-                && active.id == *match_id
-            {
+            let Screen::Spectating(active) = &state.screen else {
+                return false;
+            };
+            if active.id == *match_id {
                 state.status = String::from("the player reconnected; the match continues");
             }
             true
         }
         _ => false,
     }
+}
+
+/// Applies a `MatchOver` message while the client is spectating.
+///
+/// Returns `false` when the client is not on the spectating screen so the
+/// general server handler can process the same message.
+fn apply_spectator_match_over(
+    state: &mut AppState,
+    board: Board,
+    status: GameStatus,
+    winner_name: Option<String>,
+) -> bool {
+    if !matches!(state.screen, Screen::Spectating(_)) {
+        return false;
+    }
+    state.screen = Screen::Finished {
+        board,
+        status,
+        winner_name,
+    };
+    state.status = String::from("press Esc to return to the lobby");
+    true
+}
+
+/// Applies a `MatchAbandoned` message while the client is spectating.
+///
+/// The match was dissolved by both players leaving; the spectator is
+/// returned to the lobby because there is nothing left to watch.
+fn apply_spectator_match_abandoned(
+    state: &mut AppState,
+    effects: &mut Vec<SideEffect>,
+) -> bool {
+    if !matches!(state.screen, Screen::Spectating(_)) {
+        return false;
+    }
+    state.screen = Screen::Lobby {
+        matches: Vec::new(),
+        spectator_mode: false,
+    };
+    state.status = String::from("the match was abandoned by both players");
+    effects.push(SideEffect::Send(ClientMessage::ListMatches));
+    true
 }
