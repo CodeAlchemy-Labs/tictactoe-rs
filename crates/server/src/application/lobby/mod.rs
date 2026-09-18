@@ -153,29 +153,71 @@ impl LobbyService {
         id
     }
 
-    /// Removes the client and any match or spectate relationship it was
-    /// part of.
+    /// Removes the client and any spectate relationship it was part of.
     ///
-    /// Also releases the username from `active_sessions` so that the account
-    /// can be used on a new connection.
-    pub fn disconnect(&self, client: ClientId) {
+    /// If the client was a player in a live match, the match stays alive
+    /// and a pending disconnection is registered: the username remains
+    /// reserved, the opponent and the spectators are notified, and the
+    /// caller is expected to start the grace-period timer with the returned
+    /// [`Disconnection`]. If the client was not in a match, the username is
+    /// released immediately.
+    pub fn disconnect(&self, client: ClientId) -> Option<Disconnection> {
         let mut state = self.lock();
-        if let Some(session) = state.sessions.remove(&client) {
-            tracing::debug!(client_id = %session.client_id, "session removed");
-            if let Some(username) = &session.authenticated_as {
-                // Only remove the entry if it still points to this client.
-                // A racing re-login could have overwritten it.
+        let session = state.sessions.remove(&client)?;
+        tracing::debug!(client_id = %session.client_id, "session removed");
+
+        let disconnection = match (&session.authenticated_as, session.current_match) {
+            (Some(username), Some(match_id)) => {
+                let was_host = state
+                    .matches
+                    .get(&match_id)
+                    .is_some_and(|m| m.host == client);
+
+                let notice = ServerMessage::OpponentDisconnected {
+                    match_id,
+                    grace_seconds: common::protocol::GRACE_PERIOD_SECS,
+                };
+                if let Some(m) = state.matches.get(&match_id) {
+                    if let Some(opponent_id) = m.opponent_of(client)
+                        && let Some(session) = state.sessions.get(&opponent_id)
+                    {
+                        session.try_send(notice.clone());
+                    }
+                    for spectator in &m.spectators {
+                        if let Some(session) = state.sessions.get(spectator) {
+                            session.try_send(notice.clone());
+                        }
+                    }
+                }
+
+                state.pending_disconnections.insert(
+                    username.clone(),
+                    PendingDisconnection {
+                        match_id,
+                        client_id: client,
+                        was_host,
+                    },
+                );
+
+                Some(Disconnection {
+                    username: username.clone(),
+                })
+            }
+            (Some(username), None) => {
+                // Authenticated but not playing. Release the username.
                 if state.active_sessions.get(username) == Some(&client) {
                     state.active_sessions.remove(username);
                 }
+                None
             }
-            if let Some(match_id) = session.current_match {
-                match_ops::detach_from_match(&mut state, match_id, client);
-            }
-            if let Some(match_id) = session.spectating {
-                match_ops::detach_spectator_from_match(&mut state, match_id, client);
-            }
+            (None, _) => None,
+        };
+
+        if let Some(match_id) = session.spectating {
+            match_ops::detach_spectator_from_match(&mut state, match_id, client);
         }
+
+        disconnection
     }
 
     /// Returns the number of currently registered sessions.
