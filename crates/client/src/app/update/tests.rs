@@ -9,7 +9,7 @@ use common::protocol::{ClientId, ClientMessage, ErrorCode, MatchId, MatchSummary
 
 use super::{SideEffect, apply_event};
 use crate::app::state::{AppEvent, AppState};
-use crate::domain::screen::{ActiveMatch, SpectatedMatch};
+use crate::domain::screen::ActiveMatch;
 use crate::domain::{AuthForm, AuthMode, PendingAction, Screen};
 
 fn apply(state: &mut AppState, event: AppEvent) -> Vec<SideEffect> {
