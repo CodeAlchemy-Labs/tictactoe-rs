@@ -101,11 +101,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
 /// Applies the auth-screen events.
 ///
 /// Returns `true` if the event was an auth event and was handled here.
-fn apply_auth_event(
-    state: &mut AppState,
-    event: &AppEvent,
-    effects: &mut Vec<SideEffect>,
-) -> bool {
+fn apply_auth_event(state: &mut AppState, event: &AppEvent, effects: &mut Vec<SideEffect>) -> bool {
     match event {
         AppEvent::AuthInput(character) => {
             if let Screen::Auth(form) = &mut state.screen {
