@@ -220,9 +220,10 @@ impl LobbyService {
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    Some(m) if m.is_player(client) => {
-                        Some((ErrorCode::CannotJoinOwnMatch, "cannot spectate your own match"))
-                    }
+                    Some(m) if m.is_player(client) => Some((
+                        ErrorCode::CannotJoinOwnMatch,
+                        "cannot spectate your own match",
+                    )),
                     Some(m) if !m.has_room_for_spectator() => Some((
                         ErrorCode::SpectatorLimitReached,
                         "the match has reached the spectator limit",
