@@ -71,6 +71,13 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
                 spectator_mode: false,
             };
             state.status = lobby_status();
+            // The client sends `LeaveSpectate` defensively every time it
+            // returns to the lobby. If the session was spectating a match
+            // that has already ended (typical after a `Finished` screen),
+            // the server still holds `session.spectating = Some(...)` and
+            // this message releases it. For sessions that were not
+            // spectating, the server treats it as a no-op.
+            effects.push(SideEffect::Send(ClientMessage::LeaveSpectate));
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         AppEvent::CreateMatch => {
