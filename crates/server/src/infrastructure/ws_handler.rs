@@ -85,7 +85,6 @@ async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>) {
 }
 
 fn dispatch_text(lobby: &LobbyService, client_id: ClientId, text: &str) {
-
     let message = match serde_json::from_str::<ClientMessage>(text) {
         Ok(message) => message,
         Err(error) => {
@@ -97,10 +96,10 @@ fn dispatch_text(lobby: &LobbyService, client_id: ClientId, text: &str) {
         ClientMessage::Hello { display_name } => lobby.hello(client_id, &display_name),
         ClientMessage::Register { .. } => {
             tracing::warn!("register is not yet implemented in this build");
-        },
+        }
         ClientMessage::Login { .. } => {
             tracing::warn!("login is not yet implemented in this build");
-        },
+        }
         ClientMessage::ListMatches => lobby.list_matches(client_id),
         ClientMessage::CreateMatch => lobby.create_match(client_id),
         ClientMessage::JoinMatch { match_id } => lobby.join_match(client_id, match_id),
