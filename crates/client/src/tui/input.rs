@@ -33,6 +33,43 @@ pub enum KeyAction {
     Ignored,
 }
 
+/// A low-level input event produced by the terminal.
+///
+/// Unlike [`KeyAction`], this is a direct projection of what the terminal
+/// reports. It includes resize events, which the caller must propagate to
+/// the renderer so the layout can adapt.
+pub enum InputEvent {
+    /// A key was pressed. The caller is responsible for translating it
+    /// against the current screen.
+    Key(KeyCode),
+    /// The terminal was resized to the given number of columns and rows.
+    Resize(u16, u16),
+}
+
+/// Blocks until the terminal reports an event and returns it.
+///
+/// The caller is expected to fetch the current screen and call
+/// [`translate_key`] for [`InputEvent::Key`], or to redraw for
+/// [`InputEvent::Resize`].
+///
+/// # Errors
+///
+/// Returns [`InputError::Io`] on terminal failures.
+pub fn read_input_event() -> Result<InputEvent, InputError> {
+    loop {
+        let event = event::read()?;
+        match event {
+            Event::Key(key) if key.kind == KeyEventKind::Press => {
+                return Ok(InputEvent::Key(key.code));
+            }
+            Event::Resize(columns, rows) => {
+                return Ok(InputEvent::Resize(columns, rows));
+            }
+            _ => continue,
+        }
+    }
+}
+
 /// Blocks until a key is pressed and returns the raw [`KeyCode`].
 ///
 /// The caller is expected to fetch the current screen and call
