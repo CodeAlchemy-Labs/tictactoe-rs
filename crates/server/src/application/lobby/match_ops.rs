@@ -264,15 +264,19 @@ impl LobbyService {
     }
 }
 
-/// Removes `client` from `match_id`, notifies the opponent, and drops the
-/// match when it is empty.
+/// Removes `client` from `match_id` and eliminates the match.
+///
+/// The policy for this version is that a match ends as soon as one of its
+/// players leaves, regardless of whether it is the host or the guest. That
+/// keeps the lobby state simple: no match survives with a single player,
+/// and the remaining player is returned to the lobby by the caller through
+/// `OpponentLeft`. This avoids the confusing situation where the host sees
+/// its own abandoned match still listed for other guests to join.
 pub(super) fn detach_from_match(state: &mut LobbyState, match_id: MatchId, client: ClientId) {
-    let Some(m) = state.matches.get_mut(&match_id) else {
+    let Some(m) = state.matches.remove(&match_id) else {
         return;
     };
     let opponent = m.opponent_of(client);
-    let is_host = m.host == client;
-    let drop_match = is_host || m.guest.is_none() || opponent.is_none();
     if let Some(opponent_id) = opponent {
         if let Some(opponent_session) = state.sessions.get(&opponent_id) {
             opponent_session.try_send(ServerMessage::OpponentLeft { match_id });
@@ -281,11 +285,6 @@ pub(super) fn detach_from_match(state: &mut LobbyState, match_id: MatchId, clien
             opponent_session.current_match = None;
             opponent_session.mark = None;
         }
-    }
-    if drop_match {
-        state.matches.remove(&match_id);
-    } else if let Some(m) = state.matches.get_mut(&match_id) {
-        m.guest = None;
     }
 }
 
