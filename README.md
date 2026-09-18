@@ -210,8 +210,8 @@ is the URL:
 # Local
 ./client --server ws://127.0.0.1:8080/ws --name alice
 
-# Remote over TLS
-./client --server wss://tictactoe-rs.onrender.com/ws --name alice
+# Remote over TLS (replace with the URL of your deployment)
+./client --server wss://<your-service>.onrender.com/ws --name alice
 ```
 
 The server reads its bind address from `TICTACTOE_BIND` first and falls back
@@ -238,9 +238,9 @@ create the service:
 1. Push the repository to GitHub.
 2. In the Render dashboard, choose **New > Blueprint** and select the
    repository.
-3. Render reads `render.yaml`, builds the image, and deploys it. The service
-   is reachable at `https://<service-name>.onrender.com`, and WebSocket
-   clients connect to `wss://<service-name>.onrender.com/ws`.
+3. Render reads `render.yaml`, builds the image, and deploys it. The service is reachable at `https://<service-name>.onrender.com`, and
+   WebSocket clients connect to `wss://<service-name>.onrender.com/ws`. Use the
+   service name you chose in the dashboard; it is not fixed by the blueprint.
 
 The free tier spins down after 15 minutes of inactivity. The first request
 after a spin-down takes roughly 30 seconds while the container restarts.
