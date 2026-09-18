@@ -276,6 +276,11 @@ impl LobbyService {
     }
 
     /// Handles `LeaveSpectate`.
+    ///
+    /// If the match still exists, the spectator is detached and the others
+    /// are notified. If the match has already ended (for example, the game
+    /// finished and the viewer is dismissing the result screen), only the
+    /// session flag is cleared.
     pub fn leave_spectate(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(match_id) = state.sessions.get(&client).and_then(|s| s.spectating) else {
@@ -290,7 +295,9 @@ impl LobbyService {
         if let Some(session) = state.sessions.get_mut(&client) {
             session.spectating = None;
         }
-        detach_spectator_from_match(&mut state, match_id, client);
+        if state.matches.contains_key(&match_id) {
+            detach_spectator_from_match(&mut state, match_id, client);
+        }
     }
 
     /// Handles `MakeMove`.
@@ -371,6 +378,10 @@ impl LobbyService {
     }
 
     /// Handles `LeaveMatch`.
+    ///
+    /// The player is scheduled for reconnection with the same grace period
+    /// as an implicit disconnect. The opponent and the spectators are
+    /// notified immediately; the match is not dissolved yet.
     pub fn leave_match(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(match_id) = state.sessions.get(&client).and_then(|s| s.current_match) else {
@@ -382,11 +393,109 @@ impl LobbyService {
             }
             return;
         };
+
+        let Some(username) = state
+            .sessions
+            .get(&client)
+            .and_then(|s| s.authenticated_as.clone())
+        else {
+            // Should not happen: only authenticated clients can be in a
+            // match. Fall back to immediate detachment.
+            if let Some(session) = state.sessions.get_mut(&client) {
+                session.current_match = None;
+                session.mark = None;
+            }
+            detach_from_match(&mut state, match_id, client);
+            return;
+        };
+
         if let Some(session) = state.sessions.get_mut(&client) {
             session.current_match = None;
             session.mark = None;
         }
-        detach_from_match(&mut state, match_id, client);
+
+        let was_host = state
+            .matches
+            .get(&match_id)
+            .is_some_and(|m| m.host == client);
+
+        let notice = ServerMessage::OpponentDisconnected {
+            match_id,
+            grace_seconds: common::protocol::GRACE_PERIOD_SECS,
+        };
+        if let Some(m) = state.matches.get(&match_id) {
+            if let Some(opponent_id) = m.opponent_of(client)
+                && let Some(session) = state.sessions.get(&opponent_id)
+            {
+                session.try_send(notice.clone());
+            }
+            for spectator in &m.spectators {
+                if let Some(session) = state.sessions.get(spectator) {
+                    session.try_send(notice.clone());
+                }
+            }
+        }
+
+        state.pending_disconnections.insert(
+            username,
+            super::PendingDisconnection {
+                match_id,
+                client_id: client,
+                was_host,
+            },
+        );
+    }
+
+    /// Called by the grace-period timer when a disconnected player did not
+    /// come back in time.
+    ///
+    /// Closes the match, awards the win to the remaining player if any, and
+    /// releases every associated session. Wins obtained this way are not
+    /// recorded in the ranking: an abandonment is not a legitimate victory.
+    pub fn expire_disconnection(&self, username: Username) {
+        let mut state = self.lock();
+        let Some(pending) = state.pending_disconnections.remove(&username) else {
+            return;
+        };
+        state.active_sessions.remove(&username);
+
+        let Some(m) = state.matches.remove(&pending.match_id) else {
+            return;
+        };
+
+        let opponent = m.opponent_of(pending.client_id);
+        let winner_name = opponent
+            .and_then(|id| state.sessions.get(&id))
+            .and_then(|s| s.display_name.clone());
+
+        let over = match winner_name {
+            Some(name) => ServerMessage::MatchOver {
+                board: m.board,
+                status: GameStatus::Won(if pending.was_host { Player::O } else { Player::X }),
+                winner_name: Some(name),
+            },
+            None => ServerMessage::MatchAbandoned {
+                match_id: pending.match_id,
+            },
+        };
+
+        if let Some(opponent_id) = opponent {
+            if let Some(session) = state.sessions.get(&opponent_id) {
+                session.try_send(over.clone());
+            }
+            if let Some(session) = state.sessions.get_mut(&opponent_id) {
+                session.current_match = None;
+                session.mark = None;
+            }
+        }
+        for spectator in &m.spectators {
+            if let Some(session) = state.sessions.get(spectator) {
+                session.try_send(over.clone());
+            }
+            if let Some(session) = state.sessions.get_mut(spectator) {
+                session.spectating = None;
+            }
+        }
     }
 }
 
@@ -661,15 +770,9 @@ fn finish_match(
         session.mark = None;
     }
 
-    // Return spectators to the lobby.
-    if let Some(m) = state.matches.get(&match_id) {
-        for spectator in &m.spectators {
-            if let Some(session) = state.sessions.get_mut(spectator) {
-                session.spectating = None;
-            }
-        }
-    }
-
+    // The spectators stay attached to the match until they dismiss the
+    // result screen. Their session keeps `spectating = Some(match_id)` so
+    // the client can show the outcome; `LeaveSpectate` clears it.
     state.matches.remove(&match_id);
 
     winner
