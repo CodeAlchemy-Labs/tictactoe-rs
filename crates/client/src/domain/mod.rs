@@ -7,4 +7,4 @@ pub mod auth_form;
 pub mod screen;
 
 pub use auth_form::{AuthField, AuthForm, AuthMode, PendingAction};
-pub use screen::{ActiveMatch, Screen};
+pub use screen::{ActiveMatch, Screen, SpectatedMatch};
