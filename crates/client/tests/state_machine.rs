@@ -3,10 +3,18 @@
 use client::app::AppState;
 use client::app::state::AppEvent;
 use client::app::update::{SideEffect, apply_event};
-use client::domain::Screen;
+use client::domain::{AuthMode, Screen};
 use client::infrastructure::{MockTransport, Transport};
-use common::domain::{Board, Player};
+use common::domain::{Age, Board, Player, UserProfile, Username};
 use common::protocol::{ClientId, ClientMessage, MatchId, ServerMessage};
+
+fn sample_profile() -> UserProfile {
+    UserProfile {
+        name: String::from("Alice Example"),
+        username: Username::new("alice_99").unwrap(),
+        age: Age::new(30).unwrap(),
+    }
+}
 
 #[tokio::test]
 async fn full_happy_path_over_the_mock_transport() {
@@ -39,6 +47,46 @@ async fn full_happy_path_over_the_mock_transport() {
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
     assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
     assert!(matches!(state.screen, Screen::Lobby { .. }));
+    assert!(!state.is_authenticated());
+
+    // The user registers so they can create a match later.
+    let mut effects = Vec::new();
+    apply_event(
+        &mut state,
+        AppEvent::ShowAuth {
+            mode: AuthMode::Register,
+            pending: None,
+        },
+        &mut effects,
+    );
+    if let Screen::Auth(form) = &mut state.screen {
+        form.name = String::from("Alice Example");
+        form.username = String::from("alice_99");
+        form.age = String::from("30");
+        form.password = String::from("hunter2hunter2");
+    }
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::AuthSubmit, &mut effects);
+    assert_eq!(effects.len(), 1);
+
+    let sent = server_rx.recv().await.unwrap();
+    assert!(matches!(sent, ClientMessage::Register { .. }));
+
+    server_tx
+        .send(ServerMessage::Registered {
+            profile: sample_profile(),
+        })
+        .unwrap();
+    let message = incoming.recv().await.unwrap();
+    let mut effects = Vec::new();
+    apply_event(&mut state, AppEvent::Server(message), &mut effects);
+    assert!(state.is_authenticated());
+    assert_eq!(state.display_name, "Alice Example");
+    assert!(matches!(state.screen, Screen::Lobby { .. }));
+
+    // Drain the ListMatches that the client sent after registration.
+    let sent = server_rx.recv().await.unwrap();
+    assert!(matches!(sent, ClientMessage::ListMatches));
 
     // Server sends the match list.
     server_tx
@@ -48,7 +96,7 @@ async fn full_happy_path_over_the_mock_transport() {
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::Server(message), &mut effects);
 
-    // The user creates a match.
+    // Now the user can create a match.
     let mut effects = Vec::new();
     apply_event(&mut state, AppEvent::CreateMatch, &mut effects);
     assert_eq!(effects, vec![SideEffect::Send(ClientMessage::CreateMatch)]);
