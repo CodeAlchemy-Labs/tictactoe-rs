@@ -25,7 +25,15 @@ pub enum SideEffect {
 /// `effects`.
 /// Applies `event` to `state`, pushing any resulting side effects into
 /// `effects`.
+/// Applies `event` to `state`, pushing any resulting side effects into
+/// `effects`.
 pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
+    // Auth events take the event by reference. If one of them handles it,
+    // we are done; otherwise, `event` is still available for the main match.
+    if apply_auth_event(state, &event, effects) {
+        return;
+    }
+
     match event {
         AppEvent::Server(message) => apply_server(state, message, effects),
         AppEvent::Disconnected => {
@@ -74,6 +82,11 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
+        AppEvent::Send(message) => {
+            effects.push(SideEffect::Send(message));
+        }
+        // Auth events are handled at the top of this function; listing them
+        // here keeps the match exhaustive.
         AppEvent::AuthInput(_)
         | AppEvent::AuthBackspace
         | AppEvent::AuthNextField
@@ -81,35 +94,42 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         | AppEvent::AuthSubmit
         | AppEvent::AuthToggleMode
         | AppEvent::AuthToggleReveal
-        | AppEvent::AuthCancel => apply_auth_event(state, event, effects),
-        AppEvent::Send(message) => {
-            effects.push(SideEffect::Send(message));
-        }
+        | AppEvent::AuthCancel => {}
     }
 }
 
-/// Applies the auth-screen events, which all operate on `Screen::Auth`.
-fn apply_auth_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
+/// Applies the auth-screen events.
+///
+/// Returns `true` if the event was an auth event and was handled here.
+fn apply_auth_event(
+    state: &mut AppState,
+    event: &AppEvent,
+    effects: &mut Vec<SideEffect>,
+) -> bool {
     match event {
         AppEvent::AuthInput(character) => {
             if let Screen::Auth(form) = &mut state.screen {
-                form.push_char(character);
+                form.push_char(*character);
             }
+            true
         }
         AppEvent::AuthBackspace => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.pop_char();
             }
+            true
         }
         AppEvent::AuthNextField => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.focus_next();
             }
+            true
         }
         AppEvent::AuthPreviousField => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.focus_previous();
             }
+            true
         }
         AppEvent::AuthSubmit => {
             if let Screen::Auth(form) = &mut state.screen {
@@ -123,16 +143,19 @@ fn apply_auth_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Sid
                     }
                 }
             }
+            true
         }
         AppEvent::AuthToggleMode => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.toggle_mode();
             }
+            true
         }
         AppEvent::AuthToggleReveal => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.toggle_reveal_password();
             }
+            true
         }
         AppEvent::AuthCancel => {
             state.screen = Screen::Lobby {
@@ -140,8 +163,9 @@ fn apply_auth_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Sid
             };
             state.status = String::from("returned to lobby");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            true
         }
-        _ => unreachable!("apply_auth_event is only called with auth events"),
+        _ => false,
     }
 }
 
@@ -157,13 +181,13 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
         }
         ServerMessage::Registered { profile } => {
             state.authenticated_as = Some(profile.username.clone());
-            state.display_name = profile.name.clone();
+            state.display_name.clone_from(&profile.name);
             state.status = format!("registered as {}", profile.username);
             retry_pending(state, effects);
         }
         ServerMessage::LoginSucceeded { profile } => {
             state.authenticated_as = Some(profile.username.clone());
-            state.display_name = profile.name.clone();
+            state.display_name.clone_from(&profile.name);
             state.status = format!("logged in as {}", profile.username);
             retry_pending(state, effects);
         }
