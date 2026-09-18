@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use argon2::password_hash::SaltString;
-use argon2::password_hash::rand_core::OsRng;
+use rand_core::OsRng;
 use argon2::{Algorithm, Argon2, Params, PasswordHash, PasswordHasher, PasswordVerifier, Version};
 use common::domain::{UserProfile, Username};
 use common::protocol::AuthFailureReason;
