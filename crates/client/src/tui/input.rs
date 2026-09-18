@@ -2,8 +2,9 @@
 //!
 //! The translation from a raw `KeyCode` to an [`AppEvent`] is context
 //! sensitive. In the auth screen, printable characters go to the form. In
-//! the lobby, digits select a match. In a game, digits play a move. The
-//! translator receives the current screen so it can pick the right mapping.
+//! the lobby, digits select a match and `t` opens the ranking. In a game,
+//! digits play a move. The translator receives the current screen so it can
+//! pick the right mapping.
 
 use std::io;
 
@@ -78,8 +79,16 @@ fn translate_auth_key(code: KeyCode) -> KeyAction {
 
 fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match code {
-        KeyCode::Char('q') | KeyCode::Esc => KeyAction::Event(AppEvent::Quit),
+        KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
+        KeyCode::Esc => match screen {
+            Screen::Ranking { .. } => KeyAction::Event(AppEvent::BackToLobby),
+            _ => KeyAction::Event(AppEvent::Quit),
+        },
         KeyCode::Char('r') => KeyAction::Event(AppEvent::RefreshLobby),
+        KeyCode::Char('t') => match screen {
+            Screen::Lobby { .. } => KeyAction::Event(AppEvent::ShowRanking),
+            _ => KeyAction::Ignored,
+        },
         KeyCode::Char('c') => KeyAction::Event(AppEvent::CreateMatch),
         KeyCode::Char('l') => KeyAction::Event(AppEvent::LeaveMatch),
         KeyCode::Char(digit @ '1'..='9') => {
@@ -91,6 +100,7 @@ fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
                 Screen::InGame(_) => KeyAction::Event(AppEvent::PlayMove(value)),
                 Screen::Connecting
                 | Screen::Auth(_)
+                | Screen::Ranking { .. }
                 | Screen::Finished { .. }
                 | Screen::Fatal(_) => KeyAction::Ignored,
             }
@@ -117,6 +127,10 @@ mod tests {
         }
     }
 
+    fn ranking() -> Screen {
+        Screen::Ranking { entries: vec![] }
+    }
+
     fn in_game() -> Screen {
         Screen::InGame(Box::new(ActiveMatch {
             id: MatchId::new(0),
@@ -135,19 +149,28 @@ mod tests {
     #[test]
     fn digit_one_in_the_lobby_joins_the_first_match() {
         let action = translate_key(KeyCode::Char('1'), &lobby());
-        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(0))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::JoinMatchAt(0))
+        ));
     }
 
     #[test]
     fn digit_nine_in_the_lobby_joins_the_ninth_match() {
         let action = translate_key(KeyCode::Char('9'), &lobby());
-        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(8))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::JoinMatchAt(8))
+        ));
     }
 
     #[test]
     fn digit_one_in_a_game_plays_a_move() {
         let action = translate_key(KeyCode::Char('1'), &in_game());
-        assert!(matches!(action, KeyAction::Event(AppEvent::PlayMove(1))));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::PlayMove(1))
+        ));
     }
 
     #[test]
@@ -198,7 +221,10 @@ mod tests {
     #[test]
     fn f2_in_auth_toggles_the_mode() {
         let action = translate_key(KeyCode::F(2), &auth());
-        assert!(matches!(action, KeyAction::Event(AppEvent::AuthToggleMode)));
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::AuthToggleMode)
+        ));
     }
 
     #[test]
@@ -208,5 +234,29 @@ mod tests {
             action,
             KeyAction::Event(AppEvent::AuthToggleReveal)
         ));
+    }
+
+    #[test]
+    fn t_in_the_lobby_opens_the_ranking() {
+        let action = translate_key(KeyCode::Char('t'), &lobby());
+        assert!(matches!(action, KeyAction::Event(AppEvent::ShowRanking)));
+    }
+
+    #[test]
+    fn t_outside_the_lobby_is_ignored() {
+        let action = translate_key(KeyCode::Char('t'), &in_game());
+        assert!(matches!(action, KeyAction::Ignored));
+    }
+
+    #[test]
+    fn esc_on_the_ranking_screen_returns_to_the_lobby() {
+        let action = translate_key(KeyCode::Esc, &ranking());
+        assert!(matches!(action, KeyAction::Event(AppEvent::BackToLobby)));
+    }
+
+    #[test]
+    fn esc_outside_the_ranking_screen_quits() {
+        let action = translate_key(KeyCode::Esc, &lobby());
+        assert!(matches!(action, KeyAction::Event(AppEvent::Quit)));
     }
 }
