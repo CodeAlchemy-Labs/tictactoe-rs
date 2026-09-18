@@ -76,7 +76,7 @@ pub enum ServerMessage {
         /// The current status.
         status: GameStatus,
     },
-    /// Sent when the match has ended.
+    /// Sent when the match has ended normally.
     MatchOver {
         /// The final board.
         board: Board,
@@ -91,10 +91,55 @@ pub enum ServerMessage {
         #[serde(default)]
         winner_name: Option<String>,
     },
+    /// Sent when a match is dissolved before it ends: a player left, or
+    /// disconnected. Spectators and any remaining participant receive this
+    /// instead of `MatchOver`.
+    MatchAbandoned {
+        /// The match identifier.
+        match_id: MatchId,
+    },
     /// Sent when the opponent has left the match.
     OpponentLeft {
         /// The match identifier.
         match_id: MatchId,
+    },
+    /// Sent to a client that has just started spectating a match.
+    ///
+    /// Contains a snapshot of the board at the moment the spectator joined,
+    /// plus the identity of the two players and the current count of
+    /// spectators, including the recipient.
+    SpectateStarted {
+        /// The match identifier.
+        match_id: MatchId,
+        /// The host's display name.
+        host_name: String,
+        /// The guest's display name, or an empty string when no guest has
+        /// joined yet.
+        guest_name: String,
+        /// The board at the moment the spectator joined.
+        board: Board,
+        /// The player whose turn it is.
+        current_turn: Player,
+        /// The current status.
+        status: GameStatus,
+        /// The number of spectators, including the recipient.
+        spectator_count: u32,
+    },
+    /// Sent to every participant and spectator of a match when a new
+    /// spectator joins.
+    SpectatorJoined {
+        /// The display name of the spectator that joined.
+        username: String,
+        /// The total number of spectators after the join.
+        spectator_count: u32,
+    },
+    /// Sent to every participant and spectator of a match when a spectator
+    /// leaves.
+    SpectatorLeft {
+        /// The display name of the spectator that left.
+        username: String,
+        /// The total number of spectators after the departure.
+        spectator_count: u32,
     },
     /// A protocol-level error.
     Error {
@@ -138,6 +183,10 @@ pub enum ErrorCode {
     AuthenticationRequired,
     /// The client tried to join a match it already hosts.
     CannotJoinOwnMatch,
+    /// The match already has the maximum number of spectators.
+    SpectatorLimitReached,
+    /// The client is already spectating a match.
+    AlreadySpectating,
     /// The server did not provide a code, or provided one the client does
     /// not recognize. Used as the fallback for older servers.
     #[default]
@@ -205,6 +254,16 @@ mod tests {
     }
 
     #[test]
+    fn match_abandoned_serializes_as_bare_tag() {
+        let message = ServerMessage::MatchAbandoned {
+            match_id: MatchId::new(7),
+        };
+        let value: serde_json::Value = serde_json::to_value(&message).unwrap();
+        assert_eq!(value["type"], "match_abandoned");
+        assert_eq!(value["match_id"], 7);
+    }
+
+    #[test]
     fn error_code_serializes_in_snake_case() {
         let message = ServerMessage::Error {
             code: ErrorCode::MatchNotFound,
@@ -213,6 +272,20 @@ mod tests {
         let value: serde_json::Value = serde_json::to_value(&message).unwrap();
         assert_eq!(value["type"], "error");
         assert_eq!(value["code"], "match_not_found");
+    }
+
+    #[test]
+    fn spectator_error_codes_serialize_in_snake_case() {
+        let value = serde_json::to_string(&ErrorCode::SpectatorLimitReached).unwrap();
+        assert_eq!(value, "\"spectator_limit_reached\"");
+        let value = serde_json::to_string(&ErrorCode::AlreadySpectating).unwrap();
+        assert_eq!(value, "\"already_spectating\"");
+    }
+
+    #[test]
+    fn cannot_join_own_match_serializes_in_snake_case() {
+        let value = serde_json::to_string(&ErrorCode::CannotJoinOwnMatch).unwrap();
+        assert_eq!(value, "\"cannot_join_own_match\"");
     }
 
     #[test]
@@ -290,8 +363,40 @@ mod tests {
     }
 
     #[test]
-    fn cannot_join_own_match_serializes_in_snake_case() {
-        let value = serde_json::to_string(&ErrorCode::CannotJoinOwnMatch).unwrap();
-        assert_eq!(value, "\"cannot_join_own_match\"");
+    fn spectate_started_round_trip() {
+        let message = ServerMessage::SpectateStarted {
+            match_id: MatchId::new(2),
+            host_name: String::from("Alice"),
+            guest_name: String::from("Bob"),
+            board: Board::new(),
+            current_turn: Player::X,
+            status: GameStatus::InProgress,
+            spectator_count: 3,
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn spectator_joined_round_trip() {
+        let message = ServerMessage::SpectatorJoined {
+            username: String::from("Carol"),
+            spectator_count: 2,
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn spectator_left_round_trip() {
+        let message = ServerMessage::SpectatorLeft {
+            username: String::from("Carol"),
+            spectator_count: 1,
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
     }
 }
