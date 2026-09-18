@@ -55,7 +55,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
         Screen::Lobby { spectator_mode, .. } => {
             let visible = state.screen.visible_matches();
             render_lobby(frame, area, &visible, *spectator_mode);
-        },
+        }
         Screen::Ranking { entries } => render_ranking(frame, area, entries),
         Screen::InGame(active) => render_game(frame, area, active),
         Screen::Spectating(active) => render_spectating(frame, area, active),
@@ -94,9 +94,7 @@ fn render_lobby(
     };
 
     if spectator_mode {
-        let banner = Paragraph::new(
-            "Spectator mode: press 1-9 to watch a match, Esc to cancel",
-        )
+        let banner = Paragraph::new("Spectator mode: press 1-9 to watch a match, Esc to cancel")
             .block(Block::default().borders(Borders::ALL))
             .style(
                 Style::default()
@@ -107,7 +105,11 @@ fn render_lobby(
         frame.render_widget(banner, columns[0]);
     }
 
-    let body_area = if spectator_mode { columns[1] } else { columns[0] };
+    let body_area = if spectator_mode {
+        columns[1]
+    } else {
+        columns[0]
+    };
 
     let items: Vec<ListItem<'_>> = if matches.is_empty() {
         let message = if spectator_mode {
