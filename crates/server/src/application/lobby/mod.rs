@@ -6,8 +6,7 @@
 //! No method holds the lock across an `.await` point.
 //!
 //! Authentication is delegated to [`AuthService`], which owns the user
-//! registry. The win counter is delegated to
-//! [`RankingService`](crate::application::ranking::RankingService).
+//! registry. The win counter is delegated to [`RankingService`].
 //! `LobbyService` orchestrates the interaction between the two: it validates
 //! input, awaits hashing or verification, updates the session, and records
 //! wins when a match ends with a real victory.
