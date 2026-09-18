@@ -9,8 +9,10 @@ use futures_util::{SinkExt, StreamExt};
 use server::application::lobby::LobbyService;
 use server::infrastructure::http::build_router;
 use tokio::net::TcpListener;
+use tokio_tungstenite::MaybeTlsStream;
+use tokio_tungstenite::WebSocketStream;
+use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 
 type Client = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
@@ -49,6 +51,20 @@ async fn recv(client: &mut Client) -> ServerMessage {
     }
 }
 
+async fn register(client: &mut Client, username: &str) {
+    send(
+        client,
+        &ClientMessage::Register {
+            name: format!("{username} name"),
+            username: username.to_string(),
+            age: 30,
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    let _ = recv(client).await;
+}
+
 #[tokio::test]
 async fn hello_returns_welcome_with_display_name() {
     let (addr, _) = spawn_server().await;
@@ -59,7 +75,7 @@ async fn hello_returns_welcome_with_display_name() {
             display_name: String::from("alice"),
         },
     )
-    .await;
+        .await;
     match recv(&mut client).await {
         ServerMessage::Welcome { display_name, .. } => assert_eq!(display_name, "alice"),
         other => panic!("unexpected: {other:?}"),
@@ -70,23 +86,37 @@ async fn hello_returns_welcome_with_display_name() {
 async fn joining_a_nonexistent_match_fails() {
     let (addr, _) = spawn_server().await;
     let mut client = connect(addr).await;
-    send(
-        &mut client,
-        &ClientMessage::Hello {
-            display_name: String::from("alice"),
-        },
-    )
-    .await;
-    let _ = recv(&mut client).await;
+    register(&mut client, "alice_99").await;
     send(
         &mut client,
         &ClientMessage::JoinMatch {
             match_id: common::protocol::MatchId::new(999),
         },
     )
-    .await;
+        .await;
     match recv(&mut client).await {
         ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::MatchNotFound),
+        other => panic!("unexpected: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn guest_cannot_create_a_match() {
+    let (addr, _) = spawn_server().await;
+    let mut client = connect(addr).await;
+    send(
+        &mut client,
+        &ClientMessage::Hello {
+            display_name: String::from("guest"),
+        },
+    )
+        .await;
+    let _ = recv(&mut client).await;
+    send(&mut client, &ClientMessage::CreateMatch).await;
+    match recv(&mut client).await {
+        ServerMessage::Error { code, .. } => {
+            assert_eq!(code, ErrorCode::AuthenticationRequired);
+        }
         other => panic!("unexpected: {other:?}"),
     }
 }
@@ -101,15 +131,13 @@ async fn disconnect_removes_the_session_from_the_lobby() {
             display_name: String::from("alice"),
         },
     )
-    .await;
+        .await;
     let _ = recv(&mut client).await;
     assert_eq!(lobby.session_count(), 1);
 
     client.close(None).await.unwrap();
     drop(client);
 
-    // Wait until the guard has run. The cleanup is synchronous on the server
-    // side, so we only need to give the task a chance to be scheduled.
     for _ in 0..50 {
         if lobby.session_count() == 0 {
             break;
@@ -132,7 +160,7 @@ async fn registration_succeeds_and_authenticates_the_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-    .await;
+        .await;
     match recv(&mut client).await {
         ServerMessage::Registered { profile } => {
             assert_eq!(profile.name, "Alice Example");
@@ -155,7 +183,7 @@ async fn registration_with_invalid_input_is_rejected() {
             password: String::from("hunter2hunter2"),
         },
     )
-    .await;
+        .await;
     match recv(&mut client).await {
         ServerMessage::AuthenticationFailed { reason, .. } => {
             assert_eq!(reason, AuthFailureReason::UsernameInvalid);
@@ -168,7 +196,6 @@ async fn registration_with_invalid_input_is_rejected() {
 async fn login_after_registration_succeeds_on_a_new_connection() {
     let (addr, _) = spawn_server().await;
 
-    // First connection: register.
     let mut register_client = connect(addr).await;
     send(
         &mut register_client,
@@ -179,12 +206,11 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-    .await;
+        .await;
     let _ = recv(&mut register_client).await;
     register_client.close(None).await.unwrap();
     drop(register_client);
 
-    // Second connection: log in with the same credentials.
     let mut login_client = connect(addr).await;
     send(
         &mut login_client,
@@ -193,7 +219,7 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-    .await;
+        .await;
     match recv(&mut login_client).await {
         ServerMessage::LoginSucceeded { profile } => {
             assert_eq!(profile.username.as_str(), "alice_99");
