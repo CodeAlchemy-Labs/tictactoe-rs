@@ -109,13 +109,14 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
-        AppEvent::Redraw => {}
         AppEvent::Send(message) => {
             effects.push(SideEffect::Send(message));
         }
-        // Auth events are handled at the top of this function; listing them
-        // here keeps the match exhaustive.
-        AppEvent::AuthInput(_)
+        // `Redraw` only wakes the main loop so it can redraw the frame; the
+        // auth events are handled at the top of this function. Both are
+        // intentional no-ops in this match, so they share an arm.
+        AppEvent::Redraw
+        | AppEvent::AuthInput(_)
         | AppEvent::AuthBackspace
         | AppEvent::AuthNextField
         | AppEvent::AuthPreviousField
