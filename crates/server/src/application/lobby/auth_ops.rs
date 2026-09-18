@@ -207,4 +207,17 @@ impl LobbyService {
             session.try_send(ServerMessage::Pong);
         }
     }
+
+    /// Handles `ListRanking`.
+    ///
+    /// Returns the current top-10 ranking. During the 0.2.0 development
+    /// cycle the ranking is always empty until `RankingService` lands; the
+    /// placeholder keeps the wire format stable and the match arms
+    /// exhaustive.
+    pub fn list_ranking(&self, client: ClientId) {
+        let state = self.lock();
+        if let Some(session) = state.sessions.get(&client) {
+            session.try_send(ServerMessage::Ranking { entries: Vec::new() });
+        }
+    }
 }
