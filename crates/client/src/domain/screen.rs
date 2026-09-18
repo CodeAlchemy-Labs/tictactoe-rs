@@ -1,21 +1,23 @@
 //! The screen the client is currently showing.
 
-use common::domain::GameStatus;
-use common::protocol::MatchSummary;
+use common::domain::{Board, GameStatus, Player};
+use common::protocol::{MatchId, MatchSummary};
+
+use super::auth_form::AuthForm;
 
 /// A match the local user has already engaged with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ActiveMatch {
     /// The match identifier.
-    pub id: common::protocol::MatchId,
+    pub id: MatchId,
     /// The opponent's display name.
     pub opponent: String,
     /// The mark assigned to the local player.
-    pub your_mark: common::domain::Player,
+    pub your_mark: Player,
     /// The current board.
-    pub board: common::domain::Board,
+    pub board: Board,
     /// Whose turn it is.
-    pub current_turn: common::domain::Player,
+    pub current_turn: Player,
     /// The current status.
     pub status: GameStatus,
 }
@@ -25,6 +27,8 @@ pub struct ActiveMatch {
 pub enum Screen {
     /// Waiting for the connection to be established and the welcome message.
     Connecting,
+    /// Authenticating as a registered user.
+    Auth(Box<AuthForm>),
     /// Browsing the list of open matches.
     Lobby {
         /// The most recent snapshot of open matches.
@@ -35,7 +39,7 @@ pub enum Screen {
     /// The match has ended.
     Finished {
         /// The final board.
-        board: common::domain::Board,
+        board: Board,
         /// The final status.
         status: GameStatus,
     },
@@ -48,8 +52,9 @@ impl Screen {
     pub const fn title(&self) -> &'static str {
         match self {
             Self::Connecting => "Connecting",
+            Self::Auth(_) => "Auth",
             Self::Lobby { .. } => "Lobby",
-            Self::InGame(_) => "Match",
+            Self::InGame(_) => "In game",
             Self::Finished { .. } => "Result",
             Self::Fatal(_) => "Error",
         }
