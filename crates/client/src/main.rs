@@ -1,15 +1,15 @@
 //! Binary entry point for the terminal client.
 
+use std::sync::{Arc, RwLock};
+
 use anyhow::Context;
 use crossterm::cursor::{Hide, Show};
 use crossterm::execute;
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
 };
-
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::Rect;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
@@ -18,8 +18,7 @@ use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
 use client::domain::screen::Screen;
 use client::infrastructure::{Transport, WsTransport};
-use client::tui::{KeyAction, read_key_action, render};
-use std::io::IsTerminal;
+use client::tui::{KeyAction, read_key_code, render, translate_key};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -46,44 +45,40 @@ async fn main() -> anyhow::Result<()> {
         let _ = server_events.send(AppEvent::Disconnected);
     });
 
+    // The keyboard thread and the main loop share the current screen through
+    // an `RwLock`. The keyboard thread reads the screen *after* a key
+    // arrives, so it always translates against the freshest value. The main
+    // loop overwrites the value after every processed event. This avoids the
+    // lag introduced by blocking the keyboard thread on a channel, and it
+    // keeps the translation in sync with the state machine for all
+    // realistic input speeds.
     let mut state = AppState::new(config.display_name.clone());
-
-    // The keyboard thread and the main loop are synchronized through a
-    // capacity-one channel. The main loop pushes the current screen after
-    // every processed event; the keyboard thread blocks on receiving a
-    // screen before reading the next key. That guarantees the translation
-    // always uses the freshest screen, so keys that depend on context
-    // (like digits in spectator mode) never see a stale value.
-    let (screen_tx, mut screen_rx) = mpsc::channel::<Screen>(1);
-    screen_tx
-        .send(state.screen.clone())
-        .await
-        .context("failed to prime the keyboard channel")?;
+    let screen = Arc::new(RwLock::new(state.screen.clone()));
 
     let keyboard_events = event_tx.clone();
+    let keyboard_screen = Arc::clone(&screen);
     tokio::task::spawn_blocking(move || {
         loop {
-            let screen = match screen_rx.blocking_recv() {
-                Some(screen) => screen,
-                None => return,
-            };
-            match read_key_action(&screen) {
-                Ok(KeyAction::Event(event)) => {
-                    if keyboard_events.send(event).is_err() {
-                        return;
-                    }
-                }
-                Ok(KeyAction::Ignored) => {
-                    // Wake the main loop so it can publish the next screen,
-                    // even though this key produced no event.
-                    if keyboard_events.send(AppEvent::Noop).is_err() {
-                        return;
-                    }
-                }
+            // Block until a key is pressed, without translating yet.
+            let code = match read_key_code() {
+                Ok(code) => code,
                 Err(error) => {
                     tracing::warn!(%error, "keyboard input failed");
                     return;
                 }
+            };
+            // Fetch the freshest screen only now, when the key is in hand.
+            let current = keyboard_screen
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            match translate_key(code, &current) {
+                KeyAction::Event(event) => {
+                    if keyboard_events.send(event).is_err() {
+                        return;
+                    }
+                }
+                KeyAction::Ignored => {}
             }
         }
     });
@@ -109,9 +104,11 @@ async fn main() -> anyhow::Result<()> {
         dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
 
-        if screen_tx.send(state.screen.clone()).await.is_err() {
-            break;
-        }
+        // Publish the updated screen so the keyboard thread can pick it up
+        // on the next keystroke.
+        *screen
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = state.screen.clone();
     }
 
     Ok(())
@@ -122,37 +119,7 @@ fn init_tracing() {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(std::io::stderr)
-        .with_ansi(ansi_supported())
         .init();
-}
-
-/// Returns `true` when the current stderr can render ANSI escape codes.
-///
-/// See the identical helper in `server/src/main.rs` for the rationale. The
-/// logic is duplicated in each binary because the helper depends only on
-/// `std` and the tracing crates, and duplicating it keeps each binary's
-/// dependency graph minimal.
-fn ansi_supported() -> bool {
-    if std::env::var_os("NO_COLOR").is_some() {
-        return false;
-    }
-    if std::env::var("CLICOLOR_FORCE").is_ok_and(|value| value != "0") {
-        return true;
-    }
-    if !std::io::stderr().is_terminal() {
-        return false;
-    }
-
-    #[cfg(windows)]
-    {
-        std::env::var_os("WT_SESSION").is_some()
-            || std::env::var_os("ConEmuANSI").is_some()
-            || std::env::var_os("TERM_PROGRAM").is_some()
-    }
-    #[cfg(not(windows))]
-    {
-        true
-    }
 }
 
 /// RAII guard that configures the terminal and restores it on drop.
@@ -166,8 +133,7 @@ impl TerminalSession {
         let mut stdout = std::io::stdout();
         execute!(stdout, EnterAlternateScreen, Hide).context("failed to enter alternate screen")?;
         let backend = CrosstermBackend::new(stdout);
-        let mut terminal = Terminal::new(backend).context("failed to create terminal")?;
-        force_terminal_resize(&mut terminal).context("failed to determine terminal size")?;
+        let terminal = Terminal::new(backend).context("failed to create terminal")?;
         Ok(Self { terminal })
     }
 }
@@ -178,27 +144,4 @@ impl Drop for TerminalSession {
         let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen, Show);
         let _ = self.terminal.show_cursor();
     }
-}
-
-/// Polls the terminal size until it is non-zero and forces ratatui to adopt
-/// it before the first frame is drawn.
-///
-/// Under Docker, the `ioctl` used to query the terminal size can report
-/// `0x0` until the PTY forwarding is fully established. Ratatui caches the
-/// size at construction time, so without this step the first frames are
-/// drawn into a zero-sized area and appear blank until a key press triggers
-/// a refresh. Polling for a non-zero size and calling `resize` makes the
-/// first frame visible immediately.
-fn force_terminal_resize(
-    terminal: &mut Terminal<CrosstermBackend<std::io::Stdout>>,
-) -> anyhow::Result<()> {
-    for _ in 0..40 {
-        let (columns, rows) = crossterm::terminal::size()?;
-        if columns > 0 && rows > 0 {
-            terminal.resize(Rect::new(0, 0, columns, rows))?;
-            return Ok(());
-        }
-        std::thread::sleep(std::time::Duration::from_millis(25));
-    }
-    anyhow::bail!("terminal reported 0x0 dimensions after one second")
 }
