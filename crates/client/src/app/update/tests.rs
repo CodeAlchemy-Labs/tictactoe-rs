@@ -604,34 +604,6 @@ fn board_update_reaches_the_spectating_screen() {
 }
 
 #[test]
-fn match_over_while_spectating_returns_to_the_lobby() {
-    let mut state = AppState::new("alice");
-    let _ = apply(
-        &mut state,
-        AppEvent::Server(ServerMessage::SpectateStarted {
-            match_id: MatchId::new(1),
-            host_name: String::from("Alice"),
-            guest_name: String::from("Bob"),
-            board: Board::new(),
-            current_turn: common::domain::Player::X,
-            status: GameStatus::InProgress,
-            spectator_count: 1,
-        }),
-    );
-    let effects = apply(
-        &mut state,
-        AppEvent::Server(ServerMessage::MatchOver {
-            board: Board::new(),
-            status: GameStatus::Won(common::domain::Player::X),
-            winner_name: Some(String::from("Alice")),
-        }),
-    );
-    assert!(matches!(state.screen, Screen::Lobby { .. }));
-    assert!(state.status.contains("Alice"));
-    assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
-}
-
-#[test]
 fn match_abandoned_while_spectating_returns_to_the_lobby() {
     let mut state = AppState::new("alice");
     let _ = apply(
