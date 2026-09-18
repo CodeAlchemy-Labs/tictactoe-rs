@@ -166,6 +166,7 @@ impl LobbyService {
             .is_some_and(Session::is_authenticated)
     }
 
+    #[cfg(test)]
     fn is_spectating(&self, client_id: ClientId) -> bool {
         let state = self.lock();
         state
