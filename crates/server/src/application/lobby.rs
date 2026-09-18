@@ -12,6 +12,13 @@
 //!
 //! Only authenticated sessions may create or join matches. Guests can list
 //! matches, ping, and (once implemented) spectate.
+//!
+//! A given username may be signed in on at most one connection at a time.
+//! The `LobbyState::active_sessions` map tracks which `Username` is bound to
+//! which `ClientId`. The invariant is maintained on both ends: registration
+//! and login insert, `disconnect` removes. Since `SessionGuard` guarantees
+//! that `disconnect` runs synchronously when the connection ends, there is
+//! no window during which a dead session blocks a legitimate login.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -41,6 +48,9 @@ struct LobbyState {
     next_match_id: u64,
     sessions: HashMap<ClientId, Session>,
     matches: HashMap<MatchId, Match>,
+    /// Maps an authenticated username to the single client that is currently
+    /// signed in with it. Enforces the "one session per account" invariant.
+    active_sessions: HashMap<Username, ClientId>,
 }
 
 /// Tuple returned by [`apply_move`] on success.
@@ -201,6 +211,9 @@ impl LobbyService {
                 if let Some(session) = state.sessions.get_mut(&client_id) {
                     session.authenticated_as = Some(profile.username.clone());
                     session.display_name = Some(profile.name.clone());
+                    state
+                        .active_sessions
+                        .insert(profile.username.clone(), client_id);
                     session.try_send(ServerMessage::Registered { profile });
                 }
             }
@@ -233,12 +246,28 @@ impl LobbyService {
             return;
         };
 
+        // Check whether the account is already signed in on another
+        // connection. This is done before authenticating so that a
+        // legitimate account cannot be blocked by an attacker who does not
+        // know the password.
+        if self.is_username_active(&username) {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::AlreadyLoggedIn,
+                reason_message(AuthFailureReason::AlreadyLoggedIn),
+            );
+            return;
+        }
+
         match self.auth.authenticate(&username, password).await {
             Ok(profile) => {
                 let mut state = self.lock();
                 if let Some(session) = state.sessions.get_mut(&client_id) {
                     session.authenticated_as = Some(profile.username.clone());
                     session.display_name = Some(profile.name.clone());
+                    state
+                        .active_sessions
+                        .insert(profile.username.clone(), client_id);
                     session.try_send(ServerMessage::LoginSucceeded { profile });
                 }
             }
@@ -279,8 +308,6 @@ impl LobbyService {
     }
 
     /// Handles `CreateMatch`.
-    ///
-    /// Guests are rejected with [`ErrorCode::AuthenticationRequired`].
     pub fn create_match(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(session) = state.sessions.get(&client) else {
@@ -318,8 +345,6 @@ impl LobbyService {
     }
 
     /// Handles `JoinMatch`.
-    ///
-    /// Guests are rejected with [`ErrorCode::AuthenticationRequired`].
     pub fn join_match(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
@@ -495,10 +520,20 @@ impl LobbyService {
     }
 
     /// Removes the client and any match it was part of.
+    ///
+    /// Also releases the username from `active_sessions` so that the account
+    /// can be used on a new connection.
     pub fn disconnect(&self, client: ClientId) {
         let mut state = self.lock();
         if let Some(session) = state.sessions.remove(&client) {
             tracing::debug!(client_id = %session.client_id, "session removed");
+            if let Some(username) = &session.authenticated_as {
+                // Only remove the entry if it still points to this client.
+                // A racing re-login could have overwritten it.
+                if state.active_sessions.get(username) == Some(&client) {
+                    state.active_sessions.remove(username);
+                }
+            }
             if let Some(match_id) = session.current_match {
                 detach_from_match(&mut state, match_id, client);
             }
@@ -521,6 +556,10 @@ impl LobbyService {
             .sessions
             .get(&client_id)
             .is_some_and(Session::is_authenticated)
+    }
+
+    fn is_username_active(&self, username: &Username) -> bool {
+        self.lock().active_sessions.contains_key(username)
     }
 
     fn send_auth_failure(&self, client_id: ClientId, reason: AuthFailureReason, message: &str) {
@@ -548,6 +587,7 @@ const fn reason_message(reason: AuthFailureReason) -> &'static str {
         AuthFailureReason::PasswordTooShort => "password is too short",
         AuthFailureReason::InvalidCredentials => "invalid username or password",
         AuthFailureReason::AlreadyAuthenticated => "this connection is already authenticated",
+        AuthFailureReason::AlreadyLoggedIn => "this account is already signed in elsewhere",
         AuthFailureReason::InternalError => "internal server error",
     }
 }
@@ -919,6 +959,10 @@ mod tests {
             )
             .await;
         let _ = rx1.try_recv();
+
+        // Close the first connection so the account is no longer active.
+        lobby.disconnect(client1);
+
         lobby
             .login_user(
                 client2,
@@ -1036,6 +1080,115 @@ mod tests {
         match rx.try_recv().unwrap() {
             ServerMessage::AuthenticationFailed { reason, .. } => {
                 assert_eq!(reason, AuthFailureReason::AgeOutOfRange);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn login_rejects_when_account_is_already_active() {
+        let lobby = fast_lobby();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+        // The first session is still active; the second login must fail.
+
+        lobby
+            .login_user(
+                client2,
+                String::from("alice_99"),
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::AlreadyLoggedIn);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+        assert!(!lobby.is_authenticated(client2));
+    }
+
+    #[tokio::test]
+    async fn login_succeeds_after_the_first_session_disconnects() {
+        let lobby = fast_lobby();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+
+        // Close the first connection; the active entry must be released.
+        lobby.disconnect(client1);
+
+        lobby
+            .login_user(
+                client2,
+                String::from("alice_99"),
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::LoginSucceeded { profile } => {
+                assert_eq!(profile.username.as_str(), "alice_99");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn register_rejects_username_taken_by_an_active_session() {
+        // The username already exists, so the register path returns
+        // UsernameTaken even though the account is currently signed in.
+        // AlreadyLoggedIn is reserved for the login path.
+        let lobby = fast_lobby();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+
+        lobby
+            .register_user(
+                client2,
+                String::from("Alice Impostor"),
+                String::from("alice_99"),
+                25,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::UsernameTaken);
             }
             other => panic!("unexpected: {other:?}"),
         }
