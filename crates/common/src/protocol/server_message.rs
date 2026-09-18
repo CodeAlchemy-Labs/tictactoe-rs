@@ -82,6 +82,14 @@ pub enum ServerMessage {
         board: Board,
         /// The final status.
         status: GameStatus,
+        /// The display name of the winner, if any.
+        ///
+        /// `Some(name)` when `status` is `Won`, `None` otherwise. The client
+        /// uses it to render "The player {name} won" instead of the raw
+        /// mark. The field is optional on the wire so that clients can talk
+        /// to servers that predate it.
+        #[serde(default)]
+        winner_name: Option<String>,
     },
     /// Sent when the opponent has left the match.
     OpponentLeft {
@@ -170,10 +178,28 @@ mod tests {
         let message = ServerMessage::MatchOver {
             board: Board::new(),
             status: GameStatus::Won(Player::X),
+            winner_name: Some(String::from("Alice Example")),
         };
         let json = serde_json::to_string(&message).unwrap();
         let back: ServerMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(message, back);
+    }
+
+    #[test]
+    fn match_over_without_winner_name_deserializes() {
+        let json = r#"{"type":"match_over","board":{"cells":["Empty","Empty","Empty","Empty","Empty","Empty","Empty","Empty","Empty"]},"status":"draw"}"#;
+        let message: ServerMessage = serde_json::from_str(json).unwrap();
+        match message {
+            ServerMessage::MatchOver {
+                status,
+                winner_name,
+                ..
+            } => {
+                assert_eq!(status, GameStatus::Draw);
+                assert_eq!(winner_name, None);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 
     #[test]
