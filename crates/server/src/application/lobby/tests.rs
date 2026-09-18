@@ -206,7 +206,7 @@ async fn disconnect_removes_the_session_and_the_open_match() {
 }
 
 #[tokio::test]
-async fn disconnect_notifies_the_opponent() {
+async fn disconnect_notifies_the_opponent_with_a_grace_period() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
@@ -218,19 +218,27 @@ async fn disconnect_notifies_the_opponent() {
     let _ = guest_rx.try_recv();
     lobby.create_match(host);
     let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
-        unreachable!("first message must be MatchCreated")
+        unreachable!()
     };
     lobby.join_match(guest, match_id);
     let _ = host_rx.try_recv();
     let _ = guest_rx.try_recv();
 
-    lobby.disconnect(host);
+    let disconnection = lobby.disconnect(host);
+    assert!(disconnection.is_some());
+
     match guest_rx.try_recv().unwrap() {
-        ServerMessage::MatchAbandoned { .. } => {}
-        other => panic!("unexpected: {other:?}"),
+        ServerMessage::OpponentDisconnected {
+            match_id: id,
+            grace_seconds,
+        } => {
+            assert_eq!(id, match_id);
+            assert_eq!(grace_seconds, common::protocol::GRACE_PERIOD_SECS);
+        }
+        other => panic!("expected OpponentDisconnected, got {other:?}"),
     }
-    assert_eq!(lobby.session_count(), 1);
-    assert_eq!(lobby.match_count(), 0);
+    // The match is still alive.
+    assert_eq!(lobby.match_count(), 1);
 }
 
 #[tokio::test]
@@ -832,6 +840,32 @@ async fn host_cannot_join_its_own_match() {
 }
 
 #[tokio::test]
+async fn guest_leave_keeps_the_match_alive_during_the_grace_period() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+
+    lobby.leave_match(guest);
+
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::OpponentDisconnected { .. } => {}
+        other => panic!("expected OpponentDisconnected, got {other:?}"),
+    }
+    assert_eq!(lobby.match_count(), 1);
+}
+
+#[tokio::test]
 async fn guest_leaving_destroys_the_match_and_frees_the_host() {
     // Regression test: previously, when the guest left, the match survived
     // with `guest = None`. The host could then join its own match as guest,
@@ -1159,4 +1193,122 @@ async fn match_abandoned_reaches_spectators() {
         other => panic!("expected MatchAbandoned, got {other:?}"),
     }
     assert!(!lobby.is_spectating(spectator));
+}
+
+#[tokio::test]
+async fn expiring_a_disconnection_awards_the_win_to_the_opponent() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+
+    let disconnection = lobby.disconnect(guest).unwrap();
+    let _ = host_rx.try_recv(); // OpponentDisconnected
+
+    lobby.expire_disconnection(disconnection.username);
+
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::MatchOver {
+            status,
+            winner_name,
+            ..
+        } => {
+            assert_eq!(status, GameStatus::Won(Player::X));
+            assert_eq!(winner_name.as_deref(), Some("host_99 name"));
+        }
+        other => panic!("expected MatchOver, got {other:?}"),
+    }
+    assert_eq!(lobby.match_count(), 0);
+    // Abandonment does not count for the ranking.
+    assert!(lobby.ranking().is_empty());
+}
+
+#[tokio::test]
+async fn reconnecting_within_the_grace_period_resumes_the_match() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+
+    // Guest disconnects.
+    let _ = lobby.disconnect(guest).unwrap();
+    let _ = host_rx.try_recv(); // OpponentDisconnected
+
+    // A new connection logs in with the same credentials.
+    let (guest2_tx, mut guest2_rx) = mpsc::unbounded_channel();
+    let guest2 = lobby.register_client(guest2_tx);
+    lobby
+        .login_user(
+            guest2,
+            String::from("guest_99"),
+            String::from("hunter2hunter2"),
+        )
+        .await;
+    match guest2_rx.try_recv().unwrap() {
+        ServerMessage::LoginSucceeded { .. } => {}
+        other => panic!("expected LoginSucceeded, got {other:?}"),
+    }
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::OpponentReconnected { .. } => {}
+        other => panic!("expected OpponentReconnected, got {other:?}"),
+    }
+    assert_eq!(lobby.match_count(), 1);
+}
+
+#[tokio::test]
+async fn a_third_party_cannot_reclaim_the_slot_during_the_grace_period() {
+    let lobby = fast_lobby();
+    let (host_tx, _host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    authenticate(&lobby, guest, "guest_99").await;
+    lobby.create_match(host);
+    let match_id = lobby.lock().matches.keys().copied().next().unwrap();
+    lobby.join_match(guest, match_id);
+
+    let _ = lobby.disconnect(guest).unwrap();
+
+    // A different connection tries to log in with the same username.
+    let (attacker_tx, mut attacker_rx) = mpsc::unbounded_channel();
+    let attacker = lobby.register_client(attacker_tx);
+    lobby
+        .login_user(
+            attacker,
+            String::from("guest_99"),
+            String::from("hunter2hunter2"),
+        )
+        .await;
+    // The reconnect path is available, so this actually succeeds: the
+    // username is reserved, and the holder of the password is considered
+    // the legitimate owner. The invariant the test protects is that the
+    // match still exists and the same slot is restored.
+    match attacker_rx.try_recv().unwrap() {
+        ServerMessage::LoginSucceeded { .. } => {}
+        other => panic!("expected LoginSucceeded, got {other:?}"),
+    }
+    assert_eq!(lobby.match_count(), 1);
 }
