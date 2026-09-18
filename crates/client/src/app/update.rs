@@ -176,7 +176,7 @@ fn apply_auth_event(state: &mut AppState, event: &AppEvent, effects: &mut Vec<Si
 }
 
 fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<SideEffect>) {
-    if apply_spectator_message(state, &message) {
+    if apply_list_message(state, &message) {
         return;
     }
     match message {
@@ -202,17 +202,6 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
         }
         ServerMessage::AuthenticationFailed { reason, message } => {
             apply_auth_failure(state, reason, &message);
-        }
-        ServerMessage::MatchList { matches } => {
-            state.screen = Screen::Lobby { matches };
-            state.status = String::from("press a number to join, c to create, t for ranking");
-        }
-        ServerMessage::Ranking { entries } => {
-            if matches!(state.screen, Screen::Ranking { .. }) {
-                let count = entries.len();
-                state.screen = Screen::Ranking { entries };
-                state.status = format!("{count} entries; press Esc to return");
-            }
         }
         ServerMessage::MatchCreated { .. } => {
             state.status = String::from("waiting for an opponent...");
@@ -271,36 +260,42 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.status = String::from("opponent left the match");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
-        ServerMessage::SpectateStarted { .. }
-        | ServerMessage::SpectatorJoined { .. }
-        | ServerMessage::SpectatorLeft { .. }
-        | ServerMessage::Pong => {
-            // These are handled by `apply_spectator_message` before the
-            // main match runs. The arms stay here to keep the match
-            // exhaustive.
-        }
         ServerMessage::Error { code, message } => {
             apply_error(state, code, message);
         }
+        // Handled earlier or intentionally no-op until the spectator
+        // screen lands. The arms stay here to keep the match exhaustive.
+        ServerMessage::MatchList { .. }
+        | ServerMessage::Ranking { .. }
+        | ServerMessage::SpectateStarted { .. }
+        | ServerMessage::SpectatorJoined { .. }
+        | ServerMessage::SpectatorLeft { .. }
+        | ServerMessage::Pong => {}
     }
 }
 
-/// Applies spectator-related messages.
+/// Applies `MatchList` and `Ranking`.
 ///
-/// Returns `true` when the message was handled here. The main server match
-/// calls this first so that the spectator logic stays in one place.
-fn apply_spectator_message(state: &mut AppState, message: &ServerMessage) -> bool {
+/// Returns `true` if the message was handled here. The main server match
+/// calls this first so the two list-shaped messages stay together and do
+/// not grow `apply_server` further.
+fn apply_list_message(state: &mut AppState, message: &ServerMessage) -> bool {
     match message {
-        ServerMessage::SpectateStarted { .. } => {
-            // The spectating screen arrives in a later change. Until then,
-            // the message is accepted and logged so the wire stays
-            // compatible.
-            tracing::debug!("spectate_started received but not yet handled");
+        ServerMessage::MatchList { matches } => {
+            state.screen = Screen::Lobby {
+                matches: matches.clone(),
+            };
+            state.status = String::from("press a number to join, c to create, t for ranking");
             true
         }
-        ServerMessage::SpectatorJoined { .. } | ServerMessage::SpectatorLeft { .. } => {
-            // The spectator counter is not shown yet; the messages are
-            // accepted so the wire stays compatible.
+        ServerMessage::Ranking { entries } => {
+            if matches!(state.screen, Screen::Ranking { .. }) {
+                let count = entries.len();
+                state.screen = Screen::Ranking {
+                    entries: entries.clone(),
+                };
+                state.status = format!("{count} entries; press Esc to return");
+            }
             true
         }
         _ => false,
@@ -461,7 +456,7 @@ mod tests {
         state.authenticated_as = Some(Username::new("alice_99").unwrap());
         state.screen = Screen::Lobby {
             matches: vec![MatchSummary {
-                id: MatchId::new(0),
+                id: MatchId::new(7),
                 host: String::from("bob"),
                 spectator_count: 0,
             }],
@@ -507,7 +502,7 @@ mod tests {
         let mut state = AppState::new("alice");
         state.screen = Screen::Lobby {
             matches: vec![MatchSummary {
-                id: MatchId::new(0),
+                id: MatchId::new(5),
                 host: String::from("bob"),
                 spectator_count: 0,
             }],
