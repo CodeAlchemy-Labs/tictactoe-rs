@@ -191,7 +191,7 @@ async fn playing_a_full_game_ends_in_a_win_and_records_it() {
 }
 
 #[tokio::test]
-async fn disconnect_removes_the_session_and_the_open_match() {
+async fn disconnect_removes_the_session_but_keeps_the_match_during_the_grace_period() {
     let lobby = fast_lobby();
     let (tx, _rx) = mpsc::unbounded_channel();
     let host = lobby.register_client(tx);
@@ -200,8 +200,13 @@ async fn disconnect_removes_the_session_and_the_open_match() {
     assert_eq!(lobby.session_count(), 1);
     assert_eq!(lobby.match_count(), 1);
 
-    lobby.disconnect(host);
+    let disconnection = lobby.disconnect(host).unwrap();
     assert_eq!(lobby.session_count(), 0);
+    // The match survives until the grace period expires so the opponent
+    // can be awarded the win by abandonment.
+    assert_eq!(lobby.match_count(), 1);
+
+    lobby.expire_disconnection(&disconnection.username);
     assert_eq!(lobby.match_count(), 0);
 }
 
@@ -840,32 +845,6 @@ async fn host_cannot_join_its_own_match() {
 }
 
 #[tokio::test]
-async fn guest_leave_keeps_the_match_alive_during_the_grace_period() {
-    let lobby = fast_lobby();
-    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
-    let (guest_tx, _guest_rx) = mpsc::unbounded_channel();
-    let host = lobby.register_client(host_tx);
-    let guest = lobby.register_client(guest_tx);
-    authenticate(&lobby, host, "host_99").await;
-    let _ = host_rx.try_recv();
-    authenticate(&lobby, guest, "guest_99").await;
-    lobby.create_match(host);
-    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
-        unreachable!()
-    };
-    lobby.join_match(guest, match_id);
-    let _ = host_rx.try_recv();
-
-    lobby.leave_match(guest);
-
-    match host_rx.try_recv().unwrap() {
-        ServerMessage::OpponentDisconnected { .. } => {}
-        other => panic!("expected OpponentDisconnected, got {other:?}"),
-    }
-    assert_eq!(lobby.match_count(), 1);
-}
-
-#[tokio::test]
 async fn guest_leaving_destroys_the_match_and_frees_the_host() {
     // Regression test: previously, when the guest left, the match survived
     // with `guest = None`. The host could then join its own match as guest,
@@ -1186,11 +1165,28 @@ async fn match_abandoned_reaches_spectators() {
     let _ = spec_rx.try_recv();
     while host_rx.try_recv().is_ok() {}
 
-    // The guest disconnects; the match is dissolved.
-    lobby.disconnect(guest);
+    // The guest disconnects. The spectator learns about the pending
+    // disconnection, not about the match being dissolved.
+    let disconnection = lobby.disconnect(guest).unwrap();
     match spec_rx.try_recv().unwrap() {
-        ServerMessage::MatchAbandoned { .. } => {}
-        other => panic!("expected MatchAbandoned, got {other:?}"),
+        ServerMessage::OpponentDisconnected { .. } => {}
+        other => panic!("expected OpponentDisconnected, got {other:?}"),
+    }
+    while host_rx.try_recv().is_ok() {}
+
+    // The grace period expires. The match ends with the host as winner,
+    // and the spectator is notified via `MatchOver`.
+    lobby.expire_disconnection(&disconnection.username);
+    match spec_rx.try_recv().unwrap() {
+        ServerMessage::MatchOver {
+            status,
+            winner_name,
+            ..
+        } => {
+            assert_eq!(status, GameStatus::Won(Player::X));
+            assert_eq!(winner_name.as_deref(), Some("host_99 name"));
+        }
+        other => panic!("expected MatchOver, got {other:?}"),
     }
     assert!(!lobby.is_spectating(spectator));
 }
