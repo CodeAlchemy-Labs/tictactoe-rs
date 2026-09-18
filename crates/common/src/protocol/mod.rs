@@ -21,3 +21,19 @@ pub use client_message::ClientMessage;
 pub use match_id::MatchId;
 pub use match_summary::MatchSummary;
 pub use server_message::{ErrorCode, ServerMessage};
+
+/// Maximum number of spectators that may observe a single match.
+///
+/// The limit applies to spectators only. A match always seats exactly two
+/// players and up to [`MAX_SPECTATORS`] observers.
+pub const MAX_SPECTATORS: u32 = 5;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn max_spectators_is_five() {
+        assert_eq!(MAX_SPECTATORS, 5);
+    }
+}
