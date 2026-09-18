@@ -198,10 +198,6 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.screen = Screen::Lobby { matches };
             state.status = String::from("press a number to join, c to create, r to refresh");
         }
-        ServerMessage::Ranking { .. } => {
-            // The ranking screen arrives in a later change. Until then, the
-            // message is accepted and ignored so the wire stays compatible.
-        }
         ServerMessage::MatchCreated { .. } => {
             state.status = String::from("waiting for an opponent...");
         }
@@ -259,7 +255,11 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
                 state.status = format!("{code:?}: {message}");
             }
         }
-        ServerMessage::Pong => {}
+        ServerMessage::Ranking { .. } | ServerMessage::Pong => {
+            // `Ranking` is accepted and ignored until the ranking screen
+            // lands; `Pong` is a liveness acknowledgement with no side
+            // effect. Both arms are intentionally no-ops.
+        }
     }
 }
 
