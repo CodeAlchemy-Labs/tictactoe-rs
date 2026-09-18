@@ -750,3 +750,104 @@ fn redraw_event_is_a_noop() {
     let effects = apply(&mut state, AppEvent::Redraw);
     assert!(effects.is_empty());
 }
+
+#[test]
+fn opponent_disconnected_updates_the_status_during_a_game() {
+    let mut state = AppState::new("alice");
+    state.screen = Screen::InGame(Box::new(ActiveMatch {
+        id: MatchId::new(1),
+        opponent: String::from("Bob"),
+        your_mark: common::domain::Player::X,
+        board: Board::new(),
+        current_turn: common::domain::Player::X,
+        status: GameStatus::InProgress,
+    }));
+    let _ = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::OpponentDisconnected {
+            match_id: MatchId::new(1),
+            grace_seconds: 2,
+        }),
+    );
+    assert!(state.status.contains("disconnected"));
+    assert!(matches!(state.screen, Screen::InGame(_)));
+}
+
+#[test]
+fn opponent_reconnected_updates_the_status_during_a_game() {
+    let mut state = AppState::new("alice");
+    state.screen = Screen::InGame(Box::new(ActiveMatch {
+        id: MatchId::new(1),
+        opponent: String::from("Bob"),
+        your_mark: common::domain::Player::X,
+        board: Board::new(),
+        current_turn: common::domain::Player::X,
+        status: GameStatus::InProgress,
+    }));
+    let _ = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::OpponentReconnected {
+            match_id: MatchId::new(1),
+        }),
+    );
+    assert!(state.status.contains("reconnected"));
+    assert!(matches!(state.screen, Screen::InGame(_)));
+}
+
+#[test]
+fn match_over_while_spectating_shows_the_finished_screen() {
+    let mut state = AppState::new("alice");
+    let _ = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::SpectateStarted {
+            match_id: MatchId::new(1),
+            host_name: String::from("Alice"),
+            guest_name: String::from("Bob"),
+            board: Board::new(),
+            current_turn: common::domain::Player::X,
+            status: GameStatus::InProgress,
+            spectator_count: 1,
+        }),
+    );
+    let effects = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::MatchOver {
+            board: Board::new(),
+            status: GameStatus::Won(common::domain::Player::X),
+            winner_name: Some(String::from("Alice")),
+        }),
+    );
+    assert!(effects.is_empty());
+    match &state.screen {
+        Screen::Finished { winner_name, .. } => {
+            assert_eq!(winner_name.as_deref(), Some("Alice"));
+        }
+        other => panic!("expected Finished, got {other:?}"),
+    }
+}
+
+#[test]
+fn opponent_disconnected_updates_the_status_for_spectators() {
+    let mut state = AppState::new("alice");
+    let _ = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::SpectateStarted {
+            match_id: MatchId::new(1),
+            host_name: String::from("Alice"),
+            guest_name: String::from("Bob"),
+            board: Board::new(),
+            current_turn: common::domain::Player::X,
+            status: GameStatus::InProgress,
+            spectator_count: 1,
+        }),
+    );
+    let _ = apply(
+        &mut state,
+        AppEvent::Server(ServerMessage::OpponentDisconnected {
+            match_id: MatchId::new(1),
+            grace_seconds: 2,
+        }),
+    );
+    assert!(state.status.contains("disconnected"));
+    assert!(matches!(state.screen, Screen::Spectating(_)));
+}
