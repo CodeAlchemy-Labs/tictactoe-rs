@@ -7,6 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-17
+
+### Added
+
+- TLS support in the client. `tokio-tungstenite` is now built with the
+  `rustls-tls-native-roots` feature, so the client can connect to `wss://`
+  endpoints using the system trust store, with no dependency on OpenSSL.
+- `--insecure` flag in the client, which disables TLS certificate
+  verification. Intended for development servers with self-signed
+  certificates and documented as unsafe for production endpoints.
+- `PORT` environment variable support in the server. The bind address is
+  resolved in the order `TICTACTOE_BIND`, `PORT`, then the default
+  `0.0.0.0:8080`. The `PORT` fallback makes the server deployable on
+  container platforms such as Render without any configuration change.
+- `render.yaml` blueprint at the repository root. It creates the Render
+  service with a single click, using the existing `Dockerfile` and the
+  `/health` endpoint.
+- Section in `README.md` describing how to connect a client to a remote
+  instance and how to deploy the server to Render.
+- Section in `docs/ARCHITECTURE.md` explaining why TLS is terminated at
+  the edge and not in the container.
+- Section in `docs/SECURITY.md` describing the trust boundaries when TLS
+  terminates at a proxy, including the implications of `--insecure`.
+
+### Changed
+
+- The client now uses `clap` for argument parsing, matching the hacker
+  crate. Environment variables (`TICTACTOE_SERVER`, `TICTACTOE_NAME`) are
+  read as fallbacks for the corresponding flags.
+- The client validates the URL scheme on startup and rejects anything that
+  is not `ws://` or `wss://`.
+- The `port_reuse` hacker scenario reports three possible outcomes when
+  probing the server's port: `EADDRINUSE` in a shared namespace, `EACCES`
+  when the port is privileged and unobservable, and a successful bind in an
+  isolated namespace. Previous versions treated `EACCES` as an unexpected
+  error.
+- `tracing` output now disables ANSI escape codes when stderr is not a
+  terminal, on platforms that do not render them, or when `NO_COLOR` is
+  set. `CLICOLOR_FORCE` is honored. This fixes the literal escape sequences
+  (`←[2m...`) that appeared when running the Windows binaries in the legacy
+  `cmd.exe` console.
+
+### Fixed
+
+- ANSI escape sequences are no longer emitted on Windows consoles that do
+  not process Virtual Terminal codes. The server, client, and hacker
+  binaries all detect the console capability and fall back to plain text.
+
 ## [0.1.0] - 2026-09-17
 
 ### Added
@@ -33,11 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   documenting, measuring coverage, and running the full demo.
 - GitHub Actions CI workflow (`ci.yml`) with five jobs: format check, Clippy,
   tests, documentation, and coverage.
+- GitHub Actions release workflow (`release.yml`) that builds Linux and
+  Windows binaries when a version tag is pushed.
 - Extensive documentation: `docs/ARCHITECTURE.md` (layering, concurrency
   model, patterns, testing strategy) and `docs/SECURITY.md` (threat model,
   RAII rationale, adversarial scenario description).
-- 91 tests across the workspace: 40 in `common`, 18 + 3 in `server`,
-  21 + 2 in `client`, and 4 + 3 in `hacker`.
+- 91 tests across the workspace at the time of release.
 
 ### Changed
 
@@ -88,5 +137,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected, that the server owns its port for as long as it runs, and that
   ephemeral ports are released synchronously on `drop`.
 
-[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases/tag/v0.1.0
