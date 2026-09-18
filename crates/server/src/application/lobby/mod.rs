@@ -24,10 +24,12 @@
 //! The implementation is split across four files:
 //!
 //! - `auth_ops` contains the session lifecycle for authentication
-//!   (`hello`, `register_user`, `login_user`, `list_ranking`, `pong`).
+//!   (`hello`, `register_user`, `login_user`, `list_ranking`, `pong`) and
+//!   the reconnection path that reclaims a pending disconnection.
 //! - `match_ops` contains the match lifecycle (`list_matches`,
-//!   `create_match`, `join_match`, `make_move`, `leave_match`) and the two
-//!   free helpers that operate on matches.
+//!   `create_match`, `join_match`, `make_move`, `leave_match`, `spectate`,
+//!   `leave_spectate`), the grace-period expiration, and the free helpers
+//!   that operate on matches.
 //! - `tests` contains the unit tests.
 //! - this file contains the type definitions, the constructors, the client
 //!   lifecycle (`register_client`, `disconnect`), and the shared helpers.
@@ -67,6 +69,34 @@ struct LobbyState {
     /// Maps an authenticated username to the single client that is currently
     /// signed in with it. Enforces the "one session per account" invariant.
     active_sessions: HashMap<Username, ClientId>,
+    /// Players that have disconnected from a live match and are waiting for
+    /// the grace period to expire. Their username remains reserved.
+    pending_disconnections: HashMap<Username, PendingDisconnection>,
+}
+
+/// A player that has been temporarily disconnected from a live match.
+///
+/// While a player is pending reconnection, the match stays alive, their
+/// username is still reserved, and any attempt by a third party to use
+/// that username is rejected. Only the original player (or someone who
+/// knows their credentials) can reclaim the slot within the grace period.
+#[derive(Debug, Clone)]
+pub(super) struct PendingDisconnection {
+    /// The match the player was in when they disconnected.
+    pub match_id: MatchId,
+    /// The client identifier the player had before disconnecting.
+    pub client_id: ClientId,
+    /// Whether the player was the host of the match.
+    pub was_host: bool,
+}
+
+/// Information about a player that has just been scheduled for reconnection.
+///
+/// Returned by [`LobbyService::disconnect`] so the caller can start the
+/// grace-period timer without holding the lobby lock.
+pub struct Disconnection {
+    /// The username of the disconnected player.
+    pub username: Username,
 }
 
 /// Coordinates sessions and matches for all connected clients.
