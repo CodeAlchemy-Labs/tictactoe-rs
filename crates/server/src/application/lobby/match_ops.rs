@@ -277,6 +277,11 @@ impl LobbyService {
 
     /// Handles `LeaveSpectate`.
     ///
+    /// Idempotent: calling it when the session is not spectating any match
+    /// is a silent no-op. The client sends this defensively every time it
+    /// leaves the `Finished` screen, so the server must tolerate it even
+    /// for sessions that never spectated or that already left.
+    ///
     /// If the match still exists, the spectator is detached and the others
     /// are notified. If the match has already ended (for example, the game
     /// finished and the viewer is dismissing the result screen), only the
@@ -284,12 +289,7 @@ impl LobbyService {
     pub fn leave_spectate(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(match_id) = state.sessions.get(&client).and_then(|s| s.spectating) else {
-            if let Some(session) = state.sessions.get(&client) {
-                session.try_send(ServerMessage::Error {
-                    code: ErrorCode::InvalidState,
-                    message: String::from("not spectating any match"),
-                });
-            }
+            // Not spectating anything: nothing to detach.
             return;
         };
         if let Some(session) = state.sessions.get_mut(&client) {
