@@ -93,21 +93,17 @@ pub(super) fn apply_spectator_message(
             let Screen::Spectating(_) = &state.screen else {
                 return false;
             };
-            let outcome = match status {
-                GameStatus::Won(_) => winner_name.clone().map_or_else(
-                    || String::from("the match ended"),
-                    |name| format!("{name} won"),
-                ),
-                GameStatus::Draw => String::from("the match ended in a draw"),
-                GameStatus::InProgress => String::from("the match ended"),
+            // The match ended. Show the result on the spectating client
+            // instead of pushing it straight back to the lobby. The user
+            // dismisses the screen with Esc; the client then sends
+            // `LeaveSpectate` which the server accepts even if the match no
+            // longer exists.
+            state.screen = Screen::Finished {
+                board: *board,
+                status: *status,
+                winner_name: winner_name.clone(),
             };
-            let _ = board;
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-                spectator_mode: false,
-            };
-            state.status = outcome;
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            state.status = String::from("press Esc to return to the lobby");
             true
         }
         ServerMessage::MatchAbandoned { .. } => {
@@ -118,8 +114,29 @@ pub(super) fn apply_spectator_message(
                 matches: Vec::new(),
                 spectator_mode: false,
             };
-            state.status = String::from("the match was abandoned");
+            state.status = String::from("the match was abandoned by both players");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            true
+        }
+        ServerMessage::OpponentDisconnected {
+            match_id,
+            grace_seconds,
+        } => {
+            if let Screen::Spectating(active) = &state.screen
+                && active.id == *match_id
+            {
+                state.status = format!(
+                    "a player disconnected; waiting up to {grace_seconds}s for reconnection"
+                );
+            }
+            true
+        }
+        ServerMessage::OpponentReconnected { match_id } => {
+            if let Screen::Spectating(active) = &state.screen
+                && active.id == *match_id
+            {
+                state.status = String::from("the player reconnected; the match continues");
+            }
             true
         }
         _ => false,
