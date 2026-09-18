@@ -246,9 +246,17 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
                 active.status = status;
             }
         }
-        ServerMessage::MatchOver { board, status } => {
-            state.screen = Screen::Finished { board, status };
-            state.status = String::from("press q to exit");
+        ServerMessage::MatchOver {
+            board,
+            status,
+            winner_name,
+        } => {
+            state.screen = Screen::Finished {
+                board,
+                status,
+                winner_name,
+            };
+            state.status = String::from("press Esc to return to the lobby");
         }
         ServerMessage::OpponentLeft { .. } => {
             state.screen = Screen::Lobby {
@@ -729,5 +737,29 @@ mod tests {
         let effects = apply(&mut state, AppEvent::BackToLobby);
         assert!(matches!(state.screen, Screen::Lobby { .. }));
         assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
+    }
+
+    #[test]
+    fn match_over_sets_finished_with_winner_name() {
+        let mut state = AppState::new("alice");
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::MatchOver {
+                board: Board::new(),
+                status: GameStatus::Won(common::domain::Player::X),
+                winner_name: Some(String::from("Alice")),
+            }),
+        );
+        match &state.screen {
+            Screen::Finished {
+                winner_name,
+                status,
+                ..
+            } => {
+                assert_eq!(*status, GameStatus::Won(common::domain::Player::X));
+                assert_eq!(winner_name.as_deref(), Some("Alice"));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
     }
 }
