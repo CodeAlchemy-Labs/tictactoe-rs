@@ -15,7 +15,8 @@ use common::domain::{Age, Player, UserProfile, Username};
 use common::protocol::{AuthFailureReason, ClientId, ServerMessage};
 
 use super::{
-    LobbyService, LobbyState, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN, MIN_PASSWORD_LEN, reason_message
+    LobbyService, LobbyState, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN, MIN_PASSWORD_LEN,
+    reason_message,
 };
 
 impl LobbyService {
@@ -259,7 +260,11 @@ fn reconnect_pending(state: &mut LobbyState, username: &Username, new_client: Cl
         m.guest = Some(new_client);
     }
 
-    let mark = if pending.was_host { Player::X } else { Player::O };
+    let mark = if pending.was_host {
+        Player::X
+    } else {
+        Player::O
+    };
     let opponent = m.opponent_of(new_client);
     let reconnected = ServerMessage::OpponentReconnected {
         match_id: pending.match_id,

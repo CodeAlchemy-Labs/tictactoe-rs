@@ -142,10 +142,7 @@ fn apply_spectator_match_over(
 ///
 /// The match was dissolved by both players leaving; the spectator is
 /// returned to the lobby because there is nothing left to watch.
-fn apply_spectator_match_abandoned(
-    state: &mut AppState,
-    effects: &mut Vec<SideEffect>,
-) -> bool {
+fn apply_spectator_match_abandoned(state: &mut AppState, effects: &mut Vec<SideEffect>) -> bool {
     if !matches!(state.screen, Screen::Spectating(_)) {
         return false;
     }
