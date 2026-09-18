@@ -125,6 +125,7 @@ mod tests {
             matches: vec![MatchSummary {
                 id: MatchId::new(0),
                 host: String::from("alice"),
+                spectator_count: 0,
             }],
         }
     }
