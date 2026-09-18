@@ -229,19 +229,16 @@ impl LobbyService {
             return;
         }
 
-        let username = match Username::new(&username) {
-            Ok(value) => value,
-            Err(_) => {
-                // Do not reveal whether the username is well-formed. From
-                // the caller's perspective, an invalid username and a wrong
-                // password are indistinguishable.
-                self.send_auth_failure(
-                    client_id,
-                    AuthFailureReason::InvalidCredentials,
-                    reason_message(AuthFailureReason::InvalidCredentials),
-                );
-                return;
-            }
+        let Ok(username) = Username::new(&username) else {
+            // Do not reveal whether the username is well-formed. From the
+            // caller's perspective, an invalid username and a wrong
+            // password are indistinguishable.
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::InvalidCredentials,
+                reason_message(AuthFailureReason::InvalidCredentials),
+            );
+            return;
         };
 
         match self.auth.authenticate(&username, password).await {
