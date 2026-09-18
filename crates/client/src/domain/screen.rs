@@ -92,6 +92,31 @@ impl Screen {
             Self::Fatal(_) => "Error",
         }
     }
+
+    /// Returns the matches that should be shown in the lobby for the
+    /// current mode.
+    ///
+    /// - In join mode (`spectator_mode == false`), only matches with an
+    ///   empty guest slot are shown; a full match cannot be joined.
+    /// - In spectate mode (`spectator_mode == true`), every match is shown,
+    ///   including the ones that are already full.
+    ///
+    /// The order returned here is the order the UI displays, and it is the
+    /// order the input digits index into. Both the renderer and the state
+    /// machine call this method so the two never diverge.
+    pub fn visible_matches(&self) -> Vec<&MatchSummary> {
+        let Self::Lobby {
+            matches,
+            spectator_mode,
+        } = self
+        else {
+            return Vec::new();
+        };
+        matches
+            .iter()
+            .filter(|summary| *spectator_mode || !summary.is_full)
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -112,4 +137,60 @@ mod tests {
         assert_eq!(Screen::Ranking { entries: vec![] }.title(), "Ranking");
         assert_eq!(Screen::Fatal(String::from("boom")).title(), "Error");
     }
+}
+
+#[test]
+fn visible_matches_hides_full_matches_in_join_mode() {
+    use common::protocol::MatchId;
+
+    let screen = Screen::Lobby {
+        matches: vec![
+            MatchSummary {
+                id: MatchId::new(1),
+                host: String::from("alice"),
+                spectator_count: 0,
+                is_full: false,
+            },
+            MatchSummary {
+                id: MatchId::new(2),
+                host: String::from("bob"),
+                spectator_count: 0,
+                is_full: true,
+            },
+        ],
+        spectator_mode: false,
+    };
+    let visible = screen.visible_matches();
+    assert_eq!(visible.len(), 1);
+    assert_eq!(visible[0].id, MatchId::new(1));
+}
+
+#[test]
+fn visible_matches_shows_full_matches_in_spectator_mode() {
+    use common::protocol::MatchId;
+
+    let screen = Screen::Lobby {
+        matches: vec![
+            MatchSummary {
+                id: MatchId::new(1),
+                host: String::from("alice"),
+                spectator_count: 0,
+                is_full: false,
+            },
+            MatchSummary {
+                id: MatchId::new(2),
+                host: String::from("bob"),
+                spectator_count: 0,
+                is_full: true,
+            },
+        ],
+        spectator_mode: true,
+    };
+    let visible = screen.visible_matches();
+    assert_eq!(visible.len(), 2);
+}
+
+#[test]
+fn visible_matches_is_empty_outside_the_lobby() {
+    assert!(Screen::Connecting.visible_matches().is_empty());
 }
