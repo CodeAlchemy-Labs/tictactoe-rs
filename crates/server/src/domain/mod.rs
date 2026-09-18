@@ -8,6 +8,8 @@
 
 pub mod match_state;
 pub mod session;
+pub mod user_record;
 
 pub use match_state::Match;
 pub use session::Session;
+pub use user_record::UserRecord;
