@@ -55,7 +55,11 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
         Screen::Lobby { matches } => render_lobby(frame, area, matches),
         Screen::Ranking { entries } => render_ranking(frame, area, entries),
         Screen::InGame(active) => render_game(frame, area, active),
-        Screen::Finished { board, status } => render_finished(frame, area, *board, *status),
+        Screen::Finished {
+            board,
+            status,
+            winner_name,
+        } => render_finished(frame, area, *board, *status, winner_name.as_deref()),
         Screen::Fatal(message) => {
             frame.render_widget(
                 Paragraph::new(message.as_str())
@@ -171,10 +175,17 @@ fn render_finished(
     area: Rect,
     board: common::domain::Board,
     status: GameStatus,
+    winner_name: Option<&str>,
 ) {
     let outcome = match status {
-        GameStatus::Won(player) => format!("{player:?} wins"),
-        GameStatus::Draw => String::from("draw"),
+        GameStatus::Won(player) => {
+            let name = winner_name.unwrap_or_else(|| match player {
+                Player::X => "X",
+                Player::O => "O",
+            });
+            format!("The player {name} won")
+        }
+        GameStatus::Draw => String::from("The game ended in a draw"),
         GameStatus::InProgress => String::from("in progress"),
     };
     let mut lines = vec![Line::from(outcome), Line::from("")];
