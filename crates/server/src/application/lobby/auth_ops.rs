@@ -210,16 +210,15 @@ impl LobbyService {
 
     /// Handles `ListRanking`.
     ///
-    /// Returns the current top-10 ranking. During the 0.2.0 development
-    /// cycle the ranking is always empty until `RankingService` lands; the
-    /// placeholder keeps the wire format stable and the match arms
-    /// exhaustive.
+    /// Returns the current top-10 ranking. The ranking is public, so guests
+    /// and authenticated users can both request it. The list is computed
+    /// before the lobby lock is taken, so the two locks are never held at
+    /// the same time.
     pub fn list_ranking(&self, client: ClientId) {
+        let entries = self.ranking.top(crate::application::ranking::TOP_N);
         let state = self.lock();
         if let Some(session) = state.sessions.get(&client) {
-            session.try_send(ServerMessage::Ranking {
-                entries: Vec::new(),
-            });
+            session.try_send(ServerMessage::Ranking { entries });
         }
     }
 }
