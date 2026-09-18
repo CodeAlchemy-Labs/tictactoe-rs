@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use common::protocol::{ClientMessage, ErrorCode, ServerMessage};
+use common::protocol::{AuthFailureReason, ClientMessage, ErrorCode, ServerMessage};
 use futures_util::{SinkExt, StreamExt};
 use server::application::lobby::LobbyService;
 use server::infrastructure::http::build_router;
@@ -117,4 +117,87 @@ async fn disconnect_removes_the_session_from_the_lobby() {
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
     assert_eq!(lobby.session_count(), 0);
+}
+
+#[tokio::test]
+async fn registration_succeeds_and_authenticates_the_connection() {
+    let (addr, _) = spawn_server().await;
+    let mut client = connect(addr).await;
+    send(
+        &mut client,
+        &ClientMessage::Register {
+            name: String::from("Alice Example"),
+            username: String::from("alice_99"),
+            age: 30,
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    match recv(&mut client).await {
+        ServerMessage::Registered { profile } => {
+            assert_eq!(profile.name, "Alice Example");
+            assert_eq!(profile.username.as_str(), "alice_99");
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn registration_with_invalid_input_is_rejected() {
+    let (addr, _) = spawn_server().await;
+    let mut client = connect(addr).await;
+    send(
+        &mut client,
+        &ClientMessage::Register {
+            name: String::from("Alice Example"),
+            username: String::from("a!"),
+            age: 30,
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    match recv(&mut client).await {
+        ServerMessage::AuthenticationFailed { reason, .. } => {
+            assert_eq!(reason, AuthFailureReason::UsernameInvalid);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn login_after_registration_succeeds_on_a_new_connection() {
+    let (addr, _) = spawn_server().await;
+
+    // First connection: register.
+    let mut register_client = connect(addr).await;
+    send(
+        &mut register_client,
+        &ClientMessage::Register {
+            name: String::from("Alice Example"),
+            username: String::from("alice_99"),
+            age: 30,
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    let _ = recv(&mut register_client).await;
+    register_client.close(None).await.unwrap();
+    drop(register_client);
+
+    // Second connection: log in with the same credentials.
+    let mut login_client = connect(addr).await;
+    send(
+        &mut login_client,
+        &ClientMessage::Login {
+            username: String::from("alice_99"),
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    match recv(&mut login_client).await {
+        ServerMessage::LoginSucceeded { profile } => {
+            assert_eq!(profile.username.as_str(), "alice_99");
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
 }
