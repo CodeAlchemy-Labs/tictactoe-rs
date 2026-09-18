@@ -50,7 +50,7 @@ async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>) {
                 dispatch_text(&lobby, client_id, &text).await;
             }
             Ok(Message::Close(_)) => break,
-            Ok(Message::Ping(_) | Message::Pong(_) | Message::Binary(_) | Message::Frame(_)) => {}
+            Ok(Message::Ping(_) | Message::Pong(_) | Message::Binary(_)) => {}
             Err(error) => {
                 tracing::warn!(%error, "websocket receive error");
                 break;
