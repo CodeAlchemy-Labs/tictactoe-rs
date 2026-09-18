@@ -168,8 +168,14 @@ async fn playing_a_full_game_ends_in_a_win_and_records_it() {
 
     let mut saw_match_over = false;
     while let Ok(message) = host_rx.try_recv() {
-        if let ServerMessage::MatchOver { status, .. } = message {
+        if let ServerMessage::MatchOver {
+            status,
+            winner_name,
+            ..
+        } = message
+        {
             assert_eq!(status, GameStatus::Won(Player::X));
+            assert_eq!(winner_name.as_deref(), Some("host_99 name"));
             saw_match_over = true;
         }
     }
@@ -179,6 +185,9 @@ async fn playing_a_full_game_ends_in_a_win_and_records_it() {
     assert_eq!(ranking.len(), 1);
     assert_eq!(ranking[0].username.as_str(), "host_99");
     assert_eq!(ranking[0].wins, 1);
+
+    // The match was removed from the lobby.
+    assert_eq!(lobby.match_count(), 0);
 }
 
 #[tokio::test]
@@ -619,7 +628,6 @@ async fn draws_do_not_record_wins() {
     let _ = guest_rx.try_recv();
 
     // X: 0, 2, 3, 7, 8. O: 1, 4, 5, 6. Five X moves, four O moves, no line.
-    // The turns alternate correctly: X, O, X, O, X, O, X, O, X.
     for (client, pos) in [
         (host, 0u8),
         (guest, 1),
@@ -636,14 +644,21 @@ async fn draws_do_not_record_wins() {
 
     let mut saw_draw = false;
     while let Ok(message) = host_rx.try_recv() {
-        if let ServerMessage::MatchOver { status, .. } = message {
+        if let ServerMessage::MatchOver {
+            status,
+            winner_name,
+            ..
+        } = message
+        {
             assert_eq!(status, GameStatus::Draw);
+            assert_eq!(winner_name, None);
             saw_draw = true;
         }
     }
     assert!(saw_draw);
 
     assert!(lobby.ranking().is_empty());
+    assert_eq!(lobby.match_count(), 0);
 }
 
 #[tokio::test]
@@ -741,4 +756,54 @@ async fn multiple_wins_accumulate_in_the_ranking() {
     assert_eq!(ranking.len(), 1);
     assert_eq!(ranking[0].username.as_str(), champ_username);
     assert_eq!(ranking[0].wins, 2);
+}
+
+#[tokio::test]
+async fn after_a_win_the_player_can_start_a_new_match() {
+    // Regression test: previously the server left `current_match` set on
+    // the players after a match ended, so creating a new match failed with
+    // "already in a match".
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+
+    for (client, pos) in [(host, 0u8), (guest, 3), (host, 1), (guest, 4), (host, 2)] {
+        lobby.make_move(client, Position::new(pos).unwrap());
+    }
+    // Drain the broadcast messages so the next assertion is not polluted.
+    while host_rx.try_recv().is_ok() {}
+    while guest_rx.try_recv().is_ok() {}
+
+    // Both players must be free again.
+    lobby.create_match(host);
+    match host_rx.try_recv().unwrap() {
+        ServerMessage::MatchCreated { .. } => {}
+        other => panic!("expected MatchCreated, got {other:?}"),
+    }
+
+    // Clean up: leave the freshly created match so the guest can also
+    // create one.
+    lobby.leave_match(host);
+    while host_rx.try_recv().is_ok() {}
+    while guest_rx.try_recv().is_ok() {}
+
+    lobby.create_match(guest);
+    match guest_rx.try_recv().unwrap() {
+        ServerMessage::MatchCreated { .. } => {}
+        other => panic!("expected MatchCreated, got {other:?}"),
+    }
 }
