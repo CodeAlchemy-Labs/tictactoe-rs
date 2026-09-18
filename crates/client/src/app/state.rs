@@ -57,6 +57,13 @@ pub enum AppEvent {
     /// The user asked to join the match at the given 0-based index in the
     /// current lobby list.
     JoinMatchAt(usize),
+    /// The user asked to enter or leave the lobby's spectator mode.
+    ToggleSpectatorMode,
+    /// The user asked to spectate the match at the given 0-based index in
+    /// the current lobby list.
+    SpectateAt(usize),
+    /// The user asked to stop spectating the current match.
+    LeaveSpectate,
     /// The user played a move at the given 1-based cell index.
     PlayMove(u8),
     /// The user asked to leave the current match.
