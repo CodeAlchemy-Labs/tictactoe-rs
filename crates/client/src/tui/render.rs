@@ -194,9 +194,14 @@ fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
 }
 
 fn render_game(frame: &mut Frame<'_>, area: Rect, active: &ActiveMatch) {
+    // The board has a fixed visual width of 13 cells (2 borders plus the
+    // 11-wide interior: 3 marks and 2 separators of " | " per row). The
+    // status panel takes whatever is left, with a minimum of 20 columns.
+    // On narrow terminals the min on the status side is what yields first,
+    // so the board stays intact.
     let columns = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(31), Constraint::Min(20)])
+        .constraints([Constraint::Length(13), Constraint::Min(20)])
         .split(area);
 
     let board_lines = build_board_lines_from(&active.board);
