@@ -59,6 +59,7 @@ pub fn read_key_action(screen: &Screen) -> Result<KeyAction, InputError> {
 pub fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match screen {
         Screen::Auth(_) => translate_auth_key(code),
+        Screen::Spectating(_) => translate_spectating_key(code),
         _ => translate_default_key(code, screen),
     }
 }
@@ -77,6 +78,14 @@ fn translate_auth_key(code: KeyCode) -> KeyAction {
     }
 }
 
+fn translate_spectating_key(code: KeyCode) -> KeyAction {
+    match code {
+        KeyCode::Esc => KeyAction::Event(AppEvent::LeaveSpectate),
+        KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
+        _ => KeyAction::Ignored,
+    }
+}
+
 fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match code {
         KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
@@ -84,6 +93,10 @@ fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
             Screen::Ranking { .. } | Screen::Finished { .. } => {
                 KeyAction::Event(AppEvent::BackToLobby)
             }
+            Screen::Lobby {
+                spectator_mode: true,
+                ..
+            } => KeyAction::Event(AppEvent::ToggleSpectatorMode),
             _ => KeyAction::Event(AppEvent::Quit),
         },
         KeyCode::Char('r') => KeyAction::Event(AppEvent::RefreshLobby),
@@ -93,9 +106,17 @@ fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
         },
         KeyCode::Char('c') => KeyAction::Event(AppEvent::CreateMatch),
         KeyCode::Char('l') => KeyAction::Event(AppEvent::LeaveMatch),
+        KeyCode::Char('s') => match screen {
+            Screen::Lobby { .. } => KeyAction::Event(AppEvent::ToggleSpectatorMode),
+            _ => KeyAction::Ignored,
+        },
         KeyCode::Char(digit @ '1'..='9') => {
             let value = digit as u8 - b'0';
             match screen {
+                Screen::Lobby {
+                    spectator_mode: true,
+                    ..
+                } => KeyAction::Event(AppEvent::SpectateAt((value - 1) as usize)),
                 Screen::Lobby { .. } => {
                     KeyAction::Event(AppEvent::JoinMatchAt((value - 1) as usize))
                 }
@@ -103,6 +124,7 @@ fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
                 Screen::Connecting
                 | Screen::Auth(_)
                 | Screen::Ranking { .. }
+                | Screen::Spectating(_)
                 | Screen::Finished { .. }
                 | Screen::Fatal(_) => KeyAction::Ignored,
             }
@@ -118,7 +140,7 @@ mod tests {
 
     use super::*;
     use crate::domain::auth_form::{AuthForm, AuthMode};
-    use crate::domain::screen::ActiveMatch;
+    use crate::domain::screen::{ActiveMatch, SpectatedMatch};
 
     fn lobby() -> Screen {
         Screen::Lobby {
@@ -127,6 +149,18 @@ mod tests {
                 host: String::from("alice"),
                 spectator_count: 0,
             }],
+            spectator_mode: false,
+        }
+    }
+
+    fn lobby_spectator_mode() -> Screen {
+        Screen::Lobby {
+            matches: vec![MatchSummary {
+                id: MatchId::new(0),
+                host: String::from("alice"),
+                spectator_count: 0,
+            }],
+            spectator_mode: true,
         }
     }
 
@@ -145,6 +179,18 @@ mod tests {
         }))
     }
 
+    fn spectating() -> Screen {
+        Screen::Spectating(Box::new(SpectatedMatch {
+            id: MatchId::new(0),
+            host_name: String::from("alice"),
+            guest_name: String::from("bob"),
+            board: Board::new(),
+            current_turn: Player::X,
+            status: GameStatus::InProgress,
+            spectator_count: 1,
+        }))
+    }
+
     fn auth() -> Screen {
         Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)))
     }
@@ -159,6 +205,12 @@ mod tests {
     fn digit_nine_in_the_lobby_joins_the_ninth_match() {
         let action = translate_key(KeyCode::Char('9'), &lobby());
         assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(8))));
+    }
+
+    #[test]
+    fn digit_in_spectator_mode_selects_a_match_to_spectate() {
+        let action = translate_key(KeyCode::Char('1'), &lobby_spectator_mode());
+        assert!(matches!(action, KeyAction::Event(AppEvent::SpectateAt(0))));
     }
 
     #[test]
@@ -260,5 +312,41 @@ mod tests {
         };
         let action = translate_key(KeyCode::Esc, &screen);
         assert!(matches!(action, KeyAction::Event(AppEvent::BackToLobby)));
+    }
+
+    #[test]
+    fn s_in_the_lobby_toggles_spectator_mode() {
+        let action = translate_key(KeyCode::Char('s'), &lobby());
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::ToggleSpectatorMode)
+        ));
+    }
+
+    #[test]
+    fn esc_in_spectator_mode_cancels_the_mode() {
+        let action = translate_key(KeyCode::Esc, &lobby_spectator_mode());
+        assert!(matches!(
+            action,
+            KeyAction::Event(AppEvent::ToggleSpectatorMode)
+        ));
+    }
+
+    #[test]
+    fn esc_on_the_spectating_screen_leaves_spectate() {
+        let action = translate_key(KeyCode::Esc, &spectating());
+        assert!(matches!(action, KeyAction::Event(AppEvent::LeaveSpectate)));
+    }
+
+    #[test]
+    fn q_on_the_spectating_screen_quits() {
+        let action = translate_key(KeyCode::Char('q'), &spectating());
+        assert!(matches!(action, KeyAction::Event(AppEvent::Quit)));
+    }
+
+    #[test]
+    fn digits_on_the_spectating_screen_are_ignored() {
+        let action = translate_key(KeyCode::Char('1'), &spectating());
+        assert!(matches!(action, KeyAction::Ignored));
     }
 }
