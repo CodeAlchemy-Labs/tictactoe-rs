@@ -144,7 +144,7 @@ async fn joining_a_match_notifies_both_players() {
 }
 
 #[tokio::test]
-async fn playing_a_full_game_ends_in_a_win() {
+async fn playing_a_full_game_ends_in_a_win_and_records_it() {
     let lobby = fast_lobby();
     let (host_tx, mut host_rx) = mpsc::unbounded_channel();
     let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
@@ -174,6 +174,11 @@ async fn playing_a_full_game_ends_in_a_win() {
         }
     }
     assert!(saw_match_over);
+
+    let ranking = lobby.ranking().top(crate::application::ranking::TOP_N);
+    assert_eq!(ranking.len(), 1);
+    assert_eq!(ranking[0].username.as_str(), "host_99");
+    assert_eq!(ranking[0].wins, 1);
 }
 
 #[tokio::test]
@@ -592,4 +597,108 @@ async fn register_rejects_username_taken_by_an_active_session() {
         }
         other => panic!("unexpected: {other:?}"),
     }
+}
+
+#[tokio::test]
+async fn draws_do_not_record_wins() {
+    let lobby = fast_lobby();
+    let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+    let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+    let host = lobby.register_client(host_tx);
+    let guest = lobby.register_client(guest_tx);
+    authenticate(&lobby, host, "host_99").await;
+    let _ = host_rx.try_recv();
+    authenticate(&lobby, guest, "guest_99").await;
+    let _ = guest_rx.try_recv();
+    lobby.create_match(host);
+    let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+        unreachable!("first message must be MatchCreated")
+    };
+    lobby.join_match(guest, match_id);
+    let _ = host_rx.try_recv();
+    let _ = guest_rx.try_recv();
+
+    // X: 0, 2, 3, 7. O: 1, 4, 5, 6, 8 → draw.
+    for (client, pos) in [
+        (host, 0u8),
+        (guest, 1),
+        (host, 2),
+        (guest, 4),
+        (host, 3),
+        (guest, 5),
+        (host, 7),
+        (guest, 6),
+        (guest, 8),
+    ] {
+        lobby.make_move(client, Position::new(pos).unwrap());
+    }
+
+    let mut saw_draw = false;
+    while let Ok(message) = host_rx.try_recv() {
+        if let ServerMessage::MatchOver { status, .. } = message {
+            assert_eq!(status, GameStatus::Draw);
+            saw_draw = true;
+        }
+    }
+    assert!(saw_draw);
+
+    assert!(lobby.ranking().is_empty());
+}
+
+#[tokio::test]
+async fn multiple_wins_accumulate_in_the_ranking() {
+    let lobby = fast_lobby();
+
+    for round in 0..2 {
+        let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+        let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+        let host = lobby.register_client(host_tx);
+        let guest = lobby.register_client(guest_tx);
+        // `authenticate` uses a fixed username, so we register explicit
+        // distinct usernames to avoid the single-session rule.
+        let host_username = "champ_99";
+        lobby
+            .register_user(
+                host,
+                String::from("Champion"),
+                host_username.to_string(),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = host_rx.try_recv();
+        let guest_username = format!("rival_{round:02}");
+        lobby
+            .register_user(
+                guest,
+                String::from("Rival"),
+                guest_username,
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = guest_rx.try_recv();
+
+        lobby.create_match(host);
+        let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+            unreachable!("first message must be MatchCreated")
+        };
+        lobby.join_match(guest, match_id);
+        let _ = host_rx.try_recv();
+        let _ = guest_rx.try_recv();
+
+        for (client, pos) in [(host, 0u8), (guest, 3), (host, 1), (guest, 4), (host, 2)] {
+            lobby.make_move(client, Position::new(pos).unwrap());
+        }
+
+        // Clean up before the next round so the "one session per account"
+        // rule does not block re-registration.
+        lobby.disconnect(host);
+        lobby.disconnect(guest);
+    }
+
+    let ranking = lobby.ranking().top(crate::application::ranking::TOP_N);
+    assert_eq!(ranking.len(), 1);
+    assert_eq!(ranking[0].username.as_str(), "champ_99");
+    assert_eq!(ranking[0].wins, 2);
 }
