@@ -452,12 +452,12 @@ impl LobbyService {
     /// Closes the match, awards the win to the remaining player if any, and
     /// releases every associated session. Wins obtained this way are not
     /// recorded in the ranking: an abandonment is not a legitimate victory.
-    pub fn expire_disconnection(&self, username: Username) {
+    pub fn expire_disconnection(&self, username: &Username) {
         let mut state = self.lock();
-        let Some(pending) = state.pending_disconnections.remove(&username) else {
+        let Some(pending) = state.pending_disconnections.remove(username) else {
             return;
         };
-        state.active_sessions.remove(&username);
+        state.active_sessions.remove(username);
 
         let Some(m) = state.matches.remove(&pending.match_id) else {
             return;
@@ -471,7 +471,11 @@ impl LobbyService {
         let over = match winner_name {
             Some(name) => ServerMessage::MatchOver {
                 board: m.board,
-                status: GameStatus::Won(if pending.was_host { Player::O } else { Player::X }),
+                status: GameStatus::Won(if pending.was_host {
+                    Player::O
+                } else {
+                    Player::X
+                }),
                 winner_name: Some(name),
             },
             None => ServerMessage::MatchAbandoned {
