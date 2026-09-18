@@ -1,15 +1,18 @@
 //! Application state and events.
 
+use common::domain::Username;
 use common::protocol::{ClientMessage, ServerMessage};
 
-use crate::domain::Screen;
+use crate::domain::{AuthMode, PendingAction, Screen};
 
 /// Everything the client knows at any point in time.
 pub struct AppState {
     /// The current screen.
     pub screen: Screen,
-    /// The local player's display name.
+    /// The display name shown in the header.
     pub display_name: String,
+    /// The username of the authenticated account, if any.
+    pub authenticated_as: Option<Username>,
     /// A transient status line shown at the bottom of the UI.
     pub status: String,
     /// Set to `true` when the main loop should exit.
@@ -22,9 +25,15 @@ impl AppState {
         Self {
             screen: Screen::Connecting,
             display_name: display_name.into(),
+            authenticated_as: None,
             status: String::from("connecting..."),
             should_quit: false,
         }
+    }
+
+    /// Returns `true` when the session is authenticated.
+    pub const fn is_authenticated(&self) -> bool {
+        self.authenticated_as.is_some()
     }
 }
 
@@ -35,7 +44,7 @@ pub enum AppEvent {
     Server(ServerMessage),
     /// The server closed the connection.
     Disconnected,
-    /// The user pressed `q` or `Esc`.
+    /// The user pressed `q` or `Esc` outside of the auth screen.
     Quit,
     /// The user asked to refresh the lobby list.
     RefreshLobby,
@@ -48,6 +57,29 @@ pub enum AppEvent {
     PlayMove(u8),
     /// The user asked to leave the current match.
     LeaveMatch,
+    /// The user asked to see the auth screen.
+    ShowAuth {
+        /// Whether to start in login or register mode.
+        mode: AuthMode,
+        /// An action to retry after authentication succeeds.
+        pending: Option<PendingAction>,
+    },
+    /// A character typed on the auth screen.
+    AuthInput(char),
+    /// Backspace on the auth screen.
+    AuthBackspace,
+    /// Tab on the auth screen.
+    AuthNextField,
+    /// Shift-Tab on the auth screen.
+    AuthPreviousField,
+    /// Enter on the auth screen.
+    AuthSubmit,
+    /// F2 on the auth screen: toggles between login and register.
+    AuthToggleMode,
+    /// F3 on the auth screen: toggles password visibility.
+    AuthToggleReveal,
+    /// Esc on the auth screen: returns to the lobby as a guest.
+    AuthCancel,
     /// A user requested that we send an arbitrary message; used by tests.
     Send(ClientMessage),
 }
@@ -62,5 +94,6 @@ mod tests {
         assert_eq!(state.display_name, "alice");
         assert!(matches!(state.screen, Screen::Connecting));
         assert!(!state.should_quit);
+        assert!(!state.is_authenticated());
     }
 }
