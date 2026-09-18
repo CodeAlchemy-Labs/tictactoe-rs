@@ -1,9 +1,9 @@
 //! Pure domain types and rules for the Tic-Tac-Toe game.
 //!
 //! This module is free of any I/O, async, or transport concern. It models
-//! the board, the players, the win/draw detection rules, and the user model
-//! as a small set of value objects and one aggregate ([`Board`]) that owns
-//! its invariants.
+//! the board, the players, the win/draw detection rules, the user model,
+//! and the ranking as a small set of value objects and one aggregate
+//! ([`Board`]) that owns its invariants.
 //!
 //! The types are also `serde`-serializable because they double as the wire
 //! format for the protocol layer. Serialization is a trait contract, not an
@@ -16,6 +16,7 @@ mod cell;
 mod game_status;
 mod player;
 mod position;
+mod ranking_entry;
 mod user_profile;
 mod username;
 
@@ -25,5 +26,6 @@ pub use cell::Cell;
 pub use game_status::GameStatus;
 pub use player::Player;
 pub use position::Position;
+pub use ranking_entry::RankingEntry;
 pub use user_profile::UserProfile;
 pub use username::{Username, UsernameError};
