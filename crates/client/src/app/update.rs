@@ -53,7 +53,11 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
                 if state.is_authenticated() {
                     effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
                 } else {
-                    show_auth(state, AuthMode::Login, Some(PendingAction::JoinMatch(match_id)));
+                    show_auth(
+                        state,
+                        AuthMode::Login,
+                        Some(PendingAction::JoinMatch(match_id)),
+                    );
                 }
             }
         }
