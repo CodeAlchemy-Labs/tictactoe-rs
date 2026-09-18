@@ -91,6 +91,12 @@ pub enum AppEvent {
     AuthToggleReveal,
     /// Esc on the auth screen: returns to the lobby as a guest.
     AuthCancel,
+    /// A no-op event used to wake the main loop without changing state.
+    ///
+    /// The keyboard thread emits this when a key produces no event, so the
+    /// main loop can re-publish the current screen and the keyboard thread
+    /// can read the next key.
+    Noop,
     /// A user requested that we send an arbitrary message; used by tests.
     Send(ClientMessage),
 }
