@@ -52,10 +52,10 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
             );
         }
         Screen::Auth(form) => render_auth(frame, area, form),
-        Screen::Lobby {
-            matches,
-            spectator_mode,
-        } => render_lobby(frame, area, matches, *spectator_mode),
+        Screen::Lobby { spectator_mode, .. } => {
+            let visible = state.screen.visible_matches();
+            render_lobby(frame, area, &visible, *spectator_mode);
+        },
         Screen::Ranking { entries } => render_ranking(frame, area, entries),
         Screen::InGame(active) => render_game(frame, area, active),
         Screen::Spectating(active) => render_spectating(frame, area, active),
@@ -78,7 +78,7 @@ fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
 fn render_lobby(
     frame: &mut Frame<'_>,
     area: Rect,
-    matches: &[common::protocol::MatchSummary],
+    matches: &[&common::protocol::MatchSummary],
     spectator_mode: bool,
 ) {
     let columns = if spectator_mode {
@@ -94,7 +94,9 @@ fn render_lobby(
     };
 
     if spectator_mode {
-        let banner = Paragraph::new("Spectator mode: press 1-9 to watch a match, Esc to cancel")
+        let banner = Paragraph::new(
+            "Spectator mode: press 1-9 to watch a match, Esc to cancel",
+        )
             .block(Block::default().borders(Borders::ALL))
             .style(
                 Style::default()
@@ -105,14 +107,15 @@ fn render_lobby(
         frame.render_widget(banner, columns[0]);
     }
 
-    let body_area = if spectator_mode {
-        columns[1]
-    } else {
-        columns[0]
-    };
+    let body_area = if spectator_mode { columns[1] } else { columns[0] };
 
     let items: Vec<ListItem<'_>> = if matches.is_empty() {
-        vec![ListItem::new("no open matches; press c to create one")]
+        let message = if spectator_mode {
+            "no matches to spectate; press r to refresh"
+        } else {
+            "no open matches; press c to create one"
+        };
+        vec![ListItem::new(message)]
     } else {
         matches
             .iter()
@@ -123,12 +126,14 @@ fn render_lobby(
                 } else {
                     String::new()
                 };
+                let status = if summary.is_full { ", in progress" } else { "" };
                 ListItem::new(format!(
-                    "[{}] {} (host: {}{})",
+                    "[{}] {} (host: {}{}{})",
                     index + 1,
                     summary.id,
                     summary.host,
-                    spectators
+                    spectators,
+                    status
                 ))
             })
             .collect()
