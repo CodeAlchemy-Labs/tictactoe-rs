@@ -22,6 +22,25 @@ pub struct ActiveMatch {
     pub status: GameStatus,
 }
 
+/// The state of the match the local user is spectating.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpectatedMatch {
+    /// The match identifier.
+    pub id: MatchId,
+    /// The host's display name.
+    pub host_name: String,
+    /// The guest's display name, or an empty string when no guest has joined.
+    pub guest_name: String,
+    /// The current board.
+    pub board: Board,
+    /// Whose turn it is.
+    pub current_turn: Player,
+    /// The current status.
+    pub status: GameStatus,
+    /// The number of spectators, including the local user.
+    pub spectator_count: u32,
+}
+
 /// The screen currently shown to the user.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Screen {
@@ -33,6 +52,9 @@ pub enum Screen {
     Lobby {
         /// The most recent snapshot of open matches.
         matches: Vec<MatchSummary>,
+        /// When `true`, digits select a match to spectate instead of a match
+        /// to join. The mode is toggled with `s` and cleared with `Esc`.
+        spectator_mode: bool,
     },
     /// Viewing the top-players ranking.
     Ranking {
@@ -41,6 +63,8 @@ pub enum Screen {
     },
     /// Playing a match.
     InGame(Box<ActiveMatch>),
+    /// Watching a match without playing it.
+    Spectating(Box<SpectatedMatch>),
     /// The match has ended.
     Finished {
         /// The final board.
@@ -63,6 +87,7 @@ impl Screen {
             Self::Lobby { .. } => "Lobby",
             Self::Ranking { .. } => "Ranking",
             Self::InGame(_) => "In game",
+            Self::Spectating(_) => "Spectating",
             Self::Finished { .. } => "Result",
             Self::Fatal(_) => "Error",
         }
@@ -76,7 +101,14 @@ mod tests {
     #[test]
     fn title_matches_variant() {
         assert_eq!(Screen::Connecting.title(), "Connecting");
-        assert_eq!(Screen::Lobby { matches: vec![] }.title(), "Lobby");
+        assert_eq!(
+            Screen::Lobby {
+                matches: vec![],
+                spectator_mode: false
+            }
+                .title(),
+            "Lobby"
+        );
         assert_eq!(Screen::Ranking { entries: vec![] }.title(), "Ranking");
         assert_eq!(Screen::Fatal(String::from("boom")).title(), "Error");
     }
