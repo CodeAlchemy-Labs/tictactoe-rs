@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::{AuthFailureReason, ClientId, MatchId, MatchSummary};
-use crate::domain::{Board, GameStatus, Player, UserProfile};
+use crate::domain::{Board, GameStatus, Player, RankingEntry, UserProfile};
 
 /// A message sent by the server to a client.
 ///
@@ -43,6 +43,11 @@ pub enum ServerMessage {
     MatchList {
         /// The available matches.
         matches: Vec<MatchSummary>,
+    },
+    /// The current top-players ranking, ordered by wins descending.
+    Ranking {
+        /// The top entries, at most ten.
+        entries: Vec<RankingEntry>,
     },
     /// Sent when a match has been created and is waiting for an opponent.
     MatchCreated {
@@ -225,5 +230,34 @@ mod tests {
         let value: serde_json::Value = serde_json::to_value(&message).unwrap();
         assert_eq!(value["type"], "authentication_failed");
         assert_eq!(value["reason"], "username_taken");
+    }
+
+    #[test]
+    fn ranking_round_trip() {
+        let message = ServerMessage::Ranking {
+            entries: vec![
+                RankingEntry {
+                    username: Username::new("alice_99").unwrap(),
+                    name: String::from("Alice Example"),
+                    wins: 7,
+                },
+                RankingEntry {
+                    username: Username::new("bob_77").unwrap(),
+                    name: String::from("Bob Example"),
+                    wins: 3,
+                },
+            ],
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn ranking_serializes_with_type_tag() {
+        let message = ServerMessage::Ranking { entries: vec![] };
+        let value: serde_json::Value = serde_json::to_value(&message).unwrap();
+        assert_eq!(value["type"], "ranking");
+        assert_eq!(value["entries"].as_array().unwrap().len(), 0);
     }
 }
