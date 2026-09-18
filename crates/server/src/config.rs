@@ -40,7 +40,7 @@ impl std::str::FromStr for Environment {
         match s.to_lowercase().as_str() {
             "development" => Ok(Environment::Development),
             "production" => Ok(Environment::Production),
-            _ => anyhow::bail!("invalid environment `{}`", s),
+            _ => anyhow::bail!("invalid environment `{s}`"),
         }
     }
 }
@@ -244,7 +244,8 @@ mod tests {
             (ENV_MAX_SESSIONS, "50"),
             (ENV_MAX_SESSIONS_PER_IP, "2"),
             (ENV_AUTH_RATE_LIMIT, "5"),
-        ]).unwrap();
+        ])
+        .unwrap();
         assert_eq!(config.max_sessions, 50);
         assert_eq!(config.max_sessions_per_ip, 2);
         assert_eq!(config.auth_rate_limit_per_minute, 5);
