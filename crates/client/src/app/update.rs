@@ -109,6 +109,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
+        AppEvent::Redraw => {}
         AppEvent::Send(message) => {
             effects.push(SideEffect::Send(message));
         }
@@ -381,21 +382,24 @@ fn apply_spectator_message(
             username,
             spectator_count,
         } => {
-            if let Screen::Spectating(active) = &mut state.screen {
-                active.spectator_count = *spectator_count;
-                state.status =
-                    format!("{username} joined as spectator; {spectator_count} watching");
-            }
+            // Only meaningful while spectating. Otherwise fall through so
+            // the general handler can decide what to do.
+            let Screen::Spectating(active) = &mut state.screen else {
+                return false;
+            };
+            active.spectator_count = *spectator_count;
+            state.status = format!("{username} joined as spectator; {spectator_count} watching");
             true
         }
         ServerMessage::SpectatorLeft {
             username,
             spectator_count,
         } => {
-            if let Screen::Spectating(active) = &mut state.screen {
-                active.spectator_count = *spectator_count;
-                state.status = format!("{username} left the audience; {spectator_count} watching");
-            }
+            let Screen::Spectating(active) = &mut state.screen else {
+                return false;
+            };
+            active.spectator_count = *spectator_count;
+            state.status = format!("{username} left the audience; {spectator_count} watching");
             true
         }
         ServerMessage::BoardUpdate {
@@ -403,11 +407,15 @@ fn apply_spectator_message(
             current_turn,
             status,
         } => {
-            if let Screen::Spectating(active) = &mut state.screen {
-                active.board = *board;
-                active.current_turn = *current_turn;
-                active.status = *status;
-            }
+            // The same message reaches players and spectators. Only the
+            // spectator branch is handled here; players fall through to
+            // `apply_server` so their own board is updated.
+            let Screen::Spectating(active) = &mut state.screen else {
+                return false;
+            };
+            active.board = *board;
+            active.current_turn = *current_turn;
+            active.status = *status;
             true
         }
         ServerMessage::MatchOver {
@@ -418,8 +426,6 @@ fn apply_spectator_message(
             let Screen::Spectating(_) = &state.screen else {
                 return false;
             };
-            // The match ended. Return to the lobby and surface the result
-            // in the status line.
             let outcome = match status {
                 GameStatus::Won(_) => winner_name.clone().map_or_else(
                     || String::from("the match ended"),
@@ -1226,5 +1232,45 @@ mod tests {
                 match_id: MatchId::new(3)
             })]
         );
+    }
+
+    #[test]
+    fn board_update_reaches_the_in_game_screen() {
+        use common::domain::Player;
+        use common::domain::Position;
+
+        let mut state = AppState::new("alice");
+        state.screen = Screen::InGame(Box::new(ActiveMatch {
+            id: MatchId::new(1),
+            opponent: String::from("Bob"),
+            your_mark: Player::X,
+            board: Board::new(),
+            current_turn: Player::X,
+            status: GameStatus::InProgress,
+        }));
+        let mut board = Board::new();
+        board.place(Position::new(4).unwrap(), Player::X).unwrap();
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::BoardUpdate {
+                board,
+                current_turn: Player::O,
+                status: GameStatus::InProgress,
+            }),
+        );
+        match &state.screen {
+            Screen::InGame(active) => {
+                assert_eq!(active.board, board);
+                assert_eq!(active.current_turn, Player::O);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn redraw_event_is_a_noop() {
+        let mut state = AppState::new("alice");
+        let effects = apply(&mut state, AppEvent::Redraw);
+        assert!(effects.is_empty());
     }
 }
