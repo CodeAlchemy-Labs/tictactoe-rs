@@ -23,10 +23,6 @@ pub enum SideEffect {
 
 /// Applies `event` to `state`, pushing any resulting side effects into
 /// `effects`.
-/// Applies `event` to `state`, pushing any resulting side effects into
-/// `effects`.
-/// Applies `event` to `state`, pushing any resulting side effects into
-/// `effects`.
 pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
     // Auth events take the event by reference. If one of them handles it,
     // we are done; otherwise, `event` is still available for the main match.
@@ -44,6 +40,20 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             state.should_quit = true;
         }
         AppEvent::RefreshLobby => {
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+        }
+        AppEvent::ShowRanking => {
+            state.screen = Screen::Ranking {
+                entries: Vec::new(),
+            };
+            state.status = String::from("loading ranking...");
+            effects.push(SideEffect::Send(ClientMessage::ListRanking));
+        }
+        AppEvent::BackToLobby => {
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
+            state.status = String::from("press a number to join, c to create, t for ranking");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         AppEvent::CreateMatch => {
@@ -196,7 +206,14 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
         }
         ServerMessage::MatchList { matches } => {
             state.screen = Screen::Lobby { matches };
-            state.status = String::from("press a number to join, c to create, r to refresh");
+            state.status = String::from("press a number to join, c to create, t for ranking");
+        }
+        ServerMessage::Ranking { entries } => {
+            if matches!(state.screen, Screen::Ranking { .. }) {
+                let count = entries.len();
+                state.screen = Screen::Ranking { entries };
+                state.status = format!("{count} entries; press Esc to return");
+            }
         }
         ServerMessage::MatchCreated { .. } => {
             state.status = String::from("waiting for an opponent...");
@@ -255,11 +272,7 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
                 state.status = format!("{code:?}: {message}");
             }
         }
-        ServerMessage::Ranking { .. } | ServerMessage::Pong => {
-            // `Ranking` is accepted and ignored until the ranking screen
-            // lands; `Pong` is a liveness acknowledgement with no side
-            // effect. Both arms are intentionally no-ops.
-        }
+        ServerMessage::Pong => {}
     }
 }
 
@@ -580,6 +593,25 @@ mod tests {
     }
 
     #[test]
+    fn already_logged_in_sets_error_on_form() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::AuthenticationFailed {
+                reason: common::protocol::AuthFailureReason::AlreadyLoggedIn,
+                message: String::from("this account is already signed in elsewhere"),
+            }),
+        );
+        if let Screen::Auth(form) = &state.screen {
+            let error = form.error.as_deref().unwrap_or_default();
+            assert!(error.contains("AlreadyLoggedIn"));
+        } else {
+            panic!("expected auth screen");
+        }
+    }
+
+    #[test]
     fn play_move_converts_one_based_to_zero_based() {
         let mut state = AppState::new("alice");
         let effects = apply(&mut state, AppEvent::PlayMove(5));
@@ -643,21 +675,59 @@ mod tests {
     }
 
     #[test]
-    fn already_logged_in_sets_error_on_form() {
+    fn show_ranking_moves_to_ranking_and_requests_the_list() {
         let mut state = AppState::new("alice");
-        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
+        let effects = apply(&mut state, AppEvent::ShowRanking);
+        assert!(matches!(state.screen, Screen::Ranking { .. }));
+        assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListRanking)]);
+    }
+
+    #[test]
+    fn ranking_message_updates_the_ranking_screen() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Ranking {
+            entries: Vec::new(),
+        };
         let _ = apply(
             &mut state,
-            AppEvent::Server(ServerMessage::AuthenticationFailed {
-                reason: common::protocol::AuthFailureReason::AlreadyLoggedIn,
-                message: String::from("this account is already signed in elsewhere"),
+            AppEvent::Server(ServerMessage::Ranking {
+                entries: vec![common::domain::RankingEntry {
+                    username: Username::new("alice_99").unwrap(),
+                    name: String::from("Alice"),
+                    wins: 3,
+                }],
             }),
         );
-        if let Screen::Auth(form) = &state.screen {
-            let error = form.error.as_deref().unwrap_or_default();
-            assert!(error.contains("AlreadyLoggedIn"));
-        } else {
-            panic!("expected auth screen");
+        match &state.screen {
+            Screen::Ranking { entries } => assert_eq!(entries.len(), 1),
+            other => panic!("unexpected: {other:?}"),
         }
+    }
+
+    #[test]
+    fn ranking_message_is_ignored_on_other_screens() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::Ranking { entries: vec![] }),
+        );
+        assert!(matches!(state.screen, Screen::Lobby { .. }));
+    }
+
+    #[test]
+    fn back_to_lobby_returns_to_the_lobby_and_refreshes() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Ranking {
+            entries: Vec::new(),
+        };
+        let effects = apply(&mut state, AppEvent::BackToLobby);
+        assert!(matches!(state.screen, Screen::Lobby { .. }));
+        assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
     }
 }
