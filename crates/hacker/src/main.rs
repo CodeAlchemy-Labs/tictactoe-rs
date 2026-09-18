@@ -12,6 +12,25 @@ async fn main() -> anyhow::Result<()> {
     init_tracing();
     let cli = Cli::parse();
 
+    match hacker::config::parse_target(&cli.target) {
+        Ok(url) => {
+            if url
+                .host_str()
+                .is_some_and(|host| !cli.allow_production && !hacker::config::is_local_target(host))
+            {
+                eprintln!(
+                    "ERROR: Target `{}` is non-local. Refusing to run against production without --allow-production.",
+                    cli.target
+                );
+                std::process::exit(1);
+            }
+        }
+        Err(e) => {
+            eprintln!("ERROR: {e}");
+            std::process::exit(1);
+        }
+    }
+
     let scenario_names: Vec<&'static str> = match cli.scenario {
         ScenarioChoice::All => vec![
             "session_hijack",

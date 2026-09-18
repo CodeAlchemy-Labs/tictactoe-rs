@@ -27,6 +27,10 @@ pub struct Cli {
     #[arg(long, value_enum, default_value_t = ScenarioChoice::All)]
     pub scenario: ScenarioChoice,
 
+    /// Allow running against non-local targets.
+    #[arg(long, default_value_t = false)]
+    pub allow_production: bool,
+
     /// WebSocket URL of the target server.
     #[arg(long, default_value = "ws://127.0.0.1:8080/ws")]
     pub target: String,
@@ -39,6 +43,11 @@ pub struct Cli {
 /// Returns an error if `target` is not a valid URL.
 pub fn parse_target(target: &str) -> anyhow::Result<Url> {
     Url::parse(target).with_context(|| format!("invalid target URL `{target}`"))
+}
+
+/// Returns `true` if the given host is considered local.
+pub fn is_local_target(host: &str) -> bool {
+    host == "localhost" || host == "127.0.0.1" || host == "::1" || host.starts_with("127.") // Loopback block
 }
 
 #[cfg(test)]
@@ -55,5 +64,15 @@ mod tests {
     #[test]
     fn parse_target_rejects_garbage() {
         assert!(parse_target("not a url").is_err());
+    }
+
+    #[test]
+    fn local_targets_are_identified() {
+        assert!(is_local_target("localhost"));
+        assert!(is_local_target("127.0.0.1"));
+        assert!(is_local_target("127.0.1.1"));
+        assert!(is_local_target("::1"));
+        assert!(!is_local_target("example.com"));
+        assert!(!is_local_target("192.168.1.1"));
     }
 }
