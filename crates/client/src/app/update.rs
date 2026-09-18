@@ -254,6 +254,13 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             };
             state.status = String::from("press Esc to return to the lobby");
         }
+        ServerMessage::MatchAbandoned { .. } => {
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
+            state.status = String::from("the match was abandoned");
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+        }
         ServerMessage::OpponentLeft { .. } => {
             state.screen = Screen::Lobby {
                 matches: Vec::new(),
@@ -261,10 +268,21 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.status = String::from("opponent left the match");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
+        ServerMessage::SpectateStarted { .. } => {
+            // The spectating screen arrives in a later change. Until then,
+            // the message is accepted and logged so the wire stays
+            // compatible.
+            tracing::debug!("spectate_started received but not yet handled");
+        }
+        ServerMessage::SpectatorJoined { .. }
+        | ServerMessage::SpectatorLeft { .. }
+        | ServerMessage::Pong => {
+            // The spectator counter is not shown yet; the messages are
+            // accepted so the wire stays compatible.
+        }
         ServerMessage::Error { code, message } => {
             apply_error(state, code, message);
         }
-        ServerMessage::Pong => {}
     }
 }
 
