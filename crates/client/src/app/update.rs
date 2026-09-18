@@ -637,4 +637,23 @@ mod tests {
         let _ = apply(&mut state, AppEvent::Quit);
         assert!(state.should_quit);
     }
+
+    #[test]
+    fn already_logged_in_sets_error_on_form() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::AuthenticationFailed {
+                reason: common::protocol::AuthFailureReason::AlreadyLoggedIn,
+                message: String::from("this account is already signed in elsewhere"),
+            }),
+        );
+        if let Screen::Auth(form) = &state.screen {
+            let error = form.error.as_deref().unwrap_or_default();
+            assert!(error.contains("AlreadyLoggedIn"));
+        } else {
+            panic!("expected auth screen");
+        }
+    }
 }
