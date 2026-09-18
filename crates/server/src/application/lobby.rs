@@ -208,12 +208,12 @@ impl LobbyService {
         match self.auth.register(profile.clone(), password).await {
             Ok(()) => {
                 let mut state = self.lock();
+                state
+                    .active_sessions
+                    .insert(profile.username.clone(), client_id);
                 if let Some(session) = state.sessions.get_mut(&client_id) {
                     session.authenticated_as = Some(profile.username.clone());
                     session.display_name = Some(profile.name.clone());
-                    state
-                        .active_sessions
-                        .insert(profile.username.clone(), client_id);
                     session.try_send(ServerMessage::Registered { profile });
                 }
             }
@@ -262,12 +262,12 @@ impl LobbyService {
         match self.auth.authenticate(&username, password).await {
             Ok(profile) => {
                 let mut state = self.lock();
+                state
+                    .active_sessions
+                    .insert(profile.username.clone(), client_id);
                 if let Some(session) = state.sessions.get_mut(&client_id) {
                     session.authenticated_as = Some(profile.username.clone());
                     session.display_name = Some(profile.name.clone());
-                    state
-                        .active_sessions
-                        .insert(profile.username.clone(), client_id);
                     session.try_send(ServerMessage::LoginSucceeded { profile });
                 }
             }
