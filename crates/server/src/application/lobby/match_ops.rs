@@ -27,6 +27,11 @@ type MoveOutcome = (ClientId, Option<ClientId>, Board, Player, GameStatus);
 
 impl LobbyService {
     /// Handles `ListMatches`.
+    ///
+    /// Sends every match, full or not. The client filters according to its
+    /// current mode. This keeps the server stateless with respect to the
+    /// user's intent and lets a spectator see matches that already have two
+    /// players.
     pub fn list_matches(&self, client: ClientId) {
         let state = self.lock();
         let Some(session) = state.sessions.get(&client) else {
@@ -35,7 +40,6 @@ impl LobbyService {
         let matches = state
             .matches
             .values()
-            .filter(|m| !m.is_full())
             .map(|m| common::protocol::MatchSummary {
                 id: m.id,
                 host: state
@@ -44,6 +48,7 @@ impl LobbyService {
                     .and_then(|s| s.display_name.clone())
                     .unwrap_or_else(|| String::from("unknown")),
                 spectator_count: m.spectator_count(),
+                is_full: m.is_full(),
             })
             .collect();
         session.try_send(ServerMessage::MatchList { matches });
