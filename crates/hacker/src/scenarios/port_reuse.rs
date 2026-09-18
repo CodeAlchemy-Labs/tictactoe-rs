@@ -36,7 +36,9 @@ use crate::outcome::Outcome;
 pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     let url = parse_target(target)?;
     let host = url.host_str().context("target URL has no host")?;
-    let port = url.port_or_known_default().context("target URL has no port")?;
+    let port = url
+        .port_or_known_default()
+        .context("target URL has no port")?;
     let server_addr = format!("{host}:{port}");
 
     // Check 1: the server is reachable at its advertised address.
@@ -56,7 +58,9 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             )
         }
         Err(error) if error.kind() == ErrorKind::AddrInUse => {
-            format!("EADDRINUSE on 0.0.0.0:{port}: the server holds the port in the shared namespace")
+            format!(
+                "EADDRINUSE on 0.0.0.0:{port}: the server holds the port in the shared namespace"
+            )
         }
         Err(error) if error.kind() == ErrorKind::PermissionDenied => {
             format!(
