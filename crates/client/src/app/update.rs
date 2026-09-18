@@ -109,13 +109,14 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
-        AppEvent::Noop => {}
         AppEvent::Send(message) => {
             effects.push(SideEffect::Send(message));
         }
-        // Auth events are handled at the top of this function; listing them
-        // here keeps the match exhaustive.
-        AppEvent::AuthInput(_)
+        // Noop is a wake-up signal with no state change. The auth events
+        // are handled at the top of this function. Both are intentionally
+        // no-ops in this match, so they share an arm.
+        AppEvent::Noop
+        | AppEvent::AuthInput(_)
         | AppEvent::AuthBackspace
         | AppEvent::AuthNextField
         | AppEvent::AuthPreviousField
