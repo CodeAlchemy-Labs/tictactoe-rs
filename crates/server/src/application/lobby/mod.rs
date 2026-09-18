@@ -86,7 +86,10 @@ impl Default for LobbyService {
 impl LobbyService {
     /// Creates an empty lobby with default-configured services.
     pub fn new() -> Self {
-        Self::with_services(Arc::new(AuthService::default()), Arc::new(RankingService::new()))
+        Self::with_services(
+            Arc::new(AuthService::default()),
+            Arc::new(RankingService::new()),
+        )
     }
 
     /// Creates an empty lobby with a caller-provided auth service and a
