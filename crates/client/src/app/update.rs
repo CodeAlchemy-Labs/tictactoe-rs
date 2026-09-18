@@ -23,6 +23,8 @@ pub enum SideEffect {
 
 /// Applies `event` to `state`, pushing any resulting side effects into
 /// `effects`.
+/// Applies `event` to `state`, pushing any resulting side effects into
+/// `effects`.
 pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
     match event {
         AppEvent::Server(message) => apply_server(state, message, effects),
@@ -51,11 +53,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
                 if state.is_authenticated() {
                     effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
                 } else {
-                    show_auth(
-                        state,
-                        AuthMode::Login,
-                        Some(PendingAction::JoinMatch(match_id)),
-                    );
+                    show_auth(state, AuthMode::Login, Some(PendingAction::JoinMatch(match_id)));
                 }
             }
         }
@@ -72,6 +70,23 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::ShowAuth { mode, pending } => {
             show_auth(state, mode, pending);
         }
+        AppEvent::AuthInput(_)
+        | AppEvent::AuthBackspace
+        | AppEvent::AuthNextField
+        | AppEvent::AuthPreviousField
+        | AppEvent::AuthSubmit
+        | AppEvent::AuthToggleMode
+        | AppEvent::AuthToggleReveal
+        | AppEvent::AuthCancel => apply_auth_event(state, event, effects),
+        AppEvent::Send(message) => {
+            effects.push(SideEffect::Send(message));
+        }
+    }
+}
+
+/// Applies the auth-screen events, which all operate on `Screen::Auth`.
+fn apply_auth_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
+    match event {
         AppEvent::AuthInput(character) => {
             if let Screen::Auth(form) = &mut state.screen {
                 form.push_char(character);
@@ -122,9 +137,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             state.status = String::from("returned to lobby");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
-        AppEvent::Send(message) => {
-            effects.push(SideEffect::Send(message));
-        }
+        _ => unreachable!("apply_auth_event is only called with auth events"),
     }
 }
 
