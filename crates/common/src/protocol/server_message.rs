@@ -67,6 +67,12 @@ pub enum ServerMessage {
     /// A protocol-level error.
     Error {
         /// A stable, machine-readable error code.
+        ///
+        /// The field is optional on the wire: servers that predate the
+        /// introduction of error codes omit it, and the client falls back
+        /// to [`ErrorCode::Unknown`]. This keeps older deployments
+        /// compatible with newer clients.
+        #[serde(default)]
         code: ErrorCode,
         /// A human-readable description.
         message: String,
@@ -79,7 +85,7 @@ pub enum ServerMessage {
 ///
 /// Codes are part of the wire contract: clients can match on them without
 /// parsing the human-readable message.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCode {
     /// The client sent a message that is not valid in its current state.
@@ -96,6 +102,10 @@ pub enum ErrorCode {
     NotInMatch,
     /// The client sent a display name that was rejected.
     InvalidDisplayName,
+    /// The server did not provide a code, or provided one the client does
+    /// not recognize. Used as the fallback for older servers.
+    #[default]
+    Unknown,
 }
 
 #[cfg(test)]
@@ -149,5 +159,29 @@ mod tests {
         let value: serde_json::Value = serde_json::to_value(&message).unwrap();
         assert_eq!(value["type"], "error");
         assert_eq!(value["code"], "match_not_found");
+    }
+
+    #[test]
+    fn error_without_code_deserializes_as_unknown() {
+        // Simulates an older server that predates the `code` field.
+        let json = r#"{"type":"error","message":"legacy server"}"#;
+        let message: ServerMessage = serde_json::from_str(json).unwrap();
+        match message {
+            ServerMessage::Error { code, message } => {
+                assert_eq!(code, ErrorCode::Unknown);
+                assert_eq!(message, "legacy server");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn error_with_unknown_code_deserializes_as_unknown() {
+        // A future server may add codes this client does not know about.
+        let json = r#"{"type":"error","code":"some_future_code","message":"future"}"#;
+        let result: Result<ServerMessage, _> = serde_json::from_str(json);
+        // Unknown codes are rejected today; documented here so the behavior
+        // is explicit and easy to change later if needed.
+        assert!(result.is_err());
     }
 }
