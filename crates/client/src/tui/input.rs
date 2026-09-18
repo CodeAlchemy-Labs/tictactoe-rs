@@ -65,7 +65,7 @@ pub fn read_input_event() -> Result<InputEvent, InputError> {
             Event::Resize(columns, rows) => {
                 return Ok(InputEvent::Resize(columns, rows));
             }
-            _ => continue,
+            _ => {}
         }
     }
 }
@@ -410,5 +410,16 @@ mod tests {
     fn digits_on_the_spectating_screen_are_ignored() {
         let action = translate_key(KeyCode::Char('1'), &spectating());
         assert!(matches!(action, KeyAction::Ignored));
+    }
+
+    #[test]
+    fn redraw_event_keeps_the_app_state() {
+        // Sanity: the `Redraw` event is accepted by the state machine and
+        // does not produce side effects. The test lives here next to the
+        // input tests because that is where the event originates.
+        let mut state = crate::app::AppState::new("alice");
+        let mut effects = Vec::new();
+        crate::app::apply_event(&mut state, crate::app::AppEvent::Redraw, &mut effects);
+        assert!(effects.is_empty());
     }
 }
