@@ -148,6 +148,7 @@ mod tests {
                 id: MatchId::new(0),
                 host: String::from("alice"),
                 spectator_count: 0,
+                is_full: false,
             }],
             spectator_mode: false,
         }
@@ -159,6 +160,7 @@ mod tests {
                 id: MatchId::new(0),
                 host: String::from("alice"),
                 spectator_count: 0,
+                is_full: false,
             }],
             spectator_mode: true,
         }
