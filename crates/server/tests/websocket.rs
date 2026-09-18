@@ -245,7 +245,7 @@ async fn second_login_with_the_same_account_is_rejected() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut second).await {
         ServerMessage::AuthenticationFailed { reason, .. } => {
             assert_eq!(reason, AuthFailureReason::AlreadyLoggedIn);
@@ -276,7 +276,7 @@ async fn login_after_the_first_session_disconnects_succeeds() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut second).await {
         ServerMessage::LoginSucceeded { profile } => {
             assert_eq!(profile.username.as_str(), "alice_99");
