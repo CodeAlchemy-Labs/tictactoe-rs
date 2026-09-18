@@ -1,20 +1,24 @@
 //! Probes port ownership and Rust's deterministic release of ephemeral ports.
 //!
-//! The scenario is honest about what can be verified from inside a Docker
-//! bridge network. Two namespaces on a bridge have independent port spaces,
-//! so "bind the server's port" is not a meaningful test there. What *is*
-//! meaningful, and language-relevant, is:
+//! The scenario is honest about what can be verified from a given host and
+//! network namespace. Three outcomes are possible when the hacker tries to
+//! bind the server's port:
 //!
-//! 1. The server is reachable on its advertised address, which proves it
-//!    holds the port in its own namespace.
-//! 2. Rust releases an ephemeral port synchronously the instant the owning
-//!    listener is dropped. There is no GC window between `drop` and the
-//!    kernel releasing the port; a subsequent `bind` succeeds immediately.
+//! 1. `EADDRINUSE` — the server holds the port in a shared namespace. This
+//!    is the strongest form of the defense and is what happens when the
+//!    hacker and the server run on the same host.
+//! 2. `EACCES` — the port is privileged (below 1024) and the hacker is not
+//!    root. The bind cannot even be attempted, so the property is
+//!    unobservable from this process. Remote HTTPS endpoints on port 443
+//!    fall into this category.
+//! 3. Success — the port is bindable. This happens inside an isolated
+//!    network namespace (Docker's default bridge, for instance), where the
+//!    container has its own port space.
 //!
-//! When the hacker and the server share a network namespace (for example,
-//! both running on the host with `--network=host`), step 1 also produces
-//! `EADDRINUSE` if the hacker tries to bind the server's port. That path is
-//! reported when observed.
+//! In all three cases the scenario then verifies the language-level
+//! guarantee the project is about: a `TcpListener` releases its port the
+//! instant it is dropped, and the same process can rebind it without
+//! waiting for a garbage collector.
 
 use std::io::ErrorKind;
 
@@ -32,9 +36,7 @@ use crate::outcome::Outcome;
 pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     let url = parse_target(target)?;
     let host = url.host_str().context("target URL has no host")?;
-    let port = url
-        .port_or_known_default()
-        .context("target URL has no port")?;
+    let port = url.port_or_known_default().context("target URL has no port")?;
     let server_addr = format!("{host}:{port}");
 
     // Check 1: the server is reachable at its advertised address.
@@ -44,10 +46,8 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     drop(stream); // Rust closes the fd immediately; no GC needed.
 
     // Check 2: probe whether the server's port can be bound from this
-    // process. In a shared namespace this must fail with EADDRINUSE. In an
-    // isolated namespace (Docker's default bridge) it succeeds, because
-    // each namespace has its own port space. We record which case occurred
-    // so the report is transparent.
+    // process. The three outcomes are all valid observations; what matters
+    // is that the scenario reports which one occurred.
     let bind_detail = match TcpListener::bind(format!("0.0.0.0:{port}")).await {
         Ok(listener) => {
             drop(listener);
@@ -56,18 +56,22 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
             )
         }
         Err(error) if error.kind() == ErrorKind::AddrInUse => {
+            format!("EADDRINUSE on 0.0.0.0:{port}: the server holds the port in the shared namespace")
+        }
+        Err(error) if error.kind() == ErrorKind::PermissionDenied => {
             format!(
-                "EADDRINUSE on 0.0.0.0:{port}: the server holds the port in the shared namespace"
+                "EACCES on 0.0.0.0:{port}: the port is privileged and this process cannot bind it; the property is unobservable from here"
             )
         }
         Err(error) => {
-            format!("unexpected bind outcome on 0.0.0.0:{port}: {error}")
+            return Ok(Outcome::compromised(format!(
+                "unexpected bind outcome on 0.0.0.0:{port}: {error}"
+            )));
         }
     };
 
     // Check 3: ephemeral port release. This is the language-level guarantee
-    // we want to demonstrate: the port is released the instant the listener
-    // is dropped, and can be rebound by the same process without delay.
+    // the project is about.
     let ephemeral = TcpListener::bind("127.0.0.1:0")
         .await
         .context("failed to bind an ephemeral port")?;
