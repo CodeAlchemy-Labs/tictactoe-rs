@@ -1,17 +1,20 @@
 //! Attempts to act on a match without being a legitimate participant.
 //!
-//! The scenario performs four probes against a live server. Each probe
-//! targets a specific invariant:
+//! The scenario authenticates a fresh account and then performs five probes,
+//! each targeting a specific invariant:
 //!
 //! 1. `MakeMove` outside of a match must be rejected with `NotInMatch`.
 //! 2. `JoinMatch` on a non-existent identifier must be rejected with
 //!    `MatchNotFound`.
-//! 3. A second `Hello` on an already-registered client must be rejected
-//!    with `InvalidState`.
+//! 3. A second `Register` on an already-authenticated session must be
+//!    rejected with `AlreadyAuthenticated`.
 //! 4. A malformed JSON payload must be ignored, and the connection must
 //!    remain usable.
+//! 5. A guest (pre-authentication) connection must not be able to create a
+//!    match; the server rejects it with `AuthenticationRequired`.
 //!
-//! If any probe succeeds, the server is reported as compromised.
+//! If any probe does not produce the expected rejection, the server is
+//! reported as compromised.
 
 use std::time::Duration;
 
@@ -21,11 +24,12 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use common::domain::Position;
-use common::protocol::{ClientMessage, ErrorCode, MatchId, ServerMessage};
+use common::protocol::{AuthFailureReason, ClientMessage, ErrorCode, MatchId, ServerMessage};
 
 use crate::outcome::Outcome;
 
 const IO_TIMEOUT: Duration = Duration::from_secs(3);
+const HACKER_PASSWORD: &str = "hacker-can-haz-password";
 
 /// Runs the `session_hijack` scenario.
 ///
@@ -38,24 +42,51 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         .await
         .with_context(|| format!("failed to connect to {target}"))?;
 
-    // Probe 1: register as an ordinary client.
-    send(
-        &mut ws,
-        &ClientMessage::Hello {
-            display_name: String::from("hacker"),
-        },
-    )
-    .await?;
+    // Phase 0: try to create a match as a guest. The server must reject it
+    // with `AuthenticationRequired`.
+    send(&mut ws, &ClientMessage::CreateMatch).await?;
     match recv(&mut ws).await? {
-        ServerMessage::Welcome { .. } => {}
+        ServerMessage::Error {
+            code: ErrorCode::AuthenticationRequired,
+            ..
+        } => {}
         other => {
             return Ok(Outcome::compromised(format!(
-                "expected Welcome, got {other:?}"
+                "guest CreateMatch was not rejected with AuthenticationRequired: {other:?}"
             )));
         }
     }
 
-    // Probe 2: move without being in a match.
+    // Phase 1: register a fresh account so the rest of the probes run as an
+    // authenticated session.
+    let username = format!("hacker_{}", rand_suffix());
+    send(
+        &mut ws,
+        &ClientMessage::Register {
+            name: String::from("Adversarial Actor"),
+            username: username.clone(),
+            age: 30,
+            password: HACKER_PASSWORD.to_string(),
+        },
+    )
+    .await?;
+    match recv(&mut ws).await? {
+        ServerMessage::Registered { profile } => {
+            if profile.username.as_str() != username {
+                return Ok(Outcome::compromised(format!(
+                    "Registered echoed a different username: {}",
+                    profile.username
+                )));
+            }
+        }
+        other => {
+            return Ok(Outcome::compromised(format!(
+                "expected Registered, got {other:?}"
+            )));
+        }
+    }
+
+    // Probe 1: move without being in a match.
     send(
         &mut ws,
         &ClientMessage::MakeMove {
@@ -70,12 +101,12 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         } => {}
         other => {
             return Ok(Outcome::compromised(format!(
-                "MakeMove outside a match was not rejected: {other:?}"
+                "MakeMove outside a match was not rejected with NotInMatch: {other:?}"
             )));
         }
     }
 
-    // Probe 3: join a non-existent match.
+    // Probe 2: join a non-existent match.
     send(
         &mut ws,
         &ClientMessage::JoinMatch {
@@ -90,32 +121,35 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         } => {}
         other => {
             return Ok(Outcome::compromised(format!(
-                "JoinMatch on a bogus id was not rejected: {other:?}"
+                "JoinMatch on a bogus id was not rejected with MatchNotFound: {other:?}"
             )));
         }
     }
 
-    // Probe 4: send Hello twice.
+    // Probe 3: try to register again on an already-authenticated session.
     send(
         &mut ws,
-        &ClientMessage::Hello {
-            display_name: String::from("hacker-again"),
+        &ClientMessage::Register {
+            name: String::from("Hacker Again"),
+            username: format!("hacker_{}", rand_suffix()),
+            age: 30,
+            password: HACKER_PASSWORD.to_string(),
         },
     )
     .await?;
     match recv(&mut ws).await? {
-        ServerMessage::Error {
-            code: ErrorCode::InvalidState,
+        ServerMessage::AuthenticationFailed {
+            reason: AuthFailureReason::AlreadyAuthenticated,
             ..
         } => {}
         other => {
             return Ok(Outcome::compromised(format!(
-                "double Hello was not rejected: {other:?}"
+                "double Register was not rejected with AlreadyAuthenticated: {other:?}"
             )));
         }
     }
 
-    // Probe 5: send malformed JSON, then a Ping. If the connection survives,
+    // Probe 4: send malformed JSON, then a Ping. If the connection survives,
     // the server ignored the malformed payload without crashing or closing.
     ws.send(Message::Text(String::from("not json at all").into()))
         .await
@@ -131,8 +165,21 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
     }
 
     Ok(Outcome::defended(
-        "all probes rejected; malformed payload ignored without closing the connection",
+        "guest cannot create a match; authenticated hacker rejected on move-without-match, join-bogus-id, and double register; malformed payload ignored without closing the connection",
     ))
+}
+
+/// Generates a small random-ish suffix for the hacker's username.
+///
+/// The goal is only to avoid collisions between test runs on a fresh
+/// server, not to be cryptographically unpredictable.
+fn rand_suffix() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.subsec_nanos() as u64)
+        .unwrap_or(0);
+    nanos % 1_000_000
 }
 
 async fn send<S>(ws: &mut S, message: &ClientMessage) -> anyhow::Result<()>
