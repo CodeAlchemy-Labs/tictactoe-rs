@@ -227,3 +227,60 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
         other => panic!("unexpected: {other:?}"),
     }
 }
+
+#[tokio::test]
+async fn second_login_with_the_same_account_is_rejected() {
+    let (addr, _) = spawn_server().await;
+
+    // First connection: register and keep it open.
+    let mut first = connect(addr).await;
+    register(&mut first, "alice_99").await;
+
+    // Second connection: try to log in with the same credentials.
+    let mut second = connect(addr).await;
+    send(
+        &mut second,
+        &ClientMessage::Login {
+            username: String::from("alice_99"),
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    match recv(&mut second).await {
+        ServerMessage::AuthenticationFailed { reason, .. } => {
+            assert_eq!(reason, AuthFailureReason::AlreadyLoggedIn);
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn login_after_the_first_session_disconnects_succeeds() {
+    let (addr, _) = spawn_server().await;
+
+    // First connection: register, then close.
+    let mut first = connect(addr).await;
+    register(&mut first, "alice_99").await;
+    first.close(None).await.unwrap();
+    drop(first);
+
+    // Give the server a moment to run the SessionGuard.
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    // Second connection: log in. Must succeed.
+    let mut second = connect(addr).await;
+    send(
+        &mut second,
+        &ClientMessage::Login {
+            username: String::from("alice_99"),
+            password: String::from("hunter2hunter2"),
+        },
+    )
+        .await;
+    match recv(&mut second).await {
+        ServerMessage::LoginSucceeded { profile } => {
+            assert_eq!(profile.username.as_str(), "alice_99");
+        }
+        other => panic!("unexpected: {other:?}"),
+    }
+}
