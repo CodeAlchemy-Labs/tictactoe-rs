@@ -10,7 +10,7 @@
 //! - [`apply_move`] mutates the board and returns everything the caller
 //!   needs to broadcast.
 
-use common::domain::{Board, GameStatus, Player, Position};
+use common::domain::{Board, GameStatus, Player, Position, Username};
 use common::protocol::{ClientId, ErrorCode, MatchId, ServerMessage};
 
 use super::{LobbyService, LobbyState};
@@ -162,6 +162,10 @@ impl LobbyService {
     }
 
     /// Handles `MakeMove`.
+    ///
+    /// When the move ends the match with a real victory, the win is recorded
+    /// in the ranking service. The recording happens after the lobby lock is
+    /// released to avoid holding two locks at once.
     pub fn make_move(&self, client: ClientId, position: Position) {
         let mut state = self.lock();
 
@@ -199,7 +203,10 @@ impl LobbyService {
             apply_move(m, client, position)
         };
 
-        match outcome {
+        // Captured for the ranking update after the lobby lock is released.
+        // `None` when the match is still in progress, ended in a draw, or
+        // the winner has no authenticated identity.
+        let winner_info: Option<(Username, String)> = match outcome {
             Err((code, message)) => {
                 if let Some(session) = state.sessions.get(&client) {
                     session.try_send(ServerMessage::Error {
@@ -207,6 +214,7 @@ impl LobbyService {
                         message: String::from(message),
                     });
                 }
+                None
             }
             Ok((host, guest, board, next_turn, status)) => {
                 let update = ServerMessage::BoardUpdate {
@@ -214,26 +222,40 @@ impl LobbyService {
                     current_turn: next_turn,
                     status,
                 };
-                if let Some(host) = state.sessions.get(&host) {
-                    host.try_send(update.clone());
+                if let Some(host_session) = state.sessions.get(&host) {
+                    host_session.try_send(update.clone());
                 }
                 if let Some(guest_id) = guest
-                    && let Some(guest) = state.sessions.get(&guest_id)
+                    && let Some(guest_session) = state.sessions.get(&guest_id)
                 {
-                    guest.try_send(update);
+                    guest_session.try_send(update);
                 }
                 if status.is_finished() {
                     let over = ServerMessage::MatchOver { board, status };
-                    if let Some(host) = state.sessions.get(&host) {
-                        host.try_send(over.clone());
+                    if let Some(host_session) = state.sessions.get(&host) {
+                        host_session.try_send(over.clone());
                     }
                     if let Some(guest_id) = guest
-                        && let Some(guest) = state.sessions.get(&guest_id)
+                        && let Some(guest_session) = state.sessions.get(&guest_id)
                     {
-                        guest.try_send(over);
+                        guest_session.try_send(over);
                     }
                 }
+
+                match status {
+                    GameStatus::Won(Player::X) => winner_from_session(&state, host),
+                    GameStatus::Won(Player::O) => {
+                        guest.and_then(|id| winner_from_session(&state, id))
+                    }
+                    GameStatus::InProgress | GameStatus::Draw => None,
+                }
             }
+        };
+
+        drop(state);
+
+        if let Some((username, name)) = winner_info {
+            self.ranking.record_win(&username, &name);
         }
     }
 
@@ -308,4 +330,16 @@ fn apply_move(
     let next_turn = m.current_turn.other();
     m.current_turn = next_turn;
     Ok((m.host, m.guest, m.board, next_turn, status))
+}
+
+/// Returns the authenticated username and display name for a session, if
+/// the session is authenticated.
+fn winner_from_session(state: &LobbyState, client: ClientId) -> Option<(Username, String)> {
+    let session = state.sessions.get(&client)?;
+    let username = session.authenticated_as.clone()?;
+    let name = session
+        .display_name
+        .clone()
+        .unwrap_or_else(|| username.as_str().to_string());
+    Some((username, name))
 }
