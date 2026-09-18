@@ -13,6 +13,8 @@ pub enum ScenarioChoice {
     PortReuse,
     /// Opens many concurrent connections and verifies recovery.
     Flood,
+    /// Probes that a spectator cannot interfere with a match.
+    SpectatorIsolation,
     /// Runs every scenario in sequence.
     All,
 }
