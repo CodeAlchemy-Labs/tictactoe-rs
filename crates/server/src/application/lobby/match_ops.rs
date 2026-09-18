@@ -163,9 +163,10 @@ impl LobbyService {
 
     /// Handles `MakeMove`.
     ///
-    /// When the move ends the match with a real victory, the win is recorded
-    /// in the ranking service. The recording happens after the lobby lock is
-    /// released to avoid holding two locks at once.
+    /// When the move ends the match, the server broadcasts `MatchOver` with
+    /// the winner's display name, releases both players from the match, and
+    /// removes the match from the lobby. The win is recorded in the ranking
+    /// service after the lobby lock is released.
     pub fn make_move(&self, client: ClientId, position: Position) {
         let mut state = self.lock();
 
@@ -206,7 +207,7 @@ impl LobbyService {
         // Captured for the ranking update after the lobby lock is released.
         // `None` when the match is still in progress, ended in a draw, or
         // the winner has no authenticated identity.
-        let winner_info: Option<(Username, String)> = match outcome {
+        let winner_for_ranking: Option<(Username, String)> = match outcome {
             Err((code, message)) => {
                 if let Some(session) = state.sessions.get(&client) {
                     session.try_send(ServerMessage::Error {
@@ -230,8 +231,28 @@ impl LobbyService {
                 {
                     guest_session.try_send(update);
                 }
-                if status.is_finished() {
-                    let over = ServerMessage::MatchOver { board, status };
+
+                if !status.is_finished() {
+                    None
+                } else {
+                    // Look up the winner's display name before we clear the
+                    // sessions, so the message can render it.
+                    let winner_name = match status {
+                        GameStatus::Won(Player::X) => state
+                            .sessions
+                            .get(&host)
+                            .and_then(|s| s.display_name.clone()),
+                        GameStatus::Won(Player::O) => guest
+                            .and_then(|id| state.sessions.get(&id))
+                            .and_then(|s| s.display_name.clone()),
+                        GameStatus::InProgress | GameStatus::Draw => None,
+                    };
+
+                    let over = ServerMessage::MatchOver {
+                        board,
+                        status,
+                        winner_name,
+                    };
                     if let Some(host_session) = state.sessions.get(&host) {
                         host_session.try_send(over.clone());
                     }
@@ -240,21 +261,37 @@ impl LobbyService {
                     {
                         guest_session.try_send(over);
                     }
-                }
 
-                match status {
-                    GameStatus::Won(Player::X) => winner_from_session(&state, host),
-                    GameStatus::Won(Player::O) => {
-                        guest.and_then(|id| winner_from_session(&state, id))
+                    // Capture the authenticated identity for the ranking.
+                    let winner = match status {
+                        GameStatus::Won(Player::X) => winner_from_session(&state, host),
+                        GameStatus::Won(Player::O) => {
+                            guest.and_then(|id| winner_from_session(&state, id))
+                        }
+                        GameStatus::InProgress | GameStatus::Draw => None,
+                    };
+
+                    // Release both players so they can start a new match.
+                    if let Some(session) = state.sessions.get_mut(&host) {
+                        session.current_match = None;
+                        session.mark = None;
                     }
-                    GameStatus::InProgress | GameStatus::Draw => None,
+                    if let Some(guest_id) = guest
+                        && let Some(session) = state.sessions.get_mut(&guest_id)
+                    {
+                        session.current_match = None;
+                        session.mark = None;
+                    }
+                    state.matches.remove(&match_id);
+
+                    winner
                 }
             }
         };
 
         drop(state);
 
-        if let Some((username, name)) = winner_info {
+        if let Some((username, name)) = winner_for_ranking {
             self.ranking.record_win(&username, &name);
         }
     }
