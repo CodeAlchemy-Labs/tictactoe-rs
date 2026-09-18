@@ -101,12 +101,8 @@ async fn dispatch_text(lobby: &LobbyService, client_id: ClientId, text: &str) {
         ClientMessage::JoinMatch { match_id } => lobby.join_match(client_id, match_id),
         ClientMessage::MakeMove { position } => lobby.make_move(client_id, position),
         ClientMessage::LeaveMatch => lobby.leave_match(client_id),
-        ClientMessage::Spectate { .. } => {
-            tracing::warn!("spectate is not yet implemented in this build");
-        }
-        ClientMessage::LeaveSpectate => {
-            tracing::warn!("leave_spectate is not yet implemented in this build");
-        }
+        ClientMessage::Spectate { match_id } => lobby.spectate(client_id, match_id),
+        ClientMessage::LeaveSpectate => lobby.leave_spectate(client_id),
         ClientMessage::Ping => lobby.pong(client_id),
     }
 }
