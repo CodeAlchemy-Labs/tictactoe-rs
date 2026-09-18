@@ -123,7 +123,8 @@ impl LobbyService {
         id
     }
 
-    /// Removes the client and any match it was part of.
+    /// Removes the client and any match or spectate relationship it was
+    /// part of.
     ///
     /// Also releases the username from `active_sessions` so that the account
     /// can be used on a new connection.
@@ -140,6 +141,9 @@ impl LobbyService {
             }
             if let Some(match_id) = session.current_match {
                 match_ops::detach_from_match(&mut state, match_id, client);
+            }
+            if let Some(match_id) = session.spectating {
+                match_ops::detach_spectator_from_match(&mut state, match_id, client);
             }
         }
     }
