@@ -1,6 +1,6 @@
 //! The screen the client is currently showing.
 
-use common::domain::{Board, GameStatus, Player};
+use common::domain::{Board, GameStatus, Player, RankingEntry};
 use common::protocol::{MatchId, MatchSummary};
 
 use super::auth_form::AuthForm;
@@ -34,6 +34,11 @@ pub enum Screen {
         /// The most recent snapshot of open matches.
         matches: Vec<MatchSummary>,
     },
+    /// Viewing the top-players ranking.
+    Ranking {
+        /// The most recent snapshot of the ranking.
+        entries: Vec<RankingEntry>,
+    },
     /// Playing a match.
     InGame(Box<ActiveMatch>),
     /// The match has ended.
@@ -54,6 +59,7 @@ impl Screen {
             Self::Connecting => "Connecting",
             Self::Auth(_) => "Auth",
             Self::Lobby { .. } => "Lobby",
+            Self::Ranking { .. } => "Ranking",
             Self::InGame(_) => "In game",
             Self::Finished { .. } => "Result",
             Self::Fatal(_) => "Error",
@@ -69,6 +75,7 @@ mod tests {
     fn title_matches_variant() {
         assert_eq!(Screen::Connecting.title(), "Connecting");
         assert_eq!(Screen::Lobby { matches: vec![] }.title(), "Lobby");
+        assert_eq!(Screen::Ranking { entries: vec![] }.title(), "Ranking");
         assert_eq!(Screen::Fatal(String::from("boom")).title(), "Error");
     }
 }
