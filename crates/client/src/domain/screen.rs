@@ -47,6 +47,8 @@ pub enum Screen {
         board: Board,
         /// The final status.
         status: GameStatus,
+        /// The winner's display name, when the match ended with a victory.
+        winner_name: Option<String>,
     },
     /// A fatal error occurred; the UI will display it and the process exits.
     Fatal(String),
