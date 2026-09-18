@@ -1,6 +1,6 @@
 //! Connected-client session.
 
-use common::domain::Player;
+use common::domain::{Player, Username};
 use common::protocol::{ClientId, MatchId, ServerMessage};
 use tokio::sync::mpsc;
 
@@ -13,8 +13,14 @@ use tokio::sync::mpsc;
 pub struct Session {
     /// The identifier assigned to this client.
     pub client_id: ClientId,
-    /// The display name the client sent via `Hello`, if any.
+    /// The display name the client sent via `Hello` or the one derived from
+    /// the authenticated user's profile.
     pub display_name: Option<String>,
+    /// The username of the authenticated user, if any.
+    ///
+    /// Guest sessions leave this as `None`. Authenticated sessions set it
+    /// after `Register` or `Login` succeeds.
+    pub authenticated_as: Option<Username>,
     /// The outbound channel used to push messages to this client.
     pub sender: mpsc::UnboundedSender<ServerMessage>,
     /// The match the client is currently playing, if any.
@@ -29,10 +35,16 @@ impl Session {
         Self {
             client_id,
             display_name: None,
+            authenticated_as: None,
             sender,
             current_match: None,
             mark: None,
         }
+    }
+
+    /// Returns `true` when the session belongs to an authenticated user.
+    pub fn is_authenticated(&self) -> bool {
+        self.authenticated_as.is_some()
     }
 
     /// Sends a message to the client.
@@ -55,8 +67,10 @@ mod tests {
         let (tx, _rx) = mpsc::unbounded_channel();
         let session = Session::new(ClientId::new(1), tx);
         assert!(session.display_name.is_none());
+        assert!(session.authenticated_as.is_none());
         assert!(session.current_match.is_none());
         assert!(session.mark.is_none());
+        assert!(!session.is_authenticated());
     }
 
     #[test]
@@ -74,5 +88,13 @@ mod tests {
         drop(rx);
         session.try_send(ServerMessage::Pong);
         // No panic: this is the contract that makes cleanup safe.
+    }
+
+    #[test]
+    fn authenticated_session_reports_it() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut session = Session::new(ClientId::new(1), tx);
+        session.authenticated_as = Some(Username::new("alice_99").unwrap());
+        assert!(session.is_authenticated());
     }
 }
