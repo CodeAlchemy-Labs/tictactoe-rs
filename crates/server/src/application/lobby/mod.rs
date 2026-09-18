@@ -72,6 +72,15 @@ struct LobbyState {
     /// Players that have disconnected from a live match and are waiting for
     /// the grace period to expire. Their username remains reserved.
     pending_disconnections: HashMap<Username, PendingDisconnection>,
+    /// Active sessions per IP address.
+    ip_counts: HashMap<std::net::IpAddr, usize>,
+    /// Rate limit buckets per IP address.
+    auth_buckets: HashMap<std::net::IpAddr, AuthBucket>,
+}
+
+pub(super) struct AuthBucket {
+    pub tokens: f32,
+    pub last_update: tokio::time::Instant,
 }
 
 /// A player that has been temporarily disconnected from a live match.
@@ -99,8 +108,11 @@ pub struct Disconnection {
     pub username: Username,
 }
 
+use crate::config::ServerConfig;
+
 /// Coordinates sessions and matches for all connected clients.
 pub struct LobbyService {
+    config: ServerConfig,
     state: Mutex<LobbyState>,
     auth: Arc<AuthService>,
     ranking: Arc<RankingService>,
@@ -108,14 +120,15 @@ pub struct LobbyService {
 
 impl Default for LobbyService {
     fn default() -> Self {
-        Self::new()
+        Self::new(ServerConfig::default())
     }
 }
 
 impl LobbyService {
     /// Creates an empty lobby with default-configured services.
-    pub fn new() -> Self {
+    pub fn new(config: ServerConfig) -> Self {
         Self::with_services(
+            config,
             Arc::new(AuthService::default()),
             Arc::new(RankingService::new()),
         )
@@ -126,13 +139,18 @@ impl LobbyService {
     ///
     /// Intended for tests that want cheaper Argon2 parameters without
     /// caring about the ranking.
-    pub fn with_auth(auth: Arc<AuthService>) -> Self {
-        Self::with_services(auth, Arc::new(RankingService::new()))
+    pub fn with_auth(config: ServerConfig, auth: Arc<AuthService>) -> Self {
+        Self::with_services(config, auth, Arc::new(RankingService::new()))
     }
 
     /// Creates an empty lobby with caller-provided services.
-    pub fn with_services(auth: Arc<AuthService>, ranking: Arc<RankingService>) -> Self {
+    pub fn with_services(
+        config: ServerConfig,
+        auth: Arc<AuthService>,
+        ranking: Arc<RankingService>,
+    ) -> Self {
         Self {
+            config,
             state: Mutex::new(LobbyState::default()),
             auth,
             ranking,
@@ -145,12 +163,33 @@ impl LobbyService {
     }
 
     /// Registers a new client and returns its identifier.
-    pub fn register_client(&self, sender: mpsc::UnboundedSender<ServerMessage>) -> ClientId {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorCode::TooManySessions`] if the global session limit or the
+    /// per-IP session limit has been reached.
+    pub fn register_client(
+        &self,
+        sender: mpsc::UnboundedSender<ServerMessage>,
+        ip: std::net::IpAddr,
+    ) -> Result<ClientId, common::protocol::ErrorCode> {
         let mut state = self.lock();
+
+        if state.sessions.len() >= self.config.max_sessions {
+            return Err(common::protocol::ErrorCode::TooManySessions);
+        }
+
+        let count = state.ip_counts.get(&ip).copied().unwrap_or(0);
+        if count >= self.config.max_sessions_per_ip {
+            return Err(common::protocol::ErrorCode::TooManySessions);
+        }
+
+        state.ip_counts.insert(ip, count + 1);
+
         let id = ClientId::new(state.next_client_id);
         state.next_client_id += 1;
-        state.sessions.insert(id, Session::new(id, sender));
-        id
+        state.sessions.insert(id, Session::new(id, sender, ip));
+        Ok(id)
     }
 
     /// Removes the client and any spectate relationship it was part of.
@@ -165,6 +204,13 @@ impl LobbyService {
         let mut state = self.lock();
         let session = state.sessions.remove(&client)?;
         tracing::debug!(client_id = %session.client_id, "session removed");
+
+        if let Some(count) = state.ip_counts.get_mut(&session.peer_ip) {
+            *count -= 1;
+            if *count == 0 {
+                state.ip_counts.remove(&session.peer_ip);
+            }
+        }
 
         let disconnection = match (&session.authenticated_as, session.current_match) {
             (Some(username), Some(match_id)) => {
@@ -277,6 +323,48 @@ pub(super) const fn reason_message(reason: AuthFailureReason) -> &'static str {
         AuthFailureReason::InvalidCredentials => "invalid username or password",
         AuthFailureReason::AlreadyAuthenticated => "this connection is already authenticated",
         AuthFailureReason::AlreadyLoggedIn => "this account is already signed in elsewhere",
+        AuthFailureReason::RateLimited => {
+            "too many authentication attempts, please try again later"
+        }
         AuthFailureReason::InternalError => "internal server error",
+    }
+}
+
+impl LobbyService {
+    /// Checks and updates the rate limit for the client's IP.
+    /// Returns `true` if the request is allowed, `false` if rate limited.
+    pub(super) fn consume_auth_token(&self, client_id: ClientId) -> bool {
+        let mut state = self.lock();
+        let ip = if let Some(session) = state.sessions.get(&client_id) {
+            session.peer_ip
+        } else {
+            return false;
+        };
+
+        // auth_rate_limit_per_minute is stored as u32 but we need f32 arithmetic.
+        // The value is at most u32::MAX ≈ 4 × 10^9 which exceeds f32's 23-bit mantissa,
+        // but rate limits are always tiny (<1000), so the cast is safe in practice.
+        // We suppress the lint rather than introduce noisy precision-safe gymnastics.
+        #[allow(clippy::cast_precision_loss)]
+        let max_tokens = self.config.auth_rate_limit_per_minute as f32;
+        // Refill rate: tokens per second
+        let refill_rate = max_tokens / 60.0;
+        let now = tokio::time::Instant::now();
+
+        let bucket = state.auth_buckets.entry(ip).or_insert_with(|| AuthBucket {
+            tokens: max_tokens,
+            last_update: now,
+        });
+
+        let elapsed = now.duration_since(bucket.last_update).as_secs_f32();
+        bucket.tokens = (bucket.tokens + elapsed * refill_rate).min(max_tokens);
+        bucket.last_update = now;
+
+        if bucket.tokens >= 1.0 {
+            bucket.tokens -= 1.0;
+            true
+        } else {
+            false
+        }
     }
 }
