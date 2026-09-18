@@ -13,18 +13,35 @@ use common::protocol::{ClientId, ClientMessage, ServerMessage};
 use crate::application::lobby::LobbyService;
 use crate::infrastructure::session_guard::SessionGuard;
 
+use axum::extract::ConnectInfo;
+use std::net::SocketAddr;
+
 /// Axum handler that upgrades an HTTP request to a WebSocket connection.
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     State(lobby): State<Arc<LobbyService>>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, lobby))
+    ws.on_upgrade(move |socket| handle_socket(socket, lobby, addr.ip()))
 }
 
-async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>) {
+async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>, peer_ip: std::net::IpAddr) {
     let (mut sink, mut stream) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<ServerMessage>();
-    let client_id = lobby.register_client(tx);
+
+    let client_id = match lobby.register_client(tx, peer_ip) {
+        Ok(id) => id,
+        Err(code) => {
+            let msg = ServerMessage::Error {
+                code,
+                message: "too many sessions".to_string(),
+            };
+            let payload = serde_json::to_string(&msg).unwrap_or_default();
+            let _ = sink.send(Message::Text(payload.into())).await;
+            let _ = sink.close().await;
+            return;
+        }
+    };
 
     let guard = SessionGuard::new(client_id, Arc::clone(&lobby));
     tracing::info!(client_id = %client_id, "client connected");

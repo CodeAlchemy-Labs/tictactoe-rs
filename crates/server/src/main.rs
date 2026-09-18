@@ -15,7 +15,7 @@ use server::infrastructure::http::build_router;
 async fn main() -> anyhow::Result<()> {
     init_tracing();
     let config = ServerConfig::from_env()?;
-    let lobby = Arc::new(LobbyService::new());
+    let lobby = Arc::new(LobbyService::new(config.clone()));
     let app = build_router(Arc::clone(&lobby));
 
     let listener = TcpListener::bind(config.bind_address)
@@ -24,10 +24,13 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(address = %config.bind_address, "server listening");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .context("server terminated with an error")?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+    .context("server terminated with an error")?;
 
     tracing::info!("server stopped");
     Ok(())
