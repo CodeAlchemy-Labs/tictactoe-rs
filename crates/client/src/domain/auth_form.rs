@@ -156,7 +156,11 @@ impl AuthForm {
             .iter()
             .position(|field| *field == self.focused)
             .unwrap_or(0);
-        let next = if index == 0 { fields.len() - 1 } else { index - 1 };
+        let next = if index == 0 {
+            fields.len() - 1
+        } else {
+            index - 1
+        };
         self.focused = fields[next];
     }
 

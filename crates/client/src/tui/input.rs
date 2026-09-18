@@ -135,28 +135,19 @@ mod tests {
     #[test]
     fn digit_one_in_the_lobby_joins_the_first_match() {
         let action = translate_key(KeyCode::Char('1'), &lobby());
-        assert!(matches!(
-            action,
-            KeyAction::Event(AppEvent::JoinMatchAt(0))
-        ));
+        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(0))));
     }
 
     #[test]
     fn digit_nine_in_the_lobby_joins_the_ninth_match() {
         let action = translate_key(KeyCode::Char('9'), &lobby());
-        assert!(matches!(
-            action,
-            KeyAction::Event(AppEvent::JoinMatchAt(8))
-        ));
+        assert!(matches!(action, KeyAction::Event(AppEvent::JoinMatchAt(8))));
     }
 
     #[test]
     fn digit_one_in_a_game_plays_a_move() {
         let action = translate_key(KeyCode::Char('1'), &in_game());
-        assert!(matches!(
-            action,
-            KeyAction::Event(AppEvent::PlayMove(1))
-        ));
+        assert!(matches!(action, KeyAction::Event(AppEvent::PlayMove(1))));
     }
 
     #[test]
@@ -207,10 +198,7 @@ mod tests {
     #[test]
     fn f2_in_auth_toggles_the_mode() {
         let action = translate_key(KeyCode::F(2), &auth());
-        assert!(matches!(
-            action,
-            KeyAction::Event(AppEvent::AuthToggleMode)
-        ));
+        assert!(matches!(action, KeyAction::Event(AppEvent::AuthToggleMode)));
     }
 
     #[test]

@@ -40,11 +40,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             if state.is_authenticated() {
                 effects.push(SideEffect::Send(ClientMessage::CreateMatch));
             } else {
-                show_auth(
-                    state,
-                    AuthMode::Login,
-                    Some(PendingAction::CreateMatch),
-                );
+                show_auth(state, AuthMode::Login, Some(PendingAction::CreateMatch));
             }
         }
         AppEvent::JoinMatchAt(index) => {
@@ -55,7 +51,11 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
                 if state.is_authenticated() {
                     effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
                 } else {
-                    show_auth(state, AuthMode::Login, Some(PendingAction::JoinMatch(match_id)));
+                    show_auth(
+                        state,
+                        AuthMode::Login,
+                        Some(PendingAction::JoinMatch(match_id)),
+                    );
                 }
             }
         }
@@ -400,7 +400,10 @@ mod tests {
         assert!(effects.is_empty());
         match &state.screen {
             Screen::Auth(form) => {
-                assert_eq!(form.pending_action, Some(PendingAction::JoinMatch(MatchId::new(5))));
+                assert_eq!(
+                    form.pending_action,
+                    Some(PendingAction::JoinMatch(MatchId::new(5)))
+                );
             }
             other => panic!("unexpected: {other:?}"),
         }

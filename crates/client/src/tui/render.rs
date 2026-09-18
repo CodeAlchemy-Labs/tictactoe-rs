@@ -173,8 +173,7 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
         form.focused == AuthField::Password,
     ));
 
-    let fields = Paragraph::new(lines)
-        .block(Block::default().borders(Borders::ALL).title(title));
+    let fields = Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title(title));
     frame.render_widget(fields, rows[0]);
 
     let error_text = form.error.clone().unwrap_or_default();
@@ -186,13 +185,15 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
     let help = Paragraph::new(
         "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
     )
-        .block(Block::default().borders(Borders::ALL));
+    .block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, rows[2]);
 }
 
 fn field_line(label: &str, value: &str, focused: bool) -> Line<'static> {
     let style = if focused {
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
     } else {
         Style::default()
     };

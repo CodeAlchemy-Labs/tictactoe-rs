@@ -61,7 +61,7 @@ async fn register(client: &mut Client, username: &str) {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     let _ = recv(client).await;
 }
 
@@ -75,7 +75,7 @@ async fn hello_returns_welcome_with_display_name() {
             display_name: String::from("alice"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Welcome { display_name, .. } => assert_eq!(display_name, "alice"),
         other => panic!("unexpected: {other:?}"),
@@ -93,7 +93,7 @@ async fn joining_a_nonexistent_match_fails() {
             match_id: common::protocol::MatchId::new(999),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Error { code, .. } => assert_eq!(code, ErrorCode::MatchNotFound),
         other => panic!("unexpected: {other:?}"),
@@ -110,7 +110,7 @@ async fn guest_cannot_create_a_match() {
             display_name: String::from("guest"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut client).await;
     send(&mut client, &ClientMessage::CreateMatch).await;
     match recv(&mut client).await {
@@ -131,7 +131,7 @@ async fn disconnect_removes_the_session_from_the_lobby() {
             display_name: String::from("alice"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut client).await;
     assert_eq!(lobby.session_count(), 1);
 
@@ -160,7 +160,7 @@ async fn registration_succeeds_and_authenticates_the_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Registered { profile } => {
             assert_eq!(profile.name, "Alice Example");
@@ -183,7 +183,7 @@ async fn registration_with_invalid_input_is_rejected() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::AuthenticationFailed { reason, .. } => {
             assert_eq!(reason, AuthFailureReason::UsernameInvalid);
@@ -206,7 +206,7 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut register_client).await;
     register_client.close(None).await.unwrap();
     drop(register_client);
@@ -219,7 +219,7 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut login_client).await {
         ServerMessage::LoginSucceeded { profile } => {
             assert_eq!(profile.username.as_str(), "alice_99");
