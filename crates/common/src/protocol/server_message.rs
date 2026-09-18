@@ -103,6 +103,26 @@ pub enum ServerMessage {
         /// The match identifier.
         match_id: MatchId,
     },
+    /// Sent to the remaining participants of a match when one of the two
+    /// players has disconnected or left.
+    ///
+    /// The match does not end immediately: the server waits for
+    /// `grace_seconds` before considering it abandoned. The recipient
+    /// should keep the game state on screen and show a "waiting for
+    /// reconnection" notice.
+    OpponentDisconnected {
+        /// The match identifier.
+        match_id: MatchId,
+        /// How many seconds the server will wait before abandoning the
+        /// match.
+        grace_seconds: u32,
+    },
+    /// Sent to the remaining participants of a match when the disconnected
+    /// player reconnects.
+    OpponentReconnected {
+        /// The match identifier.
+        match_id: MatchId,
+    },
     /// Sent to a client that has just started spectating a match.
     ///
     /// Contains a snapshot of the board at the moment the spectator joined,
@@ -394,6 +414,27 @@ mod tests {
         let message = ServerMessage::SpectatorLeft {
             username: String::from("Carol"),
             spectator_count: 1,
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn opponent_disconnected_round_trip() {
+        let message = ServerMessage::OpponentDisconnected {
+            match_id: MatchId::new(1),
+            grace_seconds: 2,
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn opponent_reconnected_round_trip() {
+        let message = ServerMessage::OpponentReconnected {
+            match_id: MatchId::new(1),
         };
         let json = serde_json::to_string(&message).unwrap();
         let back: ServerMessage = serde_json::from_str(&json).unwrap();
