@@ -179,7 +179,7 @@ fn render_finished(
 ) {
     let outcome = match status {
         GameStatus::Won(player) => {
-            let name = winner_name.unwrap_or_else(|| match player {
+            let name = winner_name.unwrap_or(match player {
                 Player::X => "X",
                 Player::O => "O",
             });
