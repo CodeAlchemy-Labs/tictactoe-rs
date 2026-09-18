@@ -11,11 +11,11 @@
 //!   existing account, subject to the single-session invariant.
 //! - [`LobbyService::pong`]: responds to a liveness probe.
 
-use common::domain::{Age, UserProfile, Username};
+use common::domain::{Age, Player, UserProfile, Username};
 use common::protocol::{AuthFailureReason, ClientId, ServerMessage};
 
 use super::{
-    LobbyService, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN, MIN_PASSWORD_LEN, reason_message,
+    LobbyService, LobbyState, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN, MIN_PASSWORD_LEN, reason_message
 };
 
 impl LobbyService {
@@ -147,6 +147,9 @@ impl LobbyService {
     }
 
     /// Handles `Login`.
+    ///
+    /// If the username has a pending disconnection, the login reclaims the
+    /// slot instead of being rejected by the single-session rule.
     pub async fn login_user(&self, client_id: ClientId, username: String, password: String) {
         if self.is_authenticated(client_id) {
             self.send_auth_failure(
@@ -169,11 +172,10 @@ impl LobbyService {
             return;
         };
 
-        // Check whether the account is already signed in on another
-        // connection. This is done before authenticating so that a
-        // legitimate account cannot be blocked by an attacker who does not
-        // know the password.
-        if self.is_username_active(&username) {
+        // A pending disconnection reserves the username but does not block
+        // the legitimate owner from reclaiming it.
+        let has_pending = self.has_pending_disconnection(&username);
+        if !has_pending && self.is_username_active(&username) {
             self.send_auth_failure(
                 client_id,
                 AuthFailureReason::AlreadyLoggedIn,
@@ -185,9 +187,13 @@ impl LobbyService {
         match self.auth.authenticate(&username, password).await {
             Ok(profile) => {
                 let mut state = self.lock();
-                state
-                    .active_sessions
-                    .insert(profile.username.clone(), client_id);
+                if has_pending {
+                    reconnect_pending(&mut state, &profile.username, client_id);
+                } else {
+                    state
+                        .active_sessions
+                        .insert(profile.username.clone(), client_id);
+                }
                 if let Some(session) = state.sessions.get_mut(&client_id) {
                     session.authenticated_as = Some(profile.username.clone());
                     session.display_name = Some(profile.name.clone());
@@ -208,6 +214,11 @@ impl LobbyService {
         }
     }
 
+    /// Returns `true` when the username has a pending disconnection.
+    fn has_pending_disconnection(&self, username: &Username) -> bool {
+        self.lock().pending_disconnections.contains_key(username)
+    }
+
     /// Handles `ListRanking`.
     ///
     /// Returns the current top-10 ranking. The ranking is public, so guests
@@ -219,6 +230,55 @@ impl LobbyService {
         let state = self.lock();
         if let Some(session) = state.sessions.get(&client) {
             session.try_send(ServerMessage::Ranking { entries });
+        }
+    }
+}
+
+/// Reconnects a freshly authenticated client to the match it was playing
+/// before it disconnected.
+///
+/// Updates `active_sessions` to point at the new client, restores the slot
+/// in the match, sets the session fields, and notifies the opponent and
+/// the spectators with `OpponentReconnected`.
+fn reconnect_pending(state: &mut LobbyState, username: &Username, new_client: ClientId) {
+    let Some(pending) = state.pending_disconnections.remove(username) else {
+        // No pending disconnection; treat as a fresh login.
+        state.active_sessions.insert(username.clone(), new_client);
+        return;
+    };
+
+    state.active_sessions.insert(username.clone(), new_client);
+
+    let Some(m) = state.matches.get_mut(&pending.match_id) else {
+        // The match vanished while the player was away. Nothing to restore.
+        return;
+    };
+    if pending.was_host {
+        m.host = new_client;
+    } else {
+        m.guest = Some(new_client);
+    }
+
+    let mark = if pending.was_host { Player::X } else { Player::O };
+    let opponent = m.opponent_of(new_client);
+    let reconnected = ServerMessage::OpponentReconnected {
+        match_id: pending.match_id,
+    };
+    let spectators = m.spectators.clone();
+
+    if let Some(session) = state.sessions.get_mut(&new_client) {
+        session.current_match = Some(pending.match_id);
+        session.mark = Some(mark);
+    }
+
+    if let Some(opponent_id) = opponent
+        && let Some(session) = state.sessions.get(&opponent_id)
+    {
+        session.try_send(reconnected.clone());
+    }
+    for spectator in spectators {
+        if let Some(session) = state.sessions.get(&spectator) {
+            session.try_send(reconnected.clone());
         }
     }
 }
