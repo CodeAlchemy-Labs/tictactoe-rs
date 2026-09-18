@@ -48,6 +48,10 @@ pub enum AppEvent {
     Quit,
     /// The user asked to refresh the lobby list.
     RefreshLobby,
+    /// The user asked to open the ranking screen.
+    ShowRanking,
+    /// The user asked to return to the lobby from a secondary screen.
+    BackToLobby,
     /// The user asked to create a new match.
     CreateMatch,
     /// The user asked to join the match at the given 0-based index in the
