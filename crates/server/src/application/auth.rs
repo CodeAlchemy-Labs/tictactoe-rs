@@ -104,6 +104,7 @@ impl AuthService {
                 password_hash,
             },
         );
+        drop(users);
         Ok(())
     }
 
@@ -338,9 +339,12 @@ mod tests {
             .register(profile("Bob", "bob_77", 25), "hunter2hunter2".to_string())
             .await
             .unwrap();
-        let users = service.lock();
-        let alice = users.get(&Username::new("alice_99").unwrap()).unwrap();
-        let bob = users.get(&Username::new("bob_77").unwrap()).unwrap();
-        assert_ne!(alice.password_hash, bob.password_hash);
+        let (alice_hash, bob_hash) = {
+            let users = service.lock();
+            let alice = users.get(&Username::new("alice_99").unwrap()).unwrap();
+            let bob = users.get(&Username::new("bob_77").unwrap()).unwrap();
+            (alice.password_hash.clone(), bob.password_hash.clone())
+        };
+        assert_ne!(alice_hash, bob_hash);
     }
 }
