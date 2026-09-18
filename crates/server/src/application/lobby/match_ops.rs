@@ -223,31 +223,33 @@ impl LobbyService {
             .and_then(|s| s.display_name.clone())
             .unwrap_or_else(|| String::from("spectator"));
 
-        let (host_name, guest_name, board, current_turn, status, count) = {
+        // Read the participant identities before touching the match, so the
+        // immutable borrow of `state.sessions` does not overlap with the
+        // mutable borrow of `state.matches`.
+        let (host, guest) = {
+            let Some(m) = state.matches.get(&match_id) else {
+                return;
+            };
+            (m.host, m.guest)
+        };
+        let host_name = state
+            .sessions
+            .get(&host)
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_else(|| String::from("unknown"));
+        let guest_name = guest
+            .and_then(|id| state.sessions.get(&id))
+            .and_then(|s| s.display_name.clone())
+            .unwrap_or_default();
+
+        let (board, current_turn, status, count) = {
             let Some(m) = state.matches.get_mut(&match_id) else {
                 return;
             };
             if !m.add_spectator(client, display_name.clone()) {
                 return;
             }
-            let host_name = state
-                .sessions
-                .get(&m.host)
-                .and_then(|s| s.display_name.clone())
-                .unwrap_or_else(|| String::from("unknown"));
-            let guest_name = m
-                .guest
-                .and_then(|id| state.sessions.get(&id))
-                .and_then(|s| s.display_name.clone())
-                .unwrap_or_default();
-            (
-                host_name,
-                guest_name,
-                m.board,
-                m.current_turn,
-                m.status,
-                m.spectator_count(),
-            )
+            (m.board, m.current_turn, m.status, m.spectator_count())
         };
         if let Some(session) = state.sessions.get_mut(&client) {
             session.spectating = Some(match_id);
