@@ -96,11 +96,18 @@ impl LobbyService {
                     ErrorCode::AuthenticationRequired,
                     "register or log in before joining a match",
                 ))
-            } else if session.current_match.is_some() {
-                Some((ErrorCode::InvalidState, "already in a match"))
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
+                    // Checked before `current_match` so that a host that
+                    // tries to join its own match receives the specific
+                    // error instead of the generic "already in a match".
+                    Some(m) if m.host == client => {
+                        Some((ErrorCode::CannotJoinOwnMatch, "you already host this match"))
+                    }
+                    _ if session.current_match.is_some() => {
+                        Some((ErrorCode::InvalidState, "already in a match"))
+                    }
                     Some(m) if m.is_full() => Some((ErrorCode::MatchFull, "match is already full")),
                     Some(_) => None,
                 }
