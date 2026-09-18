@@ -2,8 +2,8 @@
 //!
 //! The crate exposes two error enums:
 //!
-//! - [`DomainError`]: violations of the game rules (invalid positions,
-//!   occupied cells).
+//! - [`DomainError`]: violations of the domain rules (invalid positions,
+//!   occupied cells, invalid usernames, ages out of range).
 //! - [`ProtocolError`]: failures while reading or writing wire messages.
 //!
 //! Both implement [`std::error::Error`] through `thiserror`, so they compose
@@ -11,7 +11,7 @@
 
 use thiserror::Error;
 
-use crate::domain::Position;
+use crate::domain::{Position, UsernameError};
 
 /// Errors raised by the domain layer.
 #[derive(Debug, Error)]
@@ -29,6 +29,26 @@ pub enum DomainError {
         /// The position that was already taken.
         position: Position,
     },
+
+    /// The provided username fails validation.
+    #[error("invalid username `{value}`: {reason}")]
+    InvalidUsername {
+        /// The offending value.
+        value: String,
+        /// Why the username was rejected.
+        reason: UsernameError,
+    },
+
+    /// The provided age is outside the accepted range.
+    #[error("age {value} is out of range; valid values are 8..=90")]
+    InvalidAge {
+        /// The offending value.
+        value: u8,
+    },
+
+    /// A display name was required but was empty.
+    #[error("display name must not be empty")]
+    EmptyName,
 }
 
 /// Errors raised by the protocol layer.
@@ -48,5 +68,12 @@ mod tests {
         let error = DomainError::InvalidPosition { value: 9 };
         let rendered = error.to_string();
         assert!(rendered.contains('9'));
+    }
+
+    #[test]
+    fn invalid_age_message_includes_value() {
+        let error = DomainError::InvalidAge { value: 91 };
+        let rendered = error.to_string();
+        assert!(rendered.contains("91"));
     }
 }
