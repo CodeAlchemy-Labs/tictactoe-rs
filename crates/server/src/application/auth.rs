@@ -162,8 +162,8 @@ async fn hash_password(password: String, params: Params) -> Result<String, AuthE
         bytes.zeroize();
         result
     })
-        .await
-        .map_err(|_| AuthError::TaskFailed)?
+    .await
+    .map_err(|_| AuthError::TaskFailed)?
 }
 
 async fn verify_password(
@@ -181,8 +181,8 @@ async fn verify_password(
         bytes.zeroize();
         result
     })
-        .await
-        .map_err(|_| AuthError::TaskFailed)?
+    .await
+    .map_err(|_| AuthError::TaskFailed)?
 }
 
 #[cfg(test)]
