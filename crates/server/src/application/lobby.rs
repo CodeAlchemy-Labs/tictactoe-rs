@@ -981,7 +981,7 @@ mod tests {
     #[tokio::test]
     async fn login_rejects_wrong_password() {
         let lobby = fast_lobby();
-        let (tx1, _rx1) = mpsc::unbounded_channel();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
         let (tx2, mut rx2) = mpsc::unbounded_channel();
         let client1 = lobby.register_client(tx1);
         let client2 = lobby.register_client(tx2);
@@ -994,6 +994,12 @@ mod tests {
                 String::from("hunter2hunter2"),
             )
             .await;
+        let _ = rx1.try_recv();
+
+        // Close the first session so the account is no longer active and
+        // the login path can reach password verification.
+        lobby.disconnect(client1);
+
         lobby
             .login_user(
                 client2,
@@ -1004,6 +1010,43 @@ mod tests {
         match rx2.try_recv().unwrap() {
             ServerMessage::AuthenticationFailed { reason, .. } => {
                 assert_eq!(reason, AuthFailureReason::InvalidCredentials);
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn already_logged_in_takes_precedence_over_password_check() {
+        // The active-session check runs before password verification. From
+        // the outside, a second login attempt against an active account is
+        // rejected with `AlreadyLoggedIn` regardless of whether the
+        // password is correct. This test documents that ordering.
+        let lobby = fast_lobby();
+        let (tx1, mut rx1) = mpsc::unbounded_channel();
+        let (tx2, mut rx2) = mpsc::unbounded_channel();
+        let client1 = lobby.register_client(tx1);
+        let client2 = lobby.register_client(tx2);
+        lobby
+            .register_user(
+                client1,
+                String::from("Alice"),
+                String::from("alice_99"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = rx1.try_recv();
+
+        lobby
+            .login_user(
+                client2,
+                String::from("alice_99"),
+                String::from("wrongpassword"),
+            )
+            .await;
+        match rx2.try_recv().unwrap() {
+            ServerMessage::AuthenticationFailed { reason, .. } => {
+                assert_eq!(reason, AuthFailureReason::AlreadyLoggedIn);
             }
             other => panic!("unexpected: {other:?}"),
         }
