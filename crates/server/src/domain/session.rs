@@ -10,6 +10,17 @@ use tokio::sync::mpsc;
 /// When the session is removed from the lobby, the channel sender is dropped
 /// and the writer task on the connection observes `None`, which terminates
 /// the socket. This is what makes disconnection cleanup deterministic.
+///
+/// A session can be in exactly one of three states with respect to matches:
+///
+/// - **Idle**: `current_match` and `spectating` are both `None`.
+/// - **Playing**: `current_match` is `Some(_)`. The session is a player.
+/// - **Spectating**: `spectating` is `Some(_)`. The session observes a
+///   match without playing it.
+///
+/// The two are mutually exclusive: a client cannot play and spectate at the
+/// same time, and cannot spectate two matches at once. The lobby enforces
+/// these invariants.
 pub struct Session {
     /// The identifier assigned to this client.
     pub client_id: ClientId,
@@ -27,6 +38,8 @@ pub struct Session {
     pub current_match: Option<MatchId>,
     /// The mark assigned to the client in its current match, if any.
     pub mark: Option<Player>,
+    /// The match the client is currently spectating, if any.
+    pub spectating: Option<MatchId>,
 }
 
 impl Session {
@@ -39,12 +52,23 @@ impl Session {
             sender,
             current_match: None,
             mark: None,
+            spectating: None,
         }
     }
 
     /// Returns `true` when the session belongs to an authenticated user.
     pub fn is_authenticated(&self) -> bool {
         self.authenticated_as.is_some()
+    }
+
+    /// Returns `true` when the client is currently playing a match.
+    pub const fn is_playing(&self) -> bool {
+        self.current_match.is_some()
+    }
+
+    /// Returns `true` when the client is currently spectating a match.
+    pub const fn is_spectating(&self) -> bool {
+        self.spectating.is_some()
     }
 
     /// Sends a message to the client.
@@ -70,7 +94,10 @@ mod tests {
         assert!(session.authenticated_as.is_none());
         assert!(session.current_match.is_none());
         assert!(session.mark.is_none());
+        assert!(session.spectating.is_none());
         assert!(!session.is_authenticated());
+        assert!(!session.is_playing());
+        assert!(!session.is_spectating());
     }
 
     #[test]
@@ -96,5 +123,19 @@ mod tests {
         let mut session = Session::new(ClientId::new(1), tx);
         session.authenticated_as = Some(Username::new("alice_99").unwrap());
         assert!(session.is_authenticated());
+    }
+
+    #[test]
+    fn playing_and_spectating_flags_reflect_the_match_fields() {
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut session = Session::new(ClientId::new(1), tx);
+        session.current_match = Some(MatchId::new(3));
+        assert!(session.is_playing());
+        assert!(!session.is_spectating());
+
+        session.current_match = None;
+        session.spectating = Some(MatchId::new(3));
+        assert!(!session.is_playing());
+        assert!(session.is_spectating());
     }
 }
