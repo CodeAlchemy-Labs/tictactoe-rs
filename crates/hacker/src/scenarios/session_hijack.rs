@@ -1,17 +1,19 @@
 //! Attempts to act on a match without being a legitimate participant.
 //!
-//! The scenario authenticates a fresh account and then performs five probes,
-//! each targeting a specific invariant:
+//! The scenario performs six probes, each targeting a specific invariant:
 //!
-//! 1. `MakeMove` outside of a match must be rejected with `NotInMatch`.
-//! 2. `JoinMatch` on a non-existent identifier must be rejected with
+//! 1. A guest that has not even sent `Hello` cannot create a match; the
+//!    server rejects it with `InvalidState`.
+//! 2. After `Hello` but before authentication, `CreateMatch` is rejected
+//!    with `AuthenticationRequired`.
+//! 3. An authenticated session that is not in a match cannot make a move;
+//!    the server rejects it with `NotInMatch`.
+//! 4. `JoinMatch` on a non-existent identifier is rejected with
 //!    `MatchNotFound`.
-//! 3. A second `Register` on an already-authenticated session must be
-//!    rejected with `AlreadyAuthenticated`.
-//! 4. A malformed JSON payload must be ignored, and the connection must
-//!    remain usable.
-//! 5. A guest (pre-authentication) connection must not be able to create a
-//!    match; the server rejects it with `AuthenticationRequired`.
+//! 5. A second `Register` on an already-authenticated session is rejected
+//!    with `AlreadyAuthenticated`.
+//! 6. A malformed JSON payload is ignored and the connection remains
+//!    usable, as demonstrated by a subsequent `Ping`/`Pong` exchange.
 //!
 //! If any probe does not produce the expected rejection, the server is
 //! reported as compromised.
@@ -42,26 +44,86 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         .await
         .with_context(|| format!("failed to connect to {target}"))?;
 
-    // Phase 0: try to create a match as a guest. The server must reject it
-    // with `AuthenticationRequired`.
-    send(&mut ws, &ClientMessage::CreateMatch).await?;
-    match recv(&mut ws).await? {
+    probe_unidentified_guest(&mut ws).await?;
+    probe_unauthenticated_guest(&mut ws).await?;
+    register_hacker(&mut ws).await?;
+    probe_move_without_match(&mut ws).await?;
+    probe_join_bogus_match(&mut ws).await?;
+    probe_double_register(&mut ws).await?;
+    probe_malformed_payload(&mut ws).await?;
+
+    Ok(Outcome::defended(
+        "every probe rejected; malformed payload ignored without closing the connection",
+    ))
+}
+
+/// Probe 1: a fresh connection has not sent `Hello` yet.
+async fn probe_unidentified_guest<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
+    send(ws, &ClientMessage::CreateMatch).await?;
+    match recv(ws).await? {
         ServerMessage::Error {
-            code: ErrorCode::AuthenticationRequired,
+            code: ErrorCode::InvalidState,
             ..
-        } => {}
+        } => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "CreateMatch before Hello was not rejected with InvalidState: {other:?}"
+        )),
+    }
+}
+
+/// Probe 2: a guest that has sent `Hello` but has not authenticated.
+async fn probe_unauthenticated_guest<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
+    send(
+        ws,
+        &ClientMessage::Hello {
+            display_name: String::from("hacker"),
+        },
+    )
+    .await?;
+    match recv(ws).await? {
+        ServerMessage::Welcome { .. } => {}
         other => {
-            return Ok(Outcome::compromised(format!(
-                "guest CreateMatch was not rejected with AuthenticationRequired: {other:?}"
-            )));
+            return Err(anyhow::anyhow!(
+                "expected Welcome after Hello, got {other:?}"
+            ));
         }
     }
 
-    // Phase 1: register a fresh account so the rest of the probes run as an
-    // authenticated session.
+    send(ws, &ClientMessage::CreateMatch).await?;
+    match recv(ws).await? {
+        ServerMessage::Error {
+            code: ErrorCode::AuthenticationRequired,
+            ..
+        } => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "guest CreateMatch was not rejected with AuthenticationRequired: {other:?}"
+        )),
+    }
+}
+
+/// Registers a fresh account so the rest of the probes run authenticated.
+async fn register_hacker<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
     let username = format!("hacker_{}", rand_suffix());
     send(
-        &mut ws,
+        ws,
         &ClientMessage::Register {
             name: String::from("Adversarial Actor"),
             username: username.clone(),
@@ -70,65 +132,82 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         },
     )
     .await?;
-    match recv(&mut ws).await? {
+    match recv(ws).await? {
         ServerMessage::Registered { profile } => {
             if profile.username.as_str() != username {
-                return Ok(Outcome::compromised(format!(
+                return Err(anyhow::anyhow!(
                     "Registered echoed a different username: {}",
                     profile.username
-                )));
+                ));
             }
+            Ok(())
         }
-        other => {
-            return Ok(Outcome::compromised(format!(
-                "expected Registered, got {other:?}"
-            )));
-        }
+        other => Err(anyhow::anyhow!("expected Registered, got {other:?}")),
     }
+}
 
-    // Probe 1: move without being in a match.
+/// Probe 3: move without being in a match.
+async fn probe_move_without_match<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
     send(
-        &mut ws,
+        ws,
         &ClientMessage::MakeMove {
             position: Position::new(4).context("hard-coded position")?,
         },
     )
     .await?;
-    match recv(&mut ws).await? {
+    match recv(ws).await? {
         ServerMessage::Error {
             code: ErrorCode::NotInMatch,
             ..
-        } => {}
-        other => {
-            return Ok(Outcome::compromised(format!(
-                "MakeMove outside a match was not rejected with NotInMatch: {other:?}"
-            )));
-        }
+        } => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "MakeMove outside a match was not rejected with NotInMatch: {other:?}"
+        )),
     }
+}
 
-    // Probe 2: join a non-existent match.
+/// Probe 4: join a non-existent match.
+async fn probe_join_bogus_match<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
     send(
-        &mut ws,
+        ws,
         &ClientMessage::JoinMatch {
             match_id: MatchId::new(u64::MAX),
         },
     )
     .await?;
-    match recv(&mut ws).await? {
+    match recv(ws).await? {
         ServerMessage::Error {
             code: ErrorCode::MatchNotFound,
             ..
-        } => {}
-        other => {
-            return Ok(Outcome::compromised(format!(
-                "JoinMatch on a bogus id was not rejected with MatchNotFound: {other:?}"
-            )));
-        }
+        } => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "JoinMatch on a bogus id was not rejected with MatchNotFound: {other:?}"
+        )),
     }
+}
 
-    // Probe 3: try to register again on an already-authenticated session.
+/// Probe 5: try to register again on an already-authenticated session.
+async fn probe_double_register<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
     send(
-        &mut ws,
+        ws,
         &ClientMessage::Register {
             name: String::from("Hacker Again"),
             username: format!("hacker_{}", rand_suffix()),
@@ -137,36 +216,35 @@ pub async fn run(target: &str) -> anyhow::Result<Outcome> {
         },
     )
     .await?;
-    match recv(&mut ws).await? {
+    match recv(ws).await? {
         ServerMessage::AuthenticationFailed {
             reason: AuthFailureReason::AlreadyAuthenticated,
             ..
-        } => {}
-        other => {
-            return Ok(Outcome::compromised(format!(
-                "double Register was not rejected with AlreadyAuthenticated: {other:?}"
-            )));
-        }
+        } => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "double Register was not rejected with AlreadyAuthenticated: {other:?}"
+        )),
     }
+}
 
-    // Probe 4: send malformed JSON, then a Ping. If the connection survives,
-    // the server ignored the malformed payload without crashing or closing.
+/// Probe 6: malformed payload followed by a Ping.
+async fn probe_malformed_payload<S>(ws: &mut S) -> anyhow::Result<()>
+where
+    S: SinkExt<Message>
+        + Unpin
+        + StreamExt<Item = Result<Message, tokio_tungstenite::tungstenite::Error>>,
+    <S as futures_util::Sink<Message>>::Error: std::error::Error + Send + Sync + 'static,
+{
     ws.send(Message::Text(String::from("not json at all").into()))
         .await
         .context("failed to send malformed payload")?;
-    send(&mut ws, &ClientMessage::Ping).await?;
-    match recv(&mut ws).await? {
-        ServerMessage::Pong => {}
-        other => {
-            return Ok(Outcome::compromised(format!(
-                "malformed payload disrupted the connection: {other:?}"
-            )));
-        }
+    send(ws, &ClientMessage::Ping).await?;
+    match recv(ws).await? {
+        ServerMessage::Pong => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "malformed payload disrupted the connection: {other:?}"
+        )),
     }
-
-    Ok(Outcome::defended(
-        "guest cannot create a match; authenticated hacker rejected on move-without-match, join-bogus-id, and double register; malformed payload ignored without closing the connection",
-    ))
 }
 
 /// Generates a small random-ish suffix for the hacker's username.
@@ -177,8 +255,7 @@ fn rand_suffix() -> u64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.subsec_nanos() as u64)
-        .unwrap_or(0);
+        .map_or(0, |duration| u64::from(duration.subsec_nanos()));
     nanos % 1_000_000
 }
 
