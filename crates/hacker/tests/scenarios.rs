@@ -8,7 +8,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use hacker::outcome::Outcome;
-use hacker::scenarios::{flood, port_reuse, session_hijack};
+use hacker::scenarios::{flood, port_reuse, session_hijack, spectator_isolation};
 use server::application::lobby::LobbyService;
 use server::infrastructure::http::build_router;
 use tokio::net::TcpListener;
@@ -52,6 +52,16 @@ async fn port_reuse_is_defended() {
 async fn flood_is_defended() {
     let addr = spawn_server().await;
     let outcome = flood::run(&ws_url(addr)).await.unwrap();
+    assert!(
+        matches!(outcome, Outcome::Defended { .. }),
+        "expected defended, got {outcome:?}"
+    );
+}
+
+#[tokio::test]
+async fn spectator_isolation_is_defended() {
+    let addr = spawn_server().await;
+    let outcome = spectator_isolation::run(&ws_url(addr)).await.unwrap();
     assert!(
         matches!(outcome, Outcome::Defended { .. }),
         "expected defended, got {outcome:?}"
