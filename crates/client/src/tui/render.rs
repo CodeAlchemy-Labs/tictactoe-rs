@@ -94,16 +94,22 @@ fn render_lobby(
     };
 
     if spectator_mode {
-        let banner = Paragraph::new(
-            "Spectator mode: press 1-9 to watch a match, Esc to cancel",
-        )
+        let banner = Paragraph::new("Spectator mode: press 1-9 to watch a match, Esc to cancel")
             .block(Block::default().borders(Borders::ALL))
-            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            .style(
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            )
             .alignment(Alignment::Center);
         frame.render_widget(banner, columns[0]);
     }
 
-    let body_area = if spectator_mode { columns[1] } else { columns[0] };
+    let body_area = if spectator_mode {
+        columns[1]
+    } else {
+        columns[0]
+    };
 
     let items: Vec<ListItem<'_>> = if matches.is_empty() {
         vec![ListItem::new("no open matches; press c to create one")]
@@ -159,7 +165,7 @@ fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
                 entry.name.clone(),
                 format!("{}", entry.wins),
             ])
-                .style(style)
+            .style(style)
         })
         .collect();
 
@@ -318,7 +324,7 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
     let help = Paragraph::new(
         "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
     )
-        .block(Block::default().borders(Borders::ALL));
+    .block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, rows[2]);
 }
 

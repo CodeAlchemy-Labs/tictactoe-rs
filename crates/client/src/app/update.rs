@@ -379,9 +379,8 @@ fn apply_spectator_message(
                 status: *status,
                 spectator_count: *spectator_count,
             }));
-            state.status = format!(
-                "observing {match_id}; {spectator_count} spectator(s); Esc to leave"
-            );
+            state.status =
+                format!("observing {match_id}; {spectator_count} spectator(s); Esc to leave");
             true
         }
         ServerMessage::SpectatorJoined {
@@ -390,9 +389,8 @@ fn apply_spectator_message(
         } => {
             if let Screen::Spectating(active) = &mut state.screen {
                 active.spectator_count = *spectator_count;
-                state.status = format!(
-                    "{username} joined as spectator; {spectator_count} watching"
-                );
+                state.status =
+                    format!("{username} joined as spectator; {spectator_count} watching");
             }
             true
         }
@@ -402,8 +400,7 @@ fn apply_spectator_message(
         } => {
             if let Screen::Spectating(active) = &mut state.screen {
                 active.spectator_count = *spectator_count;
-                state.status =
-                    format!("{username} left the audience; {spectator_count} watching");
+                state.status = format!("{username} left the audience; {spectator_count} watching");
             }
             true
         }
@@ -428,11 +425,10 @@ fn apply_spectator_message(
                 // The match ended. Return to the lobby and surface the
                 // result in the status line.
                 let outcome = match status {
-                    GameStatus::Won(_) => winner_name
-                        .clone()
-                        .map_or_else(|| String::from("the match ended"), |name| {
-                            format!("{name} won")
-                        }),
+                    GameStatus::Won(_) => winner_name.clone().map_or_else(
+                        || String::from("the match ended"),
+                        |name| format!("{name} won"),
+                    ),
                     GameStatus::Draw => String::from("the match ended in a draw"),
                     GameStatus::InProgress => String::from("the match ended"),
                 };
@@ -1104,7 +1100,10 @@ mod tests {
         );
         let mut board = Board::new();
         board
-            .place(common::domain::Position::new(4).unwrap(), common::domain::Player::X)
+            .place(
+                common::domain::Position::new(4).unwrap(),
+                common::domain::Player::X,
+            )
             .unwrap();
         let _ = apply(
             &mut state,

@@ -106,7 +106,7 @@ mod tests {
                 matches: vec![],
                 spectator_mode: false
             }
-                .title(),
+            .title(),
             "Lobby"
         );
         assert_eq!(Screen::Ranking { entries: vec![] }.title(), "Ranking");
