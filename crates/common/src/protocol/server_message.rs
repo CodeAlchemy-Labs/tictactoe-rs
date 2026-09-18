@@ -2,8 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{ClientId, MatchId, MatchSummary};
-use crate::domain::{Board, GameStatus, Player};
+use super::{AuthFailureReason, ClientId, MatchId, MatchSummary};
+use crate::domain::{Board, GameStatus, Player, UserProfile};
 
 /// A message sent by the server to a client.
 ///
@@ -19,6 +19,25 @@ pub enum ServerMessage {
         client_id: ClientId,
         /// The display name echoed back.
         display_name: String,
+    },
+    /// Sent after a successful
+    /// [`ClientMessage::Register`](crate::protocol::ClientMessage::Register).
+    Registered {
+        /// The newly created profile.
+        profile: UserProfile,
+    },
+    /// Sent after a successful
+    /// [`ClientMessage::Login`](crate::protocol::ClientMessage::Login).
+    LoginSucceeded {
+        /// The authenticated user's profile.
+        profile: UserProfile,
+    },
+    /// Sent when an authentication attempt fails.
+    AuthenticationFailed {
+        /// A stable, machine-readable reason.
+        reason: AuthFailureReason,
+        /// A human-readable description.
+        message: String,
     },
     /// The current list of open matches.
     MatchList {
@@ -102,6 +121,8 @@ pub enum ErrorCode {
     NotInMatch,
     /// The client sent a display name that was rejected.
     InvalidDisplayName,
+    /// The action requires an authenticated account.
+    AuthenticationRequired,
     /// The server did not provide a code, or provided one the client does
     /// not recognize. Used as the fallback for older servers.
     #[default]
@@ -111,7 +132,7 @@ pub enum ErrorCode {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::Position;
+    use crate::domain::{Age, Position, Username};
 
     #[test]
     fn welcome_serializes_with_type_tag() {
@@ -163,7 +184,6 @@ mod tests {
 
     #[test]
     fn error_without_code_deserializes_as_unknown() {
-        // Simulates an older server that predates the `code` field.
         let json = r#"{"type":"error","message":"legacy server"}"#;
         let message: ServerMessage = serde_json::from_str(json).unwrap();
         match message {
@@ -177,11 +197,33 @@ mod tests {
 
     #[test]
     fn error_with_unknown_code_deserializes_as_unknown() {
-        // A future server may add codes this client does not know about.
         let json = r#"{"type":"error","code":"some_future_code","message":"future"}"#;
         let result: Result<ServerMessage, _> = serde_json::from_str(json);
-        // Unknown codes are rejected today; documented here so the behavior
-        // is explicit and easy to change later if needed.
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn registered_round_trip() {
+        let message = ServerMessage::Registered {
+            profile: UserProfile {
+                name: String::from("Alice Example"),
+                username: Username::new("alice_99").unwrap(),
+                age: Age::new(30).unwrap(),
+            },
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ServerMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn authentication_failed_serializes_with_reason() {
+        let message = ServerMessage::AuthenticationFailed {
+            reason: AuthFailureReason::UsernameTaken,
+            message: String::from("username taken"),
+        };
+        let value: serde_json::Value = serde_json::to_value(&message).unwrap();
+        assert_eq!(value["type"], "authentication_failed");
+        assert_eq!(value["reason"], "username_taken");
     }
 }
