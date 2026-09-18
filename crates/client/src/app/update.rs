@@ -421,36 +421,37 @@ fn apply_spectator_message(
             status,
             winner_name,
         } => {
-            if matches!(state.screen, Screen::Spectating(_)) {
-                // The match ended. Return to the lobby and surface the
-                // result in the status line.
-                let outcome = match status {
-                    GameStatus::Won(_) => winner_name.clone().map_or_else(
-                        || String::from("the match ended"),
-                        |name| format!("{name} won"),
-                    ),
-                    GameStatus::Draw => String::from("the match ended in a draw"),
-                    GameStatus::InProgress => String::from("the match ended"),
-                };
-                let _ = board;
-                state.screen = Screen::Lobby {
-                    matches: Vec::new(),
-                    spectator_mode: false,
-                };
-                state.status = outcome;
-                effects.push(SideEffect::Send(ClientMessage::ListMatches));
-            }
+            let Screen::Spectating(_) = &state.screen else {
+                return false;
+            };
+            // The match ended. Return to the lobby and surface the result
+            // in the status line.
+            let outcome = match status {
+                GameStatus::Won(_) => winner_name
+                    .clone()
+                    .map_or_else(|| String::from("the match ended"), |name| format!("{name} won")),
+                GameStatus::Draw => String::from("the match ended in a draw"),
+                GameStatus::InProgress => String::from("the match ended"),
+            };
+            let _ = board;
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+                spectator_mode: false,
+            };
+            state.status = outcome;
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
             true
         }
         ServerMessage::MatchAbandoned { .. } => {
-            if matches!(state.screen, Screen::Spectating(_)) {
-                state.screen = Screen::Lobby {
-                    matches: Vec::new(),
-                    spectator_mode: false,
-                };
-                state.status = String::from("the match was abandoned");
-                effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            if !matches!(state.screen, Screen::Spectating(_)) {
+                return false;
             }
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+                spectator_mode: false,
+            };
+            state.status = String::from("the match was abandoned");
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
             true
         }
         _ => false,
