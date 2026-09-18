@@ -1215,7 +1215,7 @@ async fn expiring_a_disconnection_awards_the_win_to_the_opponent() {
     let disconnection = lobby.disconnect(guest).unwrap();
     let _ = host_rx.try_recv(); // OpponentDisconnected
 
-    lobby.expire_disconnection(disconnection.username);
+    lobby.expire_disconnection(&disconnection.username);
 
     match host_rx.try_recv().unwrap() {
         ServerMessage::MatchOver {
