@@ -6,11 +6,11 @@
 //! and the list of [`SideEffect`] values produced.
 
 use common::domain::GameStatus;
-use common::protocol::{ClientMessage, ServerMessage};
+use common::protocol::{ClientMessage, ErrorCode, ServerMessage};
 use tokio::sync::mpsc;
 
 use crate::app::state::{AppEvent, AppState};
-use crate::domain::screen::{ActiveMatch, Screen};
+use crate::domain::{ActiveMatch, AuthForm, AuthMode, PendingAction, Screen};
 
 /// A side effect the main loop must perform after applying an event.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,15 +37,26 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         AppEvent::CreateMatch => {
-            effects.push(SideEffect::Send(ClientMessage::CreateMatch));
+            if state.is_authenticated() {
+                effects.push(SideEffect::Send(ClientMessage::CreateMatch));
+            } else {
+                show_auth(
+                    state,
+                    AuthMode::Login,
+                    Some(PendingAction::CreateMatch),
+                );
+            }
         }
         AppEvent::JoinMatchAt(index) => {
             if let Screen::Lobby { matches } = &state.screen
                 && let Some(summary) = matches.get(index)
             {
-                effects.push(SideEffect::Send(ClientMessage::JoinMatch {
-                    match_id: summary.id,
-                }));
+                let match_id = summary.id;
+                if state.is_authenticated() {
+                    effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
+                } else {
+                    show_auth(state, AuthMode::Login, Some(PendingAction::JoinMatch(match_id)));
+                }
             }
         }
         AppEvent::PlayMove(cell) => {
@@ -57,6 +68,59 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         }
         AppEvent::LeaveMatch => {
             effects.push(SideEffect::Send(ClientMessage::LeaveMatch));
+        }
+        AppEvent::ShowAuth { mode, pending } => {
+            show_auth(state, mode, pending);
+        }
+        AppEvent::AuthInput(character) => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.push_char(character);
+            }
+        }
+        AppEvent::AuthBackspace => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.pop_char();
+            }
+        }
+        AppEvent::AuthNextField => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.focus_next();
+            }
+        }
+        AppEvent::AuthPreviousField => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.focus_previous();
+            }
+        }
+        AppEvent::AuthSubmit => {
+            if let Screen::Auth(form) = &mut state.screen {
+                match form.build_message() {
+                    Ok(message) => {
+                        form.error = None;
+                        effects.push(SideEffect::Send(message));
+                    }
+                    Err(reason) => {
+                        form.error = Some(reason.to_string());
+                    }
+                }
+            }
+        }
+        AppEvent::AuthToggleMode => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.toggle_mode();
+            }
+        }
+        AppEvent::AuthToggleReveal => {
+            if let Screen::Auth(form) = &mut state.screen {
+                form.toggle_reveal_password();
+            }
+        }
+        AppEvent::AuthCancel => {
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
+            state.status = String::from("returned to lobby");
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         AppEvent::Send(message) => {
             effects.push(SideEffect::Send(message));
@@ -71,27 +135,27 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.screen = Screen::Lobby {
                 matches: Vec::new(),
             };
-            state.status = String::from("connected");
+            state.status = String::from("connected as guest");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         ServerMessage::Registered { profile } => {
-            state.display_name = profile.username.as_str().to_string();
+            state.authenticated_as = Some(profile.username.clone());
+            state.display_name = profile.name.clone();
             state.status = format!("registered as {}", profile.username);
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-            };
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            retry_pending(state, effects);
         }
         ServerMessage::LoginSucceeded { profile } => {
-            state.display_name = profile.username.as_str().to_string();
+            state.authenticated_as = Some(profile.username.clone());
+            state.display_name = profile.name.clone();
             state.status = format!("logged in as {}", profile.username);
-            state.screen = Screen::Lobby {
-                matches: Vec::new(),
-            };
-            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+            retry_pending(state, effects);
         }
         ServerMessage::AuthenticationFailed { reason, message } => {
-            state.status = format!("{reason:?}: {message}");
+            if let Screen::Auth(form) = &mut state.screen {
+                form.error = Some(format!("{reason:?}: {message}"));
+            } else {
+                state.status = format!("{reason:?}: {message}");
+            }
         }
         ServerMessage::MatchList { matches } => {
             state.screen = Screen::Lobby { matches };
@@ -140,9 +204,45 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
         ServerMessage::Error { code, message } => {
-            state.status = format!("{code:?}: {message}");
+            if code == ErrorCode::AuthenticationRequired && state.is_authenticated() {
+                // The server thinks we are not authenticated but our local
+                // state disagrees. Keep the local state as the source of
+                // truth and surface the message.
+                state.status = format!("{code:?}: {message}");
+            } else if code == ErrorCode::AuthenticationRequired {
+                show_auth(state, AuthMode::Login, None);
+                if let Screen::Auth(form) = &mut state.screen {
+                    form.error = Some(message);
+                }
+            } else {
+                state.status = format!("{code:?}: {message}");
+            }
         }
         ServerMessage::Pong => {}
+    }
+}
+
+fn show_auth(state: &mut AppState, mode: AuthMode, pending: Option<PendingAction>) {
+    state.screen = Screen::Auth(Box::new(AuthForm::new(mode, pending)));
+}
+
+fn retry_pending(state: &mut AppState, effects: &mut Vec<SideEffect>) {
+    let pending = match &state.screen {
+        Screen::Auth(form) => form.pending_action,
+        _ => None,
+    };
+    state.screen = Screen::Lobby {
+        matches: Vec::new(),
+    };
+    effects.push(SideEffect::Send(ClientMessage::ListMatches));
+    match pending {
+        Some(PendingAction::CreateMatch) => {
+            effects.push(SideEffect::Send(ClientMessage::CreateMatch));
+        }
+        Some(PendingAction::JoinMatch(match_id)) => {
+            effects.push(SideEffect::Send(ClientMessage::JoinMatch { match_id }));
+        }
+        None => {}
     }
 }
 
@@ -164,8 +264,8 @@ pub fn dispatch(
 
 #[cfg(test)]
 mod tests {
-    use common::domain::Board;
-    use common::protocol::{ClientId, ErrorCode, MatchId, MatchSummary};
+    use common::domain::{Age, Board, Username};
+    use common::protocol::{ClientId, MatchId, MatchSummary};
 
     use super::*;
 
@@ -173,6 +273,14 @@ mod tests {
         let mut effects = Vec::new();
         apply_event(state, event, &mut effects);
         effects
+    }
+
+    fn profile() -> common::domain::UserProfile {
+        common::domain::UserProfile {
+            name: String::from("Alice Example"),
+            username: Username::new("alice_99").unwrap(),
+            age: Age::new(30).unwrap(),
+        }
     }
 
     #[test]
@@ -236,6 +344,7 @@ mod tests {
     #[test]
     fn join_at_selects_the_right_match() {
         let mut state = AppState::new("alice");
+        state.authenticated_as = Some(Username::new("alice_99").unwrap());
         state.screen = Screen::Lobby {
             matches: vec![MatchSummary {
                 id: MatchId::new(7),
@@ -259,6 +368,171 @@ mod tests {
         };
         let effects = apply(&mut state, AppEvent::JoinMatchAt(3));
         assert!(effects.is_empty());
+    }
+
+    #[test]
+    fn create_match_without_auth_shows_auth_screen() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
+        let effects = apply(&mut state, AppEvent::CreateMatch);
+        assert!(effects.is_empty());
+        match &state.screen {
+            Screen::Auth(form) => {
+                assert_eq!(form.mode, AuthMode::Login);
+                assert_eq!(form.pending_action, Some(PendingAction::CreateMatch));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn join_match_without_auth_shows_auth_screen_with_pending() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Lobby {
+            matches: vec![MatchSummary {
+                id: MatchId::new(5),
+                host: String::from("bob"),
+            }],
+        };
+        let effects = apply(&mut state, AppEvent::JoinMatchAt(0));
+        assert!(effects.is_empty());
+        match &state.screen {
+            Screen::Auth(form) => {
+                assert_eq!(form.pending_action, Some(PendingAction::JoinMatch(MatchId::new(5))));
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn auth_input_appends_to_current_field() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(&mut state, AppEvent::AuthInput('a'));
+        let _ = apply(&mut state, AppEvent::AuthInput('b'));
+        if let Screen::Auth(form) = &state.screen {
+            assert_eq!(form.username, "ab");
+        } else {
+            panic!("expected auth screen");
+        }
+    }
+
+    #[test]
+    fn auth_submit_sends_login_message() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        if let Screen::Auth(form) = &mut state.screen {
+            form.username = String::from("alice_99");
+            form.password = String::from("hunter2hunter2");
+        }
+        let effects = apply(&mut state, AppEvent::AuthSubmit);
+        assert_eq!(effects.len(), 1);
+        match &effects[0] {
+            SideEffect::Send(ClientMessage::Login { username, .. }) => {
+                assert_eq!(username, "alice_99");
+            }
+            other => panic!("unexpected: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn auth_submit_with_missing_field_sets_error() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let effects = apply(&mut state, AppEvent::AuthSubmit);
+        assert!(effects.is_empty());
+        if let Screen::Auth(form) = &state.screen {
+            assert!(form.error.is_some());
+        } else {
+            panic!("expected auth screen");
+        }
+    }
+
+    #[test]
+    fn auth_tab_moves_focus() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(&mut state, AppEvent::AuthNextField);
+        if let Screen::Auth(form) = &state.screen {
+            assert_eq!(form.focused, crate::domain::AuthField::Password);
+        } else {
+            panic!("expected auth screen");
+        }
+    }
+
+    #[test]
+    fn auth_cancel_returns_to_lobby() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let effects = apply(&mut state, AppEvent::AuthCancel);
+        assert!(matches!(state.screen, Screen::Lobby { .. }));
+        assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
+    }
+
+    #[test]
+    fn auth_toggle_mode_switches_to_register() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(&mut state, AppEvent::AuthToggleMode);
+        if let Screen::Auth(form) = &state.screen {
+            assert_eq!(form.mode, AuthMode::Register);
+        } else {
+            panic!("expected auth screen");
+        }
+    }
+
+    #[test]
+    fn registered_sets_authenticated_and_returns_to_lobby() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Register, None)));
+        let effects = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::Registered { profile: profile() }),
+        );
+        assert!(state.is_authenticated());
+        assert_eq!(state.display_name, "Alice Example");
+        assert!(matches!(state.screen, Screen::Lobby { .. }));
+        assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
+    }
+
+    #[test]
+    fn registered_with_pending_create_sends_create() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(
+            AuthMode::Login,
+            Some(PendingAction::CreateMatch),
+        )));
+        let effects = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::LoginSucceeded { profile: profile() }),
+        );
+        assert_eq!(
+            effects,
+            vec![
+                SideEffect::Send(ClientMessage::ListMatches),
+                SideEffect::Send(ClientMessage::CreateMatch),
+            ]
+        );
+    }
+
+    #[test]
+    fn authentication_failed_sets_error_on_form() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Auth(Box::new(AuthForm::new(AuthMode::Login, None)));
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::AuthenticationFailed {
+                reason: common::protocol::AuthFailureReason::InvalidCredentials,
+                message: String::from("bad"),
+            }),
+        );
+        if let Screen::Auth(form) = &state.screen {
+            assert!(form.error.is_some());
+        } else {
+            panic!("expected auth screen");
+        }
     }
 
     #[test]
@@ -291,6 +565,22 @@ mod tests {
             }),
         );
         assert!(state.status.contains("no such match"));
+    }
+
+    #[test]
+    fn authentication_required_error_shows_auth_screen() {
+        let mut state = AppState::new("alice");
+        state.screen = Screen::Lobby {
+            matches: Vec::new(),
+        };
+        let _ = apply(
+            &mut state,
+            AppEvent::Server(ServerMessage::Error {
+                code: ErrorCode::AuthenticationRequired,
+                message: String::from("register first"),
+            }),
+        );
+        assert!(matches!(state.screen, Screen::Auth(_)));
     }
 
     #[test]
