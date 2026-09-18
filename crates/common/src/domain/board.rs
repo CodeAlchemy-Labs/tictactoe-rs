@@ -80,7 +80,7 @@ impl Board {
     pub fn status(&self) -> GameStatus {
         for line in WINNING_LINES {
             let [a, b, c] = line.map(|index| self.cells[index as usize]);
-            if let (Cell::Occupied(p), Cell::Occupied(q), Cell::Occupied(r)) = (a, b, c)
+            if let [Cell::Occupied(p), Cell::Occupied(q), Cell::Occupied(r)] = [a, b, c]
                 && p == q
                 && q == r
             {
