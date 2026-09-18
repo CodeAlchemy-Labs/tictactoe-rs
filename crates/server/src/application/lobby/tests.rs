@@ -1308,3 +1308,87 @@ async fn a_third_party_cannot_reclaim_the_slot_during_the_grace_period() {
     }
     assert_eq!(lobby.match_count(), 1);
 }
+
+#[tokio::test]
+async fn leave_spectate_is_idempotent() {
+    // Regression test: a spectator whose match has already ended leaves
+    // `session.spectating = Some(match_id)`. The client sends
+    // `LeaveSpectate` when it dismisses the result screen, and the server
+    // must accept it as a no-op after the match is gone. Calling it a
+    // second time must also succeed without noise.
+    let lobby = fast_lobby();
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let client = lobby.register_client(tx);
+    authenticate(&lobby, client, "watch_99").await;
+    let _ = rx.try_recv(); // Registered
+
+    lobby.leave_spectate(client);
+    // No error must be sent.
+    assert!(rx.try_recv().is_err());
+
+    lobby.leave_spectate(client);
+    assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn spectator_can_spectate_another_match_after_the_first_one_ends() {
+    // Regression test: a spectator who watched a match that has just
+    // finished must be able to spectate a different match immediately.
+    let lobby = fast_lobby();
+
+    // First match: host + guest, spectator watches, host wins.
+    let (host1_tx, mut host1_rx) = mpsc::unbounded_channel();
+    let (guest1_tx, mut guest1_rx) = mpsc::unbounded_channel();
+    let (spec_tx, mut spec_rx) = mpsc::unbounded_channel();
+    let host1 = lobby.register_client(host1_tx);
+    let guest1 = lobby.register_client(guest1_tx);
+    let spectator = lobby.register_client(spec_tx);
+    authenticate(&lobby, host1, "host1_99").await;
+    let _ = host1_rx.try_recv();
+    authenticate(&lobby, guest1, "guest1_99").await;
+    let _ = guest1_rx.try_recv();
+    authenticate(&lobby, spectator, "watch_99").await;
+    let _ = spec_rx.try_recv();
+
+    lobby.create_match(host1);
+    let ServerMessage::MatchCreated { match_id: match1 } = host1_rx.try_recv().unwrap() else {
+        unreachable!()
+    };
+    lobby.join_match(guest1, match1);
+    let _ = host1_rx.try_recv();
+    let _ = guest1_rx.try_recv();
+    lobby.spectate(spectator, match1);
+    let _ = spec_rx.try_recv(); // SpectateStarted
+    let _ = host1_rx.try_recv(); // SpectatorJoined
+    let _ = guest1_rx.try_recv(); // SpectatorJoined
+
+    for (client, pos) in [
+        (host1, 0u8),
+        (guest1, 3),
+        (host1, 1),
+        (guest1, 4),
+        (host1, 2),
+    ] {
+        lobby.make_move(client, Position::new(pos).unwrap());
+    }
+    while spec_rx.try_recv().is_ok() {}
+    while host1_rx.try_recv().is_ok() {}
+    while guest1_rx.try_recv().is_ok() {}
+
+    // The spectator dismisses the result screen.
+    lobby.leave_spectate(spectator);
+
+    // The host creates a second match. `host1` is free again because the
+    // previous match has been removed from the lobby.
+    lobby.create_match(host1);
+    let ServerMessage::MatchCreated { match_id: match2 } = host1_rx.try_recv().unwrap() else {
+        panic!("expected MatchCreated")
+    };
+
+    // The spectator joins the second match.
+    lobby.spectate(spectator, match2);
+    match spec_rx.try_recv().unwrap() {
+        ServerMessage::SpectateStarted { match_id, .. } => assert_eq!(match_id, match2),
+        other => panic!("expected SpectateStarted, got {other:?}"),
+    }
+}
