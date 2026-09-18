@@ -416,7 +416,16 @@ fn back_to_lobby_returns_to_the_lobby_and_refreshes() {
     };
     let effects = apply(&mut state, AppEvent::BackToLobby);
     assert!(matches!(state.screen, Screen::Lobby { .. }));
-    assert_eq!(effects, vec![SideEffect::Send(ClientMessage::ListMatches)]);
+    // The client emits `LeaveSpectate` defensively before refreshing the
+    // match list, so that a stale spectator slot is released on the
+    // server even when the match has already ended.
+    assert_eq!(
+        effects,
+        vec![
+            SideEffect::Send(ClientMessage::LeaveSpectate),
+            SideEffect::Send(ClientMessage::ListMatches),
+        ]
+    );
 }
 
 #[test]
@@ -822,4 +831,23 @@ fn opponent_disconnected_updates_the_status_for_spectators() {
     );
     assert!(state.status.contains("disconnected"));
     assert!(matches!(state.screen, Screen::Spectating(_)));
+}
+
+#[test]
+fn back_to_lobby_after_finishing_a_game_releases_the_spectator_slot() {
+    let mut state = AppState::new("alice");
+    state.screen = Screen::Finished {
+        board: Board::new(),
+        status: GameStatus::Draw,
+        winner_name: None,
+    };
+    let effects = apply(&mut state, AppEvent::BackToLobby);
+    assert!(matches!(state.screen, Screen::Lobby { .. }));
+    assert_eq!(
+        effects,
+        vec![
+            SideEffect::Send(ClientMessage::LeaveSpectate),
+            SideEffect::Send(ClientMessage::ListMatches),
+        ]
+    );
 }
