@@ -60,6 +60,15 @@ impl LobbyService {
         age: u8,
         password: String,
     ) {
+        if !self.consume_auth_token(client_id) {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::RateLimited,
+                reason_message(AuthFailureReason::RateLimited),
+            );
+            return;
+        }
+
         if self.is_authenticated(client_id) {
             self.send_auth_failure(
                 client_id,
@@ -152,6 +161,15 @@ impl LobbyService {
     /// If the username has a pending disconnection, the login reclaims the
     /// slot instead of being rejected by the single-session rule.
     pub async fn login_user(&self, client_id: ClientId, username: String, password: String) {
+        if !self.consume_auth_token(client_id) {
+            self.send_auth_failure(
+                client_id,
+                AuthFailureReason::RateLimited,
+                reason_message(AuthFailureReason::RateLimited),
+            );
+            return;
+        }
+
         if self.is_authenticated(client_id) {
             self.send_auth_failure(
                 client_id,
