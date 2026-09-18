@@ -427,9 +427,10 @@ fn apply_spectator_message(
             // The match ended. Return to the lobby and surface the result
             // in the status line.
             let outcome = match status {
-                GameStatus::Won(_) => winner_name
-                    .clone()
-                    .map_or_else(|| String::from("the match ended"), |name| format!("{name} won")),
+                GameStatus::Won(_) => winner_name.clone().map_or_else(
+                    || String::from("the match ended"),
+                    |name| format!("{name} won"),
+                ),
                 GameStatus::Draw => String::from("the match ended in a draw"),
                 GameStatus::InProgress => String::from("the match ended"),
             };
