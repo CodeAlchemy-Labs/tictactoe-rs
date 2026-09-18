@@ -40,11 +40,17 @@ pub struct Session {
     pub mark: Option<Player>,
     /// The match the client is currently spectating, if any.
     pub spectating: Option<MatchId>,
+    /// The peer IP address of the connection.
+    pub peer_ip: std::net::IpAddr,
 }
 
 impl Session {
     /// Creates a new session for the given client and outbound channel.
-    pub fn new(client_id: ClientId, sender: mpsc::UnboundedSender<ServerMessage>) -> Self {
+    pub fn new(
+        client_id: ClientId,
+        sender: mpsc::UnboundedSender<ServerMessage>,
+        peer_ip: std::net::IpAddr,
+    ) -> Self {
         Self {
             client_id,
             display_name: None,
@@ -53,6 +59,7 @@ impl Session {
             current_match: None,
             mark: None,
             spectating: None,
+            peer_ip,
         }
     }
 
@@ -85,11 +92,16 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::net::{IpAddr, Ipv4Addr};
+
+    fn dummy_ip() -> IpAddr {
+        IpAddr::V4(Ipv4Addr::LOCALHOST)
+    }
 
     #[test]
     fn new_session_is_empty() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let session = Session::new(ClientId::new(1), tx);
+        let session = Session::new(ClientId::new(1), tx, dummy_ip());
         assert!(session.display_name.is_none());
         assert!(session.authenticated_as.is_none());
         assert!(session.current_match.is_none());
@@ -103,7 +115,7 @@ mod tests {
     #[test]
     fn try_send_delivers_to_the_receiver() {
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let session = Session::new(ClientId::new(1), tx);
+        let session = Session::new(ClientId::new(1), tx, dummy_ip());
         session.try_send(ServerMessage::Pong);
         assert_eq!(rx.try_recv().unwrap(), ServerMessage::Pong);
     }
@@ -111,7 +123,7 @@ mod tests {
     #[test]
     fn try_send_is_silent_after_receiver_drops() {
         let (tx, rx) = mpsc::unbounded_channel();
-        let session = Session::new(ClientId::new(1), tx);
+        let session = Session::new(ClientId::new(1), tx, dummy_ip());
         drop(rx);
         session.try_send(ServerMessage::Pong);
         // No panic: this is the contract that makes cleanup safe.
@@ -120,7 +132,7 @@ mod tests {
     #[test]
     fn authenticated_session_reports_it() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut session = Session::new(ClientId::new(1), tx);
+        let mut session = Session::new(ClientId::new(1), tx, dummy_ip());
         session.authenticated_as = Some(Username::new("alice_99").unwrap());
         assert!(session.is_authenticated());
     }
@@ -128,7 +140,7 @@ mod tests {
     #[test]
     fn playing_and_spectating_flags_reflect_the_match_fields() {
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut session = Session::new(ClientId::new(1), tx);
+        let mut session = Session::new(ClientId::new(1), tx, dummy_ip());
         session.current_match = Some(MatchId::new(3));
         assert!(session.is_playing());
         assert!(!session.is_spectating());
