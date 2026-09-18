@@ -16,8 +16,9 @@ use tracing_subscriber::EnvFilter;
 use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
 use client::config::ClientConfig;
+use client::domain::screen::Screen;
 use client::infrastructure::{Transport, WsTransport};
-use client::tui::{KeyAction, read_key_code, render, translate_key};
+use client::tui::{InputEvent, KeyAction, read_input_event, render, translate_key};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -33,7 +34,6 @@ async fn main() -> anyhow::Result<()> {
 
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
-    // Task: forward incoming server messages as app events.
     let server_events = event_tx.clone();
     tokio::spawn(async move {
         while let Some(message) = incoming.recv().await {
@@ -44,13 +44,10 @@ async fn main() -> anyhow::Result<()> {
         let _ = server_events.send(AppEvent::Disconnected);
     });
 
-    // The keyboard thread and the main loop share the current screen through
-    // an `RwLock`. The keyboard thread reads the screen *after* a key
-    // arrives, so it always translates against the freshest value. The main
-    // loop overwrites the value after every processed event. This avoids the
-    // lag introduced by blocking the keyboard thread on a channel, and it
-    // keeps the translation in sync with the state machine for all
-    // realistic input speeds.
+    // The keyboard thread reads a raw input event, then looks up the current
+    // screen through an `RwLock` and translates the key against it. Reading
+    // the screen after the key arrives keeps the translation fresh without
+    // adding any lag. Resize events are forwarded as `AppEvent::Redraw`.
     let mut state = AppState::new(config.display_name.clone());
     let screen = Arc::new(RwLock::new(state.screen.clone()));
 
@@ -58,26 +55,30 @@ async fn main() -> anyhow::Result<()> {
     let keyboard_screen = Arc::clone(&screen);
     tokio::task::spawn_blocking(move || {
         loop {
-            // Block until a key is pressed, without translating yet.
-            let code = match read_key_code() {
-                Ok(code) => code,
+            let input = match read_input_event() {
+                Ok(input) => input,
                 Err(error) => {
                     tracing::warn!(%error, "keyboard input failed");
                     return;
                 }
             };
-            // Fetch the freshest screen only now, when the key is in hand.
-            let current = keyboard_screen
-                .read()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone();
-            match translate_key(code, &current) {
-                KeyAction::Event(event) => {
-                    if keyboard_events.send(event).is_err() {
-                        return;
+            let app_event = match input {
+                InputEvent::Key(code) => {
+                    let current = keyboard_screen
+                        .read()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .clone();
+                    match translate_key(code, &current) {
+                        KeyAction::Event(event) => Some(event),
+                        KeyAction::Ignored => None,
                     }
                 }
-                KeyAction::Ignored => {}
+                InputEvent::Resize(_, _) => Some(AppEvent::Redraw),
+            };
+            if let Some(event) = app_event
+                && keyboard_events.send(event).is_err()
+            {
+                return;
             }
         }
     });
@@ -103,8 +104,6 @@ async fn main() -> anyhow::Result<()> {
         dispatch(effects, &outgoing, &mut quit);
         state.should_quit = quit;
 
-        // Publish the updated screen so the keyboard thread can pick it up
-        // on the next keystroke.
         *screen
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = state.screen.clone();
@@ -121,7 +120,6 @@ fn init_tracing() {
         .init();
 }
 
-/// RAII guard that configures the terminal and restores it on drop.
 struct TerminalSession {
     terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
 }
