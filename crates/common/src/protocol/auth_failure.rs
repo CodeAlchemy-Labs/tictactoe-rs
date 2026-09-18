@@ -24,6 +24,8 @@ pub enum AuthFailureReason {
     InvalidCredentials,
     /// The client is already authenticated.
     AlreadyAuthenticated,
+    /// The account is already signed in on another connection.
+    AlreadyLoggedIn,
     /// The server failed to complete the operation for an infrastructure
     /// reason. Retrying may work; the details are in the server logs.
     InternalError,
@@ -39,6 +41,8 @@ mod tests {
         assert_eq!(value, "\"username_taken\"");
         let value = serde_json::to_string(&AuthFailureReason::InvalidCredentials).unwrap();
         assert_eq!(value, "\"invalid_credentials\"");
+        let value = serde_json::to_string(&AuthFailureReason::AlreadyLoggedIn).unwrap();
+        assert_eq!(value, "\"already_logged_in\"");
         let value = serde_json::to_string(&AuthFailureReason::InternalError).unwrap();
         assert_eq!(value, "\"internal_error\"");
     }
@@ -53,6 +57,7 @@ mod tests {
             AuthFailureReason::PasswordTooShort,
             AuthFailureReason::InvalidCredentials,
             AuthFailureReason::AlreadyAuthenticated,
+            AuthFailureReason::AlreadyLoggedIn,
             AuthFailureReason::InternalError,
         ] {
             let json = serde_json::to_string(&reason).unwrap();
