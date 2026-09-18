@@ -96,6 +96,7 @@ async fn dispatch_text(lobby: &LobbyService, client_id: ClientId, text: &str) {
             lobby.login_user(client_id, username, password).await;
         }
         ClientMessage::ListMatches => lobby.list_matches(client_id),
+        ClientMessage::ListRanking => lobby.list_ranking(client_id),
         ClientMessage::CreateMatch => lobby.create_match(client_id),
         ClientMessage::JoinMatch { match_id } => lobby.join_match(client_id, match_id),
         ClientMessage::MakeMove { position } => lobby.make_move(client_id, position),
