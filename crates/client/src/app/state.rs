@@ -91,6 +91,11 @@ pub enum AppEvent {
     AuthToggleReveal,
     /// Esc on the auth screen: returns to the lobby as a guest.
     AuthCancel,
+    /// The terminal was resized; the main loop should redraw.
+    ///
+    /// This event never changes state; it only wakes the main loop so that
+    /// the next iteration calls `terminal.draw` with the new dimensions.
+    Redraw,
     /// A user requested that we send an arbitrary message; used by tests.
     Send(ClientMessage),
 }
