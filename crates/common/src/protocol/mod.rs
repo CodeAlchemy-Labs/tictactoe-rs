@@ -28,6 +28,15 @@ pub use server_message::{ErrorCode, ServerMessage};
 /// players and up to [`MAX_SPECTATORS`] observers.
 pub const MAX_SPECTATORS: u32 = 5;
 
+/// Number of seconds the server waits for a disconnected player to
+/// reconnect before considering the match abandoned.
+///
+/// While the grace period is running, the slot of the disconnected player
+/// is reserved: nobody else can claim their username, and the match stays
+/// alive. If the player reconnects with their credentials within this
+/// window, the match resumes. Otherwise, the opponent wins by abandonment.
+pub const GRACE_PERIOD_SECS: u32 = 2;
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -35,5 +44,10 @@ mod tests {
     #[test]
     fn max_spectators_is_five() {
         assert_eq!(MAX_SPECTATORS, 5);
+    }
+
+    #[test]
+    fn grace_period_is_two_seconds() {
+        assert_eq!(GRACE_PERIOD_SECS, 2);
     }
 }
