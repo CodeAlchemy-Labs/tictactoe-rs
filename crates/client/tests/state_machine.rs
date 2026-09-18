@@ -152,6 +152,7 @@ async fn full_happy_path_over_the_mock_transport() {
         .send(ServerMessage::MatchOver {
             board: Board::new(),
             status: common::domain::GameStatus::Draw,
+            winner_name: None,
         })
         .unwrap();
     let message = incoming.recv().await.unwrap();
