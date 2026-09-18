@@ -74,6 +74,25 @@ fn apply_server(state: &mut AppState, message: ServerMessage, effects: &mut Vec<
             state.status = String::from("connected");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
+        ServerMessage::Registered { profile } => {
+            state.display_name = profile.username.as_str().to_string();
+            state.status = format!("registered as {}", profile.username);
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+        }
+        ServerMessage::LoginSucceeded { profile } => {
+            state.display_name = profile.username.as_str().to_string();
+            state.status = format!("logged in as {}", profile.username);
+            state.screen = Screen::Lobby {
+                matches: Vec::new(),
+            };
+            effects.push(SideEffect::Send(ClientMessage::ListMatches));
+        }
+        ServerMessage::AuthenticationFailed { reason, message } => {
+            state.status = format!("{reason:?}: {message}");
+        }
         ServerMessage::MatchList { matches } => {
             state.screen = Screen::Lobby { matches };
             state.status = String::from("press a number to join, c to create, r to refresh");
