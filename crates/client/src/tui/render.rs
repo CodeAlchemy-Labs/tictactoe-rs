@@ -116,7 +116,7 @@ fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
                 entry.name.clone(),
                 format!("{}", entry.wins),
             ])
-                .style(style)
+            .style(style)
         })
         .collect();
 
@@ -235,7 +235,7 @@ fn render_auth(frame: &mut Frame<'_>, area: Rect, form: &AuthForm) {
     let help = Paragraph::new(
         "Tab: next  Shift-Tab: previous  Enter: submit  F2: toggle mode  F3: reveal  Esc: cancel",
     )
-        .block(Block::default().borders(Borders::ALL));
+    .block(Block::default().borders(Borders::ALL));
     frame.render_widget(help, rows[2]);
 }
 
