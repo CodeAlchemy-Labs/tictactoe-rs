@@ -6,7 +6,7 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Wrap};
 
-use common::domain::{Board, Cell, GameStatus, Player};
+use common::domain::{Cell, GameStatus, Player};
 
 use crate::app::AppState;
 use crate::domain::auth_form::{AuthField, AuthForm, AuthMode};
