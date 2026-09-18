@@ -13,10 +13,16 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let scenario_names: Vec<&'static str> = match cli.scenario {
-        ScenarioChoice::All => vec!["session_hijack", "port_reuse", "flood"],
+        ScenarioChoice::All => vec![
+            "session_hijack",
+            "port_reuse",
+            "flood",
+            "spectator_isolation",
+        ],
         ScenarioChoice::SessionHijack => vec!["session_hijack"],
         ScenarioChoice::PortReuse => vec!["port_reuse"],
         ScenarioChoice::Flood => vec!["flood"],
+        ScenarioChoice::SpectatorIsolation => vec!["spectator_isolation"],
     };
 
     let mut all_defended = true;
