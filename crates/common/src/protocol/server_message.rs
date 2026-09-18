@@ -136,6 +136,8 @@ pub enum ErrorCode {
     InvalidDisplayName,
     /// The action requires an authenticated account.
     AuthenticationRequired,
+    /// The client tried to join a match it already hosts.
+    CannotJoinOwnMatch,
     /// The server did not provide a code, or provided one the client does
     /// not recognize. Used as the fallback for older servers.
     #[default]
@@ -285,5 +287,11 @@ mod tests {
         let value: serde_json::Value = serde_json::to_value(&message).unwrap();
         assert_eq!(value["type"], "ranking");
         assert_eq!(value["entries"].as_array().unwrap().len(), 0);
+    }
+
+    #[test]
+    fn cannot_join_own_match_serializes_in_snake_case() {
+        let value = serde_json::to_string(&ErrorCode::CannotJoinOwnMatch).unwrap();
+        assert_eq!(value, "\"cannot_join_own_match\"");
     }
 }
