@@ -107,6 +107,25 @@ pub(super) fn apply_server(
             state.status = String::from("opponent left the match");
             effects.push(SideEffect::Send(ClientMessage::ListMatches));
         }
+        ServerMessage::OpponentDisconnected {
+            match_id,
+            grace_seconds,
+        } => {
+            if let Screen::InGame(active) = &mut state.screen
+                && active.id == match_id
+            {
+                state.status = format!(
+                    "opponent disconnected; waiting up to {grace_seconds}s for reconnection"
+                );
+            }
+        }
+        ServerMessage::OpponentReconnected { match_id } => {
+            if let Screen::InGame(active) = &state.screen
+                && active.id == match_id
+            {
+                state.status = String::from("opponent reconnected; game resumed");
+            }
+        }
         ServerMessage::Error { code, message } => {
             apply_error(state, code, message);
         }
