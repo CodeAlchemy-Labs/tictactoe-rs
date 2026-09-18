@@ -21,7 +21,7 @@ use crate::application::lobby::LobbyService;
 /// RAII guard that removes a client from the lobby when it is dropped.
 ///
 /// Create one immediately after calling
-/// [`LobbyService::register`](crate::application::lobby::LobbyService::register)
+/// [`LobbyService::register_client`](crate::application::lobby::LobbyService::register_client)
 /// and keep it alive for the duration of the connection handler. When the
 /// handler returns, the guard drops and the session is removed.
 pub struct SessionGuard {
@@ -60,7 +60,7 @@ mod tests {
     fn dropping_the_guard_removes_the_session() {
         let lobby = Arc::new(LobbyService::new());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let client = lobby.register(tx);
+        let client = lobby.register_client(tx);
         assert_eq!(lobby.session_count(), 1);
         {
             let _guard = SessionGuard::new(client, Arc::clone(&lobby));
@@ -73,7 +73,7 @@ mod tests {
     fn client_id_is_accessible() {
         let lobby = Arc::new(LobbyService::new());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let client = lobby.register(tx);
+        let client = lobby.register_client(tx);
         let guard = SessionGuard::new(client, lobby);
         assert_eq!(guard.client_id(), client);
     }
