@@ -207,32 +207,7 @@ impl LobbyService {
     pub fn spectate(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
-        let validation: Option<(ErrorCode, &'static str)> = {
-            let Some(session) = state.sessions.get(&client) else {
-                return;
-            };
-            if session.display_name.is_none() {
-                Some((ErrorCode::InvalidState, "send hello before spectating"))
-            } else if session.current_match.is_some() {
-                Some((ErrorCode::InvalidState, "cannot spectate while playing"))
-            } else if session.spectating.is_some() {
-                Some((ErrorCode::AlreadySpectating, "already spectating a match"))
-            } else {
-                match state.matches.get(&match_id) {
-                    None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    Some(m) if m.is_player(client) => Some((
-                        ErrorCode::CannotJoinOwnMatch,
-                        "cannot spectate your own match",
-                    )),
-                    Some(m) if !m.has_room_for_spectator() => Some((
-                        ErrorCode::SpectatorLimitReached,
-                        "the match has reached the spectator limit",
-                    )),
-                    Some(_) => None,
-                }
-            }
-        };
-        if let Some((code, message)) = validation {
+        if let Err((code, message)) = validate_spectate_request(&state, client, match_id) {
             if let Some(session) = state.sessions.get(&client) {
                 session.try_send(ServerMessage::Error {
                     code,
@@ -248,16 +223,26 @@ impl LobbyService {
             .and_then(|s| s.display_name.clone())
             .unwrap_or_else(|| String::from("spectator"));
 
-        let (host, guest, board, current_turn, status, count) = {
+        let (host_name, guest_name, board, current_turn, status, count) = {
             let Some(m) = state.matches.get_mut(&match_id) else {
                 return;
             };
             if !m.add_spectator(client, display_name.clone()) {
                 return;
             }
+            let host_name = state
+                .sessions
+                .get(&m.host)
+                .and_then(|s| s.display_name.clone())
+                .unwrap_or_else(|| String::from("unknown"));
+            let guest_name = m
+                .guest
+                .and_then(|id| state.sessions.get(&id))
+                .and_then(|s| s.display_name.clone())
+                .unwrap_or_default();
             (
-                m.host,
-                m.guest,
+                host_name,
+                guest_name,
                 m.board,
                 m.current_turn,
                 m.status,
@@ -267,16 +252,6 @@ impl LobbyService {
         if let Some(session) = state.sessions.get_mut(&client) {
             session.spectating = Some(match_id);
         }
-
-        let host_name = state
-            .sessions
-            .get(&host)
-            .and_then(|s| s.display_name.clone())
-            .unwrap_or_else(|| String::from("unknown"));
-        let guest_name = guest
-            .and_then(|id| state.sessions.get(&id))
-            .and_then(|s| s.display_name.clone())
-            .unwrap_or_default();
 
         if let Some(session) = state.sessions.get(&client) {
             session.try_send(ServerMessage::SpectateStarted {
@@ -290,34 +265,7 @@ impl LobbyService {
             });
         }
 
-        let joined = ServerMessage::SpectatorJoined {
-            username: display_name,
-            spectator_count: count,
-        };
-        if let Some(session) = state.sessions.get(&host) {
-            session.try_send(joined.clone());
-        }
-        if let Some(guest_id) = guest
-            && let Some(session) = state.sessions.get(&guest_id)
-        {
-            session.try_send(joined.clone());
-        }
-        let other_spectators: Vec<ClientId> = state
-            .matches
-            .get(&match_id)
-            .map(|m| {
-                m.spectators
-                    .iter()
-                    .copied()
-                    .filter(|id| *id != client)
-                    .collect()
-            })
-            .unwrap_or_default();
-        for id in other_spectators {
-            if let Some(session) = state.sessions.get(&id) {
-                session.try_send(joined.clone());
-            }
-        }
+        broadcast_spectator_joined(&state, match_id, client, display_name, count);
     }
 
     /// Handles `LeaveSpectate`.
@@ -432,6 +380,78 @@ impl LobbyService {
             session.mark = None;
         }
         detach_from_match(&mut state, match_id, client);
+    }
+}
+
+/// Checks whether a `Spectate` request is acceptable.
+///
+/// Returns `Ok(())` when the request may proceed, or the error pair the
+/// caller should deliver to the client. A request for an unknown session is
+/// treated as `Ok(())` so the caller's subsequent `state.sessions.get` will
+/// simply find nothing and stop silently.
+fn validate_spectate_request(
+    state: &LobbyState,
+    client: ClientId,
+    match_id: MatchId,
+) -> Result<(), (ErrorCode, &'static str)> {
+    let Some(session) = state.sessions.get(&client) else {
+        return Ok(());
+    };
+    if session.display_name.is_none() {
+        return Err((ErrorCode::InvalidState, "send hello before spectating"));
+    }
+    if session.current_match.is_some() {
+        return Err((ErrorCode::InvalidState, "cannot spectate while playing"));
+    }
+    if session.is_spectating() {
+        return Err((ErrorCode::AlreadySpectating, "already spectating a match"));
+    }
+    match state.matches.get(&match_id) {
+        None => Err((ErrorCode::MatchNotFound, "match not found")),
+        Some(m) if m.is_player(client) => Err((
+            ErrorCode::CannotJoinOwnMatch,
+            "cannot spectate your own match",
+        )),
+        Some(m) if !m.has_room_for_spectator() => Err((
+            ErrorCode::SpectatorLimitReached,
+            "the match has reached the spectator limit",
+        )),
+        Some(_) => Ok(()),
+    }
+}
+
+/// Notifies every participant of a match that a new spectator joined.
+///
+/// The new spectator does not receive this message; it already knows from
+/// its `SpectateStarted` snapshot.
+fn broadcast_spectator_joined(
+    state: &LobbyState,
+    match_id: MatchId,
+    new_spectator: ClientId,
+    display_name: String,
+    count: u32,
+) {
+    let Some(m) = state.matches.get(&match_id) else {
+        return;
+    };
+    let joined = ServerMessage::SpectatorJoined {
+        username: display_name,
+        spectator_count: count,
+    };
+    if let Some(session) = state.sessions.get(&m.host) {
+        session.try_send(joined.clone());
+    }
+    if let Some(guest_id) = m.guest
+        && let Some(session) = state.sessions.get(&guest_id)
+    {
+        session.try_send(joined.clone());
+    }
+    for spectator in &m.spectators {
+        if *spectator != new_spectator
+            && let Some(session) = state.sessions.get(spectator)
+        {
+            session.try_send(joined.clone());
+        }
     }
 }
 
