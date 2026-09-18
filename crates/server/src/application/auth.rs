@@ -162,8 +162,8 @@ async fn hash_password(password: String, params: Params) -> Result<String, AuthE
         bytes.zeroize();
         result
     })
-        .await
-        .map_err(|_| AuthError::TaskFailed)?
+    .await
+    .map_err(|_| AuthError::TaskFailed)?
 }
 
 async fn verify_password(
@@ -181,8 +181,8 @@ async fn verify_password(
         bytes.zeroize();
         result
     })
-        .await
-        .map_err(|_| AuthError::TaskFailed)?
+    .await
+    .map_err(|_| AuthError::TaskFailed)?
 }
 
 #[cfg(test)]
@@ -210,7 +210,10 @@ mod tests {
     async fn register_then_authenticate_succeeds() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         let authenticated = service
@@ -227,11 +230,17 @@ mod tests {
     async fn register_rejects_duplicate_username() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         let error = service
-            .register(profile("Alice", "alice_99", 30), "otherpassword".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "otherpassword".to_string(),
+            )
             .await
             .unwrap_err();
         assert_eq!(error, AuthFailureReason::UsernameTaken);
@@ -241,11 +250,17 @@ mod tests {
     async fn register_is_case_insensitive_on_username() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         let error = service
-            .register(profile("Alice", "ALICE_99", 30), "otherpassword".to_string())
+            .register(
+                profile("Alice", "ALICE_99", 30),
+                "otherpassword".to_string(),
+            )
             .await
             .unwrap_err();
         assert_eq!(error, AuthFailureReason::UsernameTaken);
@@ -255,7 +270,10 @@ mod tests {
     async fn authenticate_rejects_wrong_password() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         let error = service
@@ -285,7 +303,10 @@ mod tests {
     async fn authenticate_accepts_case_insensitive_username() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         service
@@ -301,7 +322,10 @@ mod tests {
     async fn hashes_are_unique_across_registrations() {
         let service = fast_service();
         service
-            .register(profile("Alice", "alice_99", 30), "hunter2hunter2".to_string())
+            .register(
+                profile("Alice", "alice_99", 30),
+                "hunter2hunter2".to_string(),
+            )
             .await
             .unwrap();
         service

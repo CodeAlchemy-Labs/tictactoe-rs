@@ -132,7 +132,7 @@ async fn registration_succeeds_and_authenticates_the_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::Registered { profile } => {
             assert_eq!(profile.name, "Alice Example");
@@ -155,7 +155,7 @@ async fn registration_with_invalid_input_is_rejected() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut client).await {
         ServerMessage::AuthenticationFailed { reason, .. } => {
             assert_eq!(reason, AuthFailureReason::UsernameInvalid);
@@ -179,7 +179,7 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     let _ = recv(&mut register_client).await;
     register_client.close(None).await.unwrap();
     drop(register_client);
@@ -193,7 +193,7 @@ async fn login_after_registration_succeeds_on_a_new_connection() {
             password: String::from("hunter2hunter2"),
         },
     )
-        .await;
+    .await;
     match recv(&mut login_client).await {
         ServerMessage::LoginSucceeded { profile } => {
             assert_eq!(profile.username.as_str(), "alice_99");

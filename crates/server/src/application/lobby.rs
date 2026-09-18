@@ -14,7 +14,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use common::domain::{Age, Board, GameStatus, Player, Position, UserProfile, Username};
-use common::protocol::{AuthFailureReason, ClientId, ErrorCode, MatchId, MatchSummary, ServerMessage};
+use common::protocol::{
+    AuthFailureReason, ClientId, ErrorCode, MatchId, MatchSummary, ServerMessage,
+};
 use tokio::sync::mpsc;
 
 use crate::application::auth::AuthService;
@@ -332,9 +334,7 @@ impl LobbyService {
             } else {
                 match state.matches.get(&match_id) {
                     None => Some((ErrorCode::MatchNotFound, "match not found")),
-                    Some(m) if m.is_full() => {
-                        Some((ErrorCode::MatchFull, "match is already full"))
-                    }
+                    Some(m) if m.is_full() => Some((ErrorCode::MatchFull, "match is already full")),
                     Some(_) => None,
                 }
             }
@@ -517,12 +517,7 @@ impl LobbyService {
             .is_some_and(Session::is_authenticated)
     }
 
-    fn send_auth_failure(
-        &self,
-        client_id: ClientId,
-        reason: AuthFailureReason,
-        message: &str,
-    ) {
+    fn send_auth_failure(&self, client_id: ClientId, reason: AuthFailureReason, message: &str) {
         let state = self.lock();
         if let Some(session) = state.sessions.get(&client_id) {
             session.try_send(ServerMessage::AuthenticationFailed {
