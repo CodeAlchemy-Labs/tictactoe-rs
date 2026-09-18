@@ -16,10 +16,36 @@ use crate::domain::Position;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
-    /// Announces the client's display name and asks to enter the lobby.
+    /// Announces the client's display name and asks to enter the lobby as a
+    /// guest.
+    ///
+    /// Guest clients can list matches, view the ranking, and spectate, but
+    /// they cannot create or join matches. Registration or login is
+    /// required to play.
     Hello {
         /// The display name chosen by the player.
         display_name: String,
+    },
+    /// Creates a new account and authenticates the client in the same step.
+    ///
+    /// The fields are raw input; the server validates them and responds
+    /// with `Registered` or `AuthenticationFailed`.
+    Register {
+        /// The user's display name.
+        name: String,
+        /// The desired username.
+        username: String,
+        /// The user's age.
+        age: u8,
+        /// The password, in plain text. TLS protects it in transit.
+        password: String,
+    },
+    /// Authenticates an existing account.
+    Login {
+        /// The account's username.
+        username: String,
+        /// The account's password, in plain text.
+        password: String,
     },
     /// Requests the current list of open matches.
     ListMatches,
@@ -87,5 +113,29 @@ mod tests {
         let json = serde_json::to_string(&message).unwrap();
         let back: ClientMessage = serde_json::from_str(&json).unwrap();
         assert_eq!(message, back);
+    }
+
+    #[test]
+    fn register_round_trip() {
+        let message = ClientMessage::Register {
+            name: String::from("Alice Example"),
+            username: String::from("alice_99"),
+            age: 30,
+            password: String::from("hunter2hunter2"),
+        };
+        let json = serde_json::to_string(&message).unwrap();
+        let back: ClientMessage = serde_json::from_str(&json).unwrap();
+        assert_eq!(message, back);
+    }
+
+    #[test]
+    fn login_serializes_with_type_tag() {
+        let message = ClientMessage::Login {
+            username: String::from("alice_99"),
+            password: String::from("hunter2hunter2"),
+        };
+        let value: serde_json::Value = serde_json::to_value(&message).unwrap();
+        assert_eq!(value["type"], "login");
+        assert_eq!(value["username"], "alice_99");
     }
 }
