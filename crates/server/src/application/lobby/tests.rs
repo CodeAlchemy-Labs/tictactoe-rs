@@ -618,7 +618,8 @@ async fn draws_do_not_record_wins() {
     let _ = host_rx.try_recv();
     let _ = guest_rx.try_recv();
 
-    // X: 0, 2, 3, 7. O: 1, 4, 5, 6, 8 → draw.
+    // X: 0, 2, 3, 7, 8. O: 1, 4, 5, 6. Five X moves, four O moves, no line.
+    // The turns alternate correctly: X, O, X, O, X, O, X, O, X.
     for (client, pos) in [
         (host, 0u8),
         (guest, 1),
@@ -628,7 +629,7 @@ async fn draws_do_not_record_wins() {
         (guest, 5),
         (host, 7),
         (guest, 6),
-        (guest, 8),
+        (host, 8),
     ] {
         lobby.make_move(client, Position::new(pos).unwrap());
     }
@@ -648,31 +649,30 @@ async fn draws_do_not_record_wins() {
 #[tokio::test]
 async fn multiple_wins_accumulate_in_the_ranking() {
     let lobby = fast_lobby();
+    let champ_username = "champ_99";
 
-    for round in 0..2 {
+    // Round 1: register the champion and win.
+    {
         let (host_tx, mut host_rx) = mpsc::unbounded_channel();
         let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
         let host = lobby.register_client(host_tx);
         let guest = lobby.register_client(guest_tx);
-        // `authenticate` uses a fixed username, so we register explicit
-        // distinct usernames to avoid the single-session rule.
-        let host_username = "champ_99";
+
         lobby
             .register_user(
                 host,
                 String::from("Champion"),
-                host_username.to_string(),
+                champ_username.to_string(),
                 30,
                 String::from("hunter2hunter2"),
             )
             .await;
         let _ = host_rx.try_recv();
-        let guest_username = format!("rival_{round:02}");
         lobby
             .register_user(
                 guest,
-                String::from("Rival"),
-                guest_username,
+                String::from("Rival One"),
+                String::from("rival_one"),
                 30,
                 String::from("hunter2hunter2"),
             )
@@ -691,14 +691,54 @@ async fn multiple_wins_accumulate_in_the_ranking() {
             lobby.make_move(client, Position::new(pos).unwrap());
         }
 
-        // Clean up before the next round so the "one session per account"
-        // rule does not block re-registration.
+        lobby.disconnect(host);
+        lobby.disconnect(guest);
+    }
+
+    // Round 2: log in the champion (already registered) and win again.
+    {
+        let (host_tx, mut host_rx) = mpsc::unbounded_channel();
+        let (guest_tx, mut guest_rx) = mpsc::unbounded_channel();
+        let host = lobby.register_client(host_tx);
+        let guest = lobby.register_client(guest_tx);
+
+        lobby
+            .login_user(
+                host,
+                champ_username.to_string(),
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = host_rx.try_recv();
+        lobby
+            .register_user(
+                guest,
+                String::from("Rival Two"),
+                String::from("rival_two"),
+                30,
+                String::from("hunter2hunter2"),
+            )
+            .await;
+        let _ = guest_rx.try_recv();
+
+        lobby.create_match(host);
+        let ServerMessage::MatchCreated { match_id } = host_rx.try_recv().unwrap() else {
+            unreachable!("first message must be MatchCreated")
+        };
+        lobby.join_match(guest, match_id);
+        let _ = host_rx.try_recv();
+        let _ = guest_rx.try_recv();
+
+        for (client, pos) in [(host, 0u8), (guest, 3), (host, 1), (guest, 4), (host, 2)] {
+            lobby.make_move(client, Position::new(pos).unwrap());
+        }
+
         lobby.disconnect(host);
         lobby.disconnect(guest);
     }
 
     let ranking = lobby.ranking().top(crate::application::ranking::TOP_N);
     assert_eq!(ranking.len(), 1);
-    assert_eq!(ranking[0].username.as_str(), "champ_99");
+    assert_eq!(ranking[0].username.as_str(), champ_username);
     assert_eq!(ranking[0].wins, 2);
 }
