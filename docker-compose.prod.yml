@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# LOCAL PRODUCTION TESTING ONLY
+#
+# This file runs the production server image on your laptop for smoke-testing
+# production-mode behaviour before a real deployment. It is NOT a deployment
+# configuration. Real deployments should use the platform's own tooling:
+#
+#   - Render: the render.yaml Blueprint (see docs/DEPLOYMENT.md §3)
+#   - Fly.io: fly.toml + fly deploy (see docs/DEPLOYMENT.md §4.1)
+#   - Railway / Koyeb: dashboard environment variables (see docs/DEPLOYMENT.md §4.2)
+#   - Self-hosted VPS: this file + a TLS-terminating reverse proxy
+#                      (see docs/DEPLOYMENT.md §4.3)
+#
+# Key differences from the demo docker-compose.yml:
+#   - Builds from Dockerfile.server (server binary only; no client or hacker).
+#   - Binds to 127.0.0.1, NOT 0.0.0.0, so the service is not exposed on
+#     your LAN while you test. Operators who need LAN/WAN exposure must put
+#     a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front.
+#   - All production hardening variables are set explicitly.
+#   - No client-1, client-2, or hacker services; this is a server-only image.
+# ---------------------------------------------------------------------------
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: tictactoe-rs-server:prod
+    environment:
+      TICTACTOE_ENV: "production"
+      TICTACTOE_BIND: "0.0.0.0:8080"
+      TICTACTOE_MAX_SESSIONS: "1000"
+      TICTACTOE_MAX_SESSIONS_PER_IP: "10"
+      TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE: "10"
+      RUST_LOG: "info"
+    ports:
+      # Bind to localhost only. Do not change this to 0.0.0.0:8080 unless
+      # you are behind a TLS-terminating reverse proxy.
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 3s
+      start_period: 10s
+      retries: 3
