@@ -1,0 +1,90 @@
+# syntax=docker/dockerfile:1.7
+
+# ---------------------------------------------------------------------------
+# WHY THE CLIENT AND HACKER ARE DELIBERATELY EXCLUDED
+#
+# This image is for production deployments. Shipping all three workspace
+# binaries in a production image is a security anti-pattern:
+#
+#   - `hacker` is an adversarial tool designed to attack the server. If an
+#     attacker compromises the container, finding `hacker` on the filesystem
+#     hands them a ready-made weapon against the same service and any other
+#     instance they can reach.
+#
+#   - `client` is an interactive TUI. It requires a terminal and a human.
+#     It has no function inside a server container and simply widens the
+#     attack surface with code that is never executed.
+#
+# For development and demo purposes (make demo, make client-1, make client-2,
+# make hacker), use the existing `Dockerfile` and `docker-compose.yml`, which
+# ship all three binaries by design.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Build stage: compile only the server binary in release mode.
+#
+# Both stages are pinned to Debian bookworm. Using a newer base (trixie) in
+# the builder would produce binaries linked against GLIBC symbols the bookworm
+# runtime does not provide, causing a startup failure
+# ("version `GLIBC_2.39' not found"). Pinning both stages to bookworm keeps
+# the two ABI-compatible.
+# ---------------------------------------------------------------------------
+FROM rust:1.97-slim-bookworm AS builder
+
+WORKDIR /build
+
+# Minimal system dependencies for the build stage.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the workspace manifest, the lockfile, and every source file in one
+# step. Copying as a single COPY layer gives all files the same mtime inside
+# the layer, which prevents Cargo from treating some crates as newer than
+# others and recompiling unnecessarily.
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Build only the server binary. --locked ensures the build uses exactly the
+# dependency versions recorded in Cargo.lock; if the lockfile is stale the
+# build fails early rather than silently upgrading a transitive dependency.
+RUN cargo build --release --locked --bin server
+
+# ---------------------------------------------------------------------------
+# Runtime stage: minimal Debian image with the server binary only.
+# ---------------------------------------------------------------------------
+FROM debian:bookworm-slim AS runtime
+
+# Install ca-certificates (needed for any outbound TLS calls and for the
+# platform's health-check infrastructure) and curl (used by the HEALTHCHECK
+# directive below to hit /health).
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash --uid 1000 app
+
+# Copy only the server binary — nothing else.
+COPY --from=builder /build/target/release/server /usr/local/bin/server
+
+# Default to production mode. Operators who want development behaviour must
+# explicitly override this variable. Forgetting to set it in a production
+# deployment is a safe failure: the strict limits apply rather than the
+# relaxed development defaults.
+ENV TICTACTOE_ENV=production
+ENV RUST_LOG=info
+
+EXPOSE 8080
+
+# Liveness check: hit the /health endpoint that the server registers on
+# startup. The 10s start-period gives the container time to start and bind
+# before the first probe runs.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:8080/health || exit 1
+
+USER app
+WORKDIR /home/app
+
+CMD ["server"]
