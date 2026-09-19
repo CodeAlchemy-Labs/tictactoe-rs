@@ -103,7 +103,7 @@ prod-up:
 	@printf '\n'
 	@printf 'Production server is up at ws://127.0.0.1:8080/ws\n'
 	@printf 'Smoke-test with:\n'
-	@printf '  cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name smoke\n'
+	@printf '  cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name smoke\n'
 	@printf '\n'
 	@printf 'Stop with:\n'
 	@printf '  make prod-down\n'

@@ -40,7 +40,7 @@ RUN apt-get update \
     && useradd --create-home --shell /bin/bash --uid 1000 app
 
 COPY --from=builder /build/target/release/server /usr/local/bin/server
-COPY --from=builder /build/target/release/client /usr/local/bin/client
+COPY --from=builder /build/target/release/tictacli /usr/local/bin/client
 COPY --from=builder /build/target/release/hacker /usr/local/bin/hacker
 
 USER app
