@@ -1,13 +1,18 @@
 #!/usr/bin/env fish
 set -e
 
+set REPO_ROOT (realpath (dirname (status filename))/../..)
+cd $REPO_ROOT
+
+set DIST_DIR $REPO_ROOT/dist/linux
+
 echo "Cleaning old .deb artefacts..."
-mkdir -p dist/linux
-rm -f dist/linux/tictacli*.deb
+mkdir -p $DIST_DIR
+rm -f $DIST_DIR/tictacli*.deb
 
 echo "Building Debian packages via Docker..."
 docker run --rm \
-    -v (pwd):/work \
+    -v $REPO_ROOT:/work \
     -w /work \
     -e CARGO_HOME=/work/.cargo-cache \
     debian:bullseye-slim \
@@ -34,10 +39,13 @@ docker run --rm \
         rm -rf dist/linux/tictacli-full-meta"
 
 echo "Verifying generated .deb files..."
-for file in dist/linux/tictacli*.deb
+for file in $DIST_DIR/tictacli*.deb
     echo "Checking $file"
-    docker run --rm -v (pwd)/dist/linux:/pkg debian:bullseye-slim dpkg-deb --info /pkg/(basename $file)
+    docker run --rm -v $DIST_DIR:/pkg debian:bullseye-slim dpkg-deb --info /pkg/(basename $file)
     sha256sum $file
 end
 
 echo "Done building Debian packages."
+for file in $DIST_DIR/tictacli*.deb
+    echo (realpath $file)
+end

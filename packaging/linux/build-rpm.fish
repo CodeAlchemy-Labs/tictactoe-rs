@@ -1,13 +1,18 @@
 #!/usr/bin/env fish
 set -e
 
+set REPO_ROOT (realpath (dirname (status filename))/../..)
+cd $REPO_ROOT
+
+set DIST_DIR $REPO_ROOT/dist/linux
+
 echo "Cleaning old .rpm artefacts..."
-mkdir -p dist/linux
-rm -f dist/linux/tictacli*.rpm
+mkdir -p $DIST_DIR
+rm -f $DIST_DIR/tictacli*.rpm
 
 echo "Building RPM packages via Docker..."
 docker run --rm \
-    -v (pwd):/work \
+    -v $REPO_ROOT:/work \
     -w /work \
     -e CARGO_HOME=/work/.cargo-cache \
     rockylinux:8 \
@@ -36,10 +41,13 @@ SPEC
         rm -rf /work/dist/linux/noarch /work/dist/linux/tictacli-full.spec"
 
 echo "Verifying generated .rpm files..."
-for file in dist/linux/tictacli*.rpm
+for file in $DIST_DIR/tictacli*.rpm
     echo "Checking $file"
-    docker run --rm -v (pwd)/dist/linux:/pkg rockylinux:8 rpm -qip /pkg/(basename $file)
+    docker run --rm -v $DIST_DIR:/pkg rockylinux:8 rpm -qip /pkg/(basename $file)
     sha256sum $file
 end
 
 echo "Done building RPM packages."
+for file in $DIST_DIR/tictacli*.rpm
+    echo (realpath $file)
+end
