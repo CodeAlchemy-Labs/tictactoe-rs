@@ -1,0 +1,60 @@
+name: Package Windows
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows-installers:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Rust binary
+        run: cargo build --release --locked --bin tictacli --target x86_64-pc-windows-msvc
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress
+
+      - name: Install WiX Toolset
+        run: dotnet tool install --global wix
+
+      - name: Install osslsigncode
+        run: choco install osslsigncode --no-progress
+
+      - name: Build and Sign Installers
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          cd packaging\windows
+          .\build-installers.ps1
+
+      - name: Upload Artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            dist/windows/tictacli-*-setup.exe
+            dist/windows/tictacli-*.msi
+            dist/windows/tictacli.exe
+          if-no-files-found: error
