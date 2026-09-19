@@ -35,8 +35,8 @@
     </StandardDirectory>
 
     <StandardDirectory Id="DesktopFolder">
-      <Component Id="DesktopShortcutComponent" Guid="*">
-        <Condition>INSTALLDESKTOPSHORTCUT</Condition>
+      <Component Id="DesktopShortcutComponent" Guid="*" Condition="INSTALLDESKTOPSHORTCUT">
+        
         <Shortcut Id="DesktopShortcut"
                   Name="TicTacToe Client"
                   Target="[!ClientExe]"
