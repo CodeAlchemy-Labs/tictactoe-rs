@@ -7,14 +7,13 @@ arch=('x86_64' 'aarch64')
 url="https://github.com/CodeAlchemy-Labs/tictactoe-rs"
 license=('MIT')
 depends=('gcc-libs' 'glibc' 'ca-certificates')
-makedepends=('cargo' 'rust')
+makedepends=('cargo' 'rust' 'nasm')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
 sha256sums=('SKIP') # TODO(packaging): replace SKIP before submitting to AUR
 install=tictacli.install
 
 build() {
   cd "tictactoe-rs-$pkgver" || cd "$srcdir"
-  export RUSTFLAGS="${RUSTFLAGS:-} -C linker=gcc"
   cargo build --release --locked --bin tictacli
 }
 
