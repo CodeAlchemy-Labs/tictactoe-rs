@@ -46,7 +46,8 @@ pub struct Session {
 
 impl Session {
     /// Creates a new session for the given client and outbound channel.
-    pub fn new(
+    #[must_use]
+    pub const fn new(
         client_id: ClientId,
         sender: mpsc::UnboundedSender<ServerMessage>,
         peer_ip: std::net::IpAddr,
@@ -64,16 +65,19 @@ impl Session {
     }
 
     /// Returns `true` when the session belongs to an authenticated user.
-    pub fn is_authenticated(&self) -> bool {
+    #[must_use]
+    pub const fn is_authenticated(&self) -> bool {
         self.authenticated_as.is_some()
     }
 
     /// Returns `true` when the client is currently playing a match.
+    #[must_use]
     pub const fn is_playing(&self) -> bool {
         self.current_match.is_some()
     }
 
     /// Returns `true` when the client is currently spectating a match.
+    #[must_use]
     pub const fn is_spectating(&self) -> bool {
         self.spectating.is_some()
     }

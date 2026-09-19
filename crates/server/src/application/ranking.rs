@@ -28,6 +28,7 @@ impl Default for RankingService {
 
 impl RankingService {
     /// Creates an empty ranking.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             entries: Mutex::new(HashMap::new()),

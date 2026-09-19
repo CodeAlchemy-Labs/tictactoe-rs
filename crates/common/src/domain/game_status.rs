@@ -18,11 +18,13 @@ pub enum GameStatus {
 
 impl GameStatus {
     /// Returns `true` if the game has ended.
+    #[must_use]
     pub const fn is_finished(self) -> bool {
         !matches!(self, Self::InProgress)
     }
 
     /// Returns the winner, if any.
+    #[must_use]
     pub const fn winner(self) -> Option<Player> {
         match self {
             Self::Won(player) => Some(player),

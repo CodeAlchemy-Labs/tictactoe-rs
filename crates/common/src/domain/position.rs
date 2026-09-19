@@ -33,7 +33,7 @@ impl Position {
     /// # Errors
     ///
     /// Returns [`DomainError::InvalidPosition`] when `value` is out of range.
-    pub fn new(value: u8) -> Result<Self, DomainError> {
+    pub const fn new(value: u8) -> Result<Self, DomainError> {
         if value < Self::COUNT {
             Ok(Self(value))
         } else {
@@ -42,16 +42,19 @@ impl Position {
     }
 
     /// Returns the zero-based index into the flat cell array.
+    #[must_use]
     pub const fn index(self) -> usize {
         self.0 as usize
     }
 
     /// Returns the row (`0`, `1`, or `2`) of the position.
+    #[must_use]
     pub const fn row(self) -> u8 {
         self.0 / 3
     }
 
     /// Returns the column (`0`, `1`, or `2`) of the position.
+    #[must_use]
     pub const fn column(self) -> u8 {
         self.0 % 3
     }

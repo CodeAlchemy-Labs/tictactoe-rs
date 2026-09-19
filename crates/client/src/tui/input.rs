@@ -116,7 +116,8 @@ pub fn read_key_action(screen: &Screen) -> Result<KeyAction, InputError> {
 ///
 /// Extracted from [`read_key_action`] so it can be unit-tested without a
 /// terminal.
-pub fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
+#[must_use]
+pub const fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match screen {
         Screen::Auth(_) => translate_auth_key(code),
         Screen::Spectating(_) => translate_spectating_key(code),
@@ -124,7 +125,7 @@ pub fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
     }
 }
 
-fn translate_auth_key(code: KeyCode) -> KeyAction {
+const fn translate_auth_key(code: KeyCode) -> KeyAction {
     match code {
         KeyCode::Esc => KeyAction::Event(AppEvent::AuthCancel),
         KeyCode::Enter => KeyAction::Event(AppEvent::AuthSubmit),
@@ -138,7 +139,7 @@ fn translate_auth_key(code: KeyCode) -> KeyAction {
     }
 }
 
-fn translate_spectating_key(code: KeyCode) -> KeyAction {
+const fn translate_spectating_key(code: KeyCode) -> KeyAction {
     match code {
         KeyCode::Esc => KeyAction::Event(AppEvent::LeaveSpectate),
         KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
@@ -146,7 +147,7 @@ fn translate_spectating_key(code: KeyCode) -> KeyAction {
     }
 }
 
-fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
+const fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match code {
         KeyCode::Char('q') => KeyAction::Event(AppEvent::Quit),
         KeyCode::Esc => match screen {

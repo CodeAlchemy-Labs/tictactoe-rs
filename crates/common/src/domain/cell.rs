@@ -20,11 +20,13 @@ pub enum Cell {
 
 impl Cell {
     /// Returns `true` if the cell is empty.
+    #[must_use]
     pub const fn is_empty(self) -> bool {
         matches!(self, Self::Empty)
     }
 
     /// Returns the owning player, or `None` if the cell is empty.
+    #[must_use]
     pub const fn owner(self) -> Option<Player> {
         match self {
             Self::Empty => None,

@@ -46,6 +46,7 @@ pub fn parse_target(target: &str) -> anyhow::Result<Url> {
 }
 
 /// Returns `true` if the given host is considered local.
+#[must_use]
 pub fn is_local_target(host: &str) -> bool {
     host == "localhost" || host == "127.0.0.1" || host == "::1" || host.starts_with("127.") // Loopback block
 }

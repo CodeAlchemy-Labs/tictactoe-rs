@@ -80,6 +80,7 @@ pub enum Screen {
 
 impl Screen {
     /// Returns a short label suitable for the header.
+    #[must_use]
     pub const fn title(&self) -> &'static str {
         match self {
             Self::Connecting => "Connecting",
@@ -104,6 +105,7 @@ impl Screen {
     /// The order returned here is the order the UI displays, and it is the
     /// order the input digits index into. Both the renderer and the state
     /// machine call this method so the two never diverge.
+    #[must_use]
     pub fn visible_matches(&self) -> Vec<&MatchSummary> {
         let Self::Lobby {
             matches,

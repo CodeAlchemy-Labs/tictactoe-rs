@@ -35,6 +35,7 @@ impl Age {
     }
 
     /// Returns the age as a `u8`.
+    #[must_use]
     pub const fn value(self) -> u8 {
         self.0
     }

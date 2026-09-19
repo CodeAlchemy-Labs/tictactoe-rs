@@ -32,6 +32,7 @@ impl AppState {
     }
 
     /// Returns `true` when the session is authenticated.
+    #[must_use]
     pub const fn is_authenticated(&self) -> bool {
         self.authenticated_as.is_some()
     }

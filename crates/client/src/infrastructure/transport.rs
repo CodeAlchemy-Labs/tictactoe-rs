@@ -51,6 +51,7 @@ impl MockTransport {
     /// Returns `(transport, server_rx, server_tx)`. The test uses `server_rx`
     /// to inspect what the client sent, and `server_tx` to inject messages
     /// toward the client.
+    #[must_use]
     pub fn new() -> (
         Self,
         mpsc::UnboundedReceiver<ClientMessage>,

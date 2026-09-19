@@ -31,11 +31,13 @@ impl Outcome {
     }
 
     /// Returns `true` when the server defended.
+    #[must_use]
     pub const fn is_defended(&self) -> bool {
         matches!(self, Self::Defended { .. })
     }
 
     /// Returns the uppercase label used in the report line.
+    #[must_use]
     pub const fn label(&self) -> &'static str {
         match self {
             Self::Defended { .. } => "DEFENDED",
@@ -44,6 +46,7 @@ impl Outcome {
     }
 
     /// Returns the human-readable detail string.
+    #[must_use]
     pub fn detail(&self) -> &str {
         match self {
             Self::Defended { detail } | Self::Compromised { detail } => detail,

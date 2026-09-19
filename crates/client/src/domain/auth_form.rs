@@ -13,6 +13,7 @@ pub enum AuthMode {
 
 impl AuthMode {
     /// Returns the human-readable title for the mode.
+    #[must_use]
     pub const fn title(self) -> &'static str {
         match self {
             Self::Login => "Login",
@@ -78,6 +79,7 @@ pub struct AuthForm {
 
 impl AuthForm {
     /// Creates a new empty form.
+    #[must_use]
     pub fn new(mode: AuthMode, pending_action: Option<PendingAction>) -> Self {
         Self {
             mode,
@@ -93,6 +95,7 @@ impl AuthForm {
     }
 
     /// Returns the fields visible in the given mode, in focus order.
+    #[must_use]
     pub const fn visible_fields(mode: AuthMode) -> &'static [AuthField] {
         match mode {
             AuthMode::Login => &[AuthField::Username, AuthField::Password],

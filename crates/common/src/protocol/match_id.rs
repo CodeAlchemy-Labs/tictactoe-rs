@@ -9,11 +9,13 @@ pub struct MatchId(u64);
 
 impl MatchId {
     /// Creates a new identifier.
+    #[must_use]
     pub const fn new(value: u64) -> Self {
         Self(value)
     }
 
     /// Returns the underlying value.
+    #[must_use]
     pub const fn value(self) -> u64 {
         self.0
     }

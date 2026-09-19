@@ -41,6 +41,7 @@ impl Default for Board {
 
 impl Board {
     /// Creates an empty board.
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             cells: [Cell::Empty; 9],
@@ -48,6 +49,7 @@ impl Board {
     }
 
     /// Returns the cell at the given position.
+    #[must_use]
     pub const fn get(&self, position: Position) -> Cell {
         self.cells[position.index()]
     }
@@ -58,6 +60,7 @@ impl Board {
     }
 
     /// Returns `true` if every cell is occupied.
+    #[must_use]
     pub fn is_full(&self) -> bool {
         self.cells.iter().all(|cell| !cell.is_empty())
     }
@@ -67,7 +70,7 @@ impl Board {
     /// # Errors
     ///
     /// Returns [`DomainError::CellOccupied`] if the position is already taken.
-    pub fn place(&mut self, position: Position, player: Player) -> Result<(), DomainError> {
+    pub const fn place(&mut self, position: Position, player: Player) -> Result<(), DomainError> {
         let index = position.index();
         if !self.cells[index].is_empty() {
             return Err(DomainError::CellOccupied { position });
@@ -77,6 +80,7 @@ impl Board {
     }
 
     /// Evaluates the current game status.
+    #[must_use]
     pub fn status(&self) -> GameStatus {
         for line in WINNING_LINES {
             let [a, b, c] = line.map(|index| self.cells[index as usize]);

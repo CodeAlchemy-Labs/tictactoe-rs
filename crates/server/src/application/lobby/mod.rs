@@ -126,6 +126,7 @@ impl Default for LobbyService {
 
 impl LobbyService {
     /// Creates an empty lobby with default-configured services.
+    #[must_use]
     pub fn new(config: ServerConfig) -> Self {
         Self::with_services(
             config,

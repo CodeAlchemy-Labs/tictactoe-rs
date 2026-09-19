@@ -40,12 +40,13 @@ pub struct SessionGuard {
 
 impl SessionGuard {
     /// Creates a new guard for the given client.
-    pub fn new(client_id: ClientId, lobby: Arc<LobbyService>) -> Self {
+    pub const fn new(client_id: ClientId, lobby: Arc<LobbyService>) -> Self {
         Self { client_id, lobby }
     }
 
     /// Returns the guarded client identifier.
-    pub fn client_id(&self) -> ClientId {
+    #[must_use]
+    pub const fn client_id(&self) -> ClientId {
         self.client_id
     }
 }

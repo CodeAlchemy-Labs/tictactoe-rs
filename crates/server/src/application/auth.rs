@@ -62,6 +62,7 @@ impl AuthService {
     /// Argon2 default parameters (19 MiB of memory, 2 iterations). Tests
     /// can supply cheaper parameters to keep the suite fast without
     /// changing the code paths under test.
+    #[must_use]
     pub fn with_params(params: Params) -> Self {
         Self {
             users: Mutex::new(HashMap::new()),

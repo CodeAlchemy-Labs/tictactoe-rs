@@ -36,6 +36,7 @@ pub struct Match {
 
 impl Match {
     /// Creates a new empty match hosted by `host`.
+    #[must_use]
     pub fn new(id: MatchId, host: ClientId) -> Self {
         Self {
             id,
@@ -50,11 +51,13 @@ impl Match {
     }
 
     /// Returns `true` when both players are present.
-    pub fn is_full(&self) -> bool {
+    #[must_use]
+    pub const fn is_full(&self) -> bool {
         self.guest.is_some()
     }
 
     /// Returns the mark assigned to `client` in this match, if any.
+    #[must_use]
     pub fn mark_of(&self, client: ClientId) -> Option<Player> {
         if client == self.host {
             Some(Player::X)
@@ -66,6 +69,7 @@ impl Match {
     }
 
     /// Returns the opponent of `client`, if the client is a participant.
+    #[must_use]
     pub fn opponent_of(&self, client: ClientId) -> Option<ClientId> {
         if client == self.host {
             self.guest
@@ -77,21 +81,25 @@ impl Match {
     }
 
     /// Returns `true` if `client` is a player in this match.
+    #[must_use]
     pub fn is_player(&self, client: ClientId) -> bool {
         client == self.host || Some(client) == self.guest
     }
 
     /// Returns `true` if `client` is currently spectating this match.
+    #[must_use]
     pub fn is_spectator(&self, client: ClientId) -> bool {
         self.spectator_names.contains_key(&client)
     }
 
     /// Returns the number of spectators currently watching.
+    #[must_use]
     pub fn spectator_count(&self) -> u32 {
         u32::try_from(self.spectators.len()).unwrap_or(u32::MAX)
     }
 
     /// Returns `true` when the match can accept another spectator.
+    #[must_use]
     pub fn has_room_for_spectator(&self) -> bool {
         self.spectator_count() < MAX_SPECTATORS
     }

@@ -115,11 +115,13 @@ impl Username {
     }
 
     /// Returns the username with its original casing.
+    #[must_use]
     pub fn as_str(&self) -> &str {
         &self.display
     }
 
     /// Returns the lowercase lookup key used for equality and hashing.
+    #[must_use]
     pub fn key(&self) -> &str {
         &self.key
     }
