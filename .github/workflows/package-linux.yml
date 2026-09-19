@@ -29,7 +29,7 @@ jobs:
 
       - name: Verify artefacts
         run: |
-          set -euo pipefail
+          set -e
           count=$(ls dist/linux/tictacli*.deb 2>/dev/null | wc -l)
           test "$count" -eq 3 || { echo "expected 3 .deb files, found $count"; ls -la dist/linux/; exit 1; }
 
@@ -65,7 +65,7 @@ jobs:
 
       - name: Verify artefacts
         run: |
-          set -euo pipefail
+          set -e
           count=$(ls dist/linux/tictacli*.rpm 2>/dev/null | wc -l)
           test "$count" -eq 3 || { echo "expected 3 .rpm files, found $count"; ls -la dist/linux/; exit 1; }
 
@@ -96,7 +96,7 @@ jobs:
 
       - name: Verify artefacts
         run: |
-          set -euo pipefail
+          set -e
           count=$(ls dist/linux/tictacli*.pkg.tar.zst 2>/dev/null | wc -l)
           test "$count" -eq 2 || { echo "expected 2 .pkg.tar.zst files, found $count"; ls -la dist/linux/; exit 1; }
 
@@ -127,7 +127,7 @@ jobs:
 
       - name: Verify artefacts
         run: |
-          set -euo pipefail
+          set -e
           count=$(ls dist/linux/tictacli*-linux-musl-*.tar.gz 2>/dev/null | wc -l)
           test "$count" -eq 2 || { echo "expected 2 .tar.gz files, found $count"; ls -la dist/linux/; exit 1; }
 
