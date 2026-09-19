@@ -57,7 +57,7 @@ fn init_tracing() {
 /// the platform is known to interpret escapes. On Windows, the legacy
 /// `cmd.exe` console does not process ANSI unless Virtual Terminal
 /// Processing is explicitly enabled, so we require the marker environment
-/// variable of a modern terminal (Windows Terminal, ConEmu, or VS Code's
+/// variable of a modern terminal (Windows Terminal, `ConEmu`, or VS Code's
 /// integrated terminal). Emitting literal escape sequences is worse than
 /// emitting no color at all.
 fn ansi_supported() -> bool {
