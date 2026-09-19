@@ -60,8 +60,7 @@ impl RankingService {
     /// `username` ascending so the order is deterministic and stable across
     /// calls.
     pub fn top(&self, limit: usize) -> Vec<RankingEntry> {
-        let entries = self.lock();
-        let mut sorted: Vec<RankingEntry> = entries.values().cloned().collect();
+        let mut sorted: Vec<RankingEntry> = self.lock().values().cloned().collect();
         sorted.sort_by(|a, b| {
             b.wins
                 .cmp(&a.wins)
