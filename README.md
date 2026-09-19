@@ -206,6 +206,9 @@ make demo-down
 
 ### Connecting to a remote instance
 
+For a step-by-step guide to deploying your own server, including production hardening and protection from the adversarial `hacker` crate, see [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+
 The client speaks both `ws://` and `wss://`. TLS is terminated by the
 platform that hosts the server (for example, Render's edge proxy), so the
 container itself continues to listen for plain HTTP/WS on its internal
