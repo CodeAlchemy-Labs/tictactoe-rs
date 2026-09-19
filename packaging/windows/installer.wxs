@@ -1,6 +1,7 @@
 <!--
   Build with:
-  wix build installer.wxs -d AppVersion=0.2.0 -o ..\..\dist\windows\tictacli-0.2.0.msi
+  wix extension add WixToolset.UI.wixext/4.0.5 -g
+  wix build installer.wxs -d AppVersion=0.2.0 -ext WixToolset.UI.wixext -o ..\..\dist\windows\tictacli-0.2.0.msi
 
   Requires WiX Toolset v4 (pinned to 4.0.5). Install with:
   dotnet tool install -g wix (version 4.0.5)

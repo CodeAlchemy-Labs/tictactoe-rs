@@ -66,7 +66,7 @@ try {
             Write-Error "wix not found on PATH"
             exit 1
         }
-        & wix build installer.wxs -d AppVersion=$Version -o $msiFile
+        & wix build installer.wxs -d AppVersion=$Version -ext WixToolset.UI.wixext -o $msiFile
         if ($LASTEXITCODE -ne 0) { Write-Error "WiX build failed"; exit 1 }
     }
 

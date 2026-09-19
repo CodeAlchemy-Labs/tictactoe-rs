@@ -37,6 +37,9 @@ jobs:
       - name: Install WiX Toolset
         run: dotnet tool install --global wix --version 4.0.5
 
+      - name: Install WiX UI extension
+        run: wix extension add WixToolset.UI.wixext/4.0.5 --global
+
       - name: Install osslsigncode
         run: choco install osslsigncode --no-progress
 
