@@ -1,0 +1,32 @@
+# Maintainer: CodeAlchemy-Labs <maintainers@codealchemy-labs.example>
+pkgname=tictacli
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="TicTacToe WebSocket client"
+arch=('x86_64' 'aarch64')
+url="https://github.com/CodeAlchemy-Labs/tictactoe-rs"
+license=('MIT')
+depends=('gcc-libs' 'glibc' 'ca-certificates')
+makedepends=('cargo' 'rust')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
+sha256sums=('SKIP') # TODO(packaging): replace SKIP before submitting to AUR
+install=tictacli.install
+
+build() {
+  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  cargo build --release --locked --bin tictacli
+}
+
+check() {
+  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  cargo test --release --locked -p client
+}
+
+package() {
+  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  install -Dm755 target/release/tictacli "$pkgdir/usr/bin/tictacli"
+  install -Dm644 packaging/linux/common/tictacli.desktop "$pkgdir/usr/share/applications/tictacli.desktop"
+  install -Dm644 packaging/linux/common/tictacli.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/tictacli.png"
+  install -Dm644 packaging/linux/common/tictacli.1 "$pkgdir/usr/share/man/man1/tictacli.1"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

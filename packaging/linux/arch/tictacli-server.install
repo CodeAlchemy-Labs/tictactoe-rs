@@ -1,0 +1,14 @@
+post_install() {
+    echo "========================================================================="
+    echo " tictacli-server has been installed."
+    echo " A sample systemd unit file is located at:"
+    echo " /usr/share/doc/tictacli-server/systemd/tictacli-server.service"
+    echo ""
+    echo " To use it, copy it to /etc/systemd/system/, create the 'tictacli' user,"
+    echo " and enable the service."
+    echo "========================================================================="
+}
+
+post_upgrade() {
+    post_install
+}

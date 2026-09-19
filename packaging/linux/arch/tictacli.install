@@ -1,0 +1,11 @@
+post_install() {
+    echo "=========================================================="
+    echo " tictacli has been installed."
+    echo " You can launch it from your application menu or by typing"
+    echo " 'tictacli' in your terminal."
+    echo "=========================================================="
+}
+
+post_upgrade() {
+    post_install
+}
