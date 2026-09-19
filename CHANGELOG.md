@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Server-only production Docker image (`Dockerfile.server`). Unlike the demo
+  image, the production image ships only the `server` binary and defaults to
+  `TICTACTOE_ENV=production`.
+- `docker-compose.prod.yml` for testing production-mode behaviour locally. Binds
+  to `127.0.0.1` to prevent accidental LAN exposure; all hardening environment
+  variables are set to their recommended production values.
+- Make targets `prod-build`, `prod-up`, `prod-down`, and `prod-logs` for
+  managing the production image locally.
+
+### Changed
+
+- `render.yaml` now references `Dockerfile.server`, so the deployed container
+  ships only the `server` binary. The `[Unreleased]` comparison link above
+  will point to `v0.2.0` until the next release.
+- All `0.2.0` hardening environment variables (`TICTACTOE_ENV`,
+  `TICTACTOE_MAX_SESSIONS`, `TICTACTOE_MAX_SESSIONS_PER_IP`,
+  `TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE`) are now declared in `render.yaml`
+  so they appear in the Render dashboard.
+
+### Security
+
+- The production image no longer ships the `client` or `hacker` binaries.
+  Compromising a production container no longer gives the attacker a
+  ready-made adversarial tool against the same service.
+
 ## [0.2.0] - 2026-09-18
 
 ### Added
