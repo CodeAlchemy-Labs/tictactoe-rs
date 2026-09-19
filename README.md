@@ -106,11 +106,11 @@ extract it, and run the server:
 In two other terminals, run the two clients:
 
 ```fish
-./client --server ws://127.0.0.1:8080/ws --name alice
+./tictacli --server ws://127.0.0.1:8080/ws --name alice
 ```
 
 ```fish
-./client --server ws://127.0.0.1:8080/ws --name bob
+./tictacli --server ws://127.0.0.1:8080/ws --name bob
 ```
 
 And in a fourth terminal, run the hacker scenarios:
@@ -126,7 +126,7 @@ a development server with a self-signed certificate, pass `--insecure` to
 disable certificate verification. Do not use `--insecure` against a
 production endpoint.
 
-On Windows, use `.\server.exe`, `.\client.exe`, and `.\hacker.exe` from
+On Windows, use `.\server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
 
 ## Quick start
@@ -142,13 +142,13 @@ make run-server
 Run a client in a second terminal:
 
 ```fish
-cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name alice
+cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name alice
 ```
 
 Run a second client in a third terminal:
 
 ```fish
-cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name bob
+cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name bob
 ```
 
 Run the hacker against the running server:
@@ -239,13 +239,13 @@ make prod-up
 Smoke-test it with the bundled client:
 
 ```fish
-./client --server ws://127.0.0.1:8080/ws --name alice
+./tictacli --server ws://127.0.0.1:8080/ws --name alice
 ```
 
 Or, if you don't have a local binary:
 
 ```fish
-cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name alice
+cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name alice
 ```
 
 Stop the stack:
@@ -274,10 +274,10 @@ is the URL:
 
 ```fish
 # Local
-./client --server ws://127.0.0.1:8080/ws --name alice
+./tictacli --server ws://127.0.0.1:8080/ws --name alice
 
 # Remote over TLS (replace with the URL of your deployment)
-./client --server wss://<your-service>.onrender.com/ws --name alice
+./tictacli --server wss://<your-service>.onrender.com/ws --name alice
 ```
 
 The server reads its bind address from `TICTACTOE_BIND` first and falls back

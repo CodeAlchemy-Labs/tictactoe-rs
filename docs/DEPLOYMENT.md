@@ -106,7 +106,7 @@ Once deployed, you can verify the service is running:
 1. **Health Check**: Visit `https://<your-service>.onrender.com/health` in a browser. It should return an `OK` response.
 2. **WebSocket Handshake**: Test the connection using `wscat` or the bundled client:
    ```bash
-   ./client --server wss://<your-service>.onrender.com/ws --name test_user
+   ./tictacli --server wss://<your-service>.onrender.com/ws --name test_user
    ```
 3. **Log Inspection**: Check the Render dashboard logs to ensure the server started cleanly and is listening on the assigned `PORT`.
 

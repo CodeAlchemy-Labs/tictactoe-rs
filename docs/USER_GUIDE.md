@@ -4,6 +4,9 @@ Welcome to the `tictactoe-rs` user guide. This document explains how to install,
 
 ## Installing and running
 
+The client binary is `tictacli` on every platform.
+
+
 ### Pre-built binaries
 For a quick start, download the binaries for your platform from the [Releases](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases) page. Extract the archive and you'll have three executables: `server`, `client`, and `hacker`.
 
@@ -21,7 +24,7 @@ make demo-down
 Ensure you have Rust and Cargo installed, then run:
 ```bash
 cargo run --release --bin server
-cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name alice
+cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name alice
 ```
 
 ## Connecting to a server
