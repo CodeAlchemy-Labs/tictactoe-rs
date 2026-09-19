@@ -35,7 +35,7 @@ jobs:
         run: choco install innosetup --no-progress
 
       - name: Install WiX Toolset
-        run: dotnet tool install --global wix
+        run: dotnet tool install --global wix --version 4.0.5
 
       - name: Install osslsigncode
         run: choco install osslsigncode --no-progress
