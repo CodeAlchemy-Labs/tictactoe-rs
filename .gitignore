@@ -33,3 +33,8 @@ dist/
 *.pass
 packaging/windows/obj/
 packaging/windows/Output/
+
+packaging/linux/arch/pkg/
+packaging/linux/arch/src/
+packaging/linux/arch/*.pkg.tar.zst
+packaging/linux/arch/*.tar.gz
