@@ -70,7 +70,7 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// Persisted user configuration for the client.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ClientConfig {
     /// Server WebSocket URL, e.g. `ws://127.0.0.1:8080/ws`.
     pub server_url: Option<String>,
@@ -82,6 +82,7 @@ pub struct ClientConfig {
 
 /// Returns the absolute path of the config file, or `None` if the platform
 /// has no writable config directory.
+#[must_use]
 pub fn config_path() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "tictacli")
         .map(|dirs| dirs.config_dir().join("config.toml"))
@@ -91,19 +92,14 @@ pub fn config_path() -> Option<PathBuf> {
 ///
 /// Returns `ClientConfig::default()` if the file is missing, unreadable, or
 /// malformed. Never panics. Logs a warning on parse failure.
+#[must_use]
 pub fn load() -> ClientConfig {
-    match config_path() {
-        Some(path) => load_from(&path),
-        None => ClientConfig::default(),
-    }
+    config_path().map_or_else(ClientConfig::default, |path| load_from(&path))
 }
 
 #[cfg(test)]
 pub(crate) fn load_from(path: &Path) -> ClientConfig {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return ClientConfig::default(),
-    };
+    let Ok(content) = std::fs::read_to_string(path) else { return ClientConfig::default() };
     match toml::from_str(&content) {
         Ok(config) => config,
         Err(e) => {
@@ -114,10 +110,7 @@ pub(crate) fn load_from(path: &Path) -> ClientConfig {
 }
 #[cfg(not(test))]
 fn load_from(path: &Path) -> ClientConfig {
-    let content = match std::fs::read_to_string(path) {
-        Ok(c) => c,
-        Err(_) => return ClientConfig::default(),
-    };
+    let Ok(content) = std::fs::read_to_string(path) else { return ClientConfig::default() };
     match toml::from_str(&content) {
         Ok(config) => config,
         Err(e) => {
@@ -132,14 +125,21 @@ fn load_from(path: &Path) -> ClientConfig {
 /// Creates parent directories as needed. Returns an error only if the write
 /// itself fails; missing parents are not an error because the function
 /// creates them.
+///
+/// # Errors
+///
+/// Returns an error if the serialization fails, if there is an I/O failure
+/// writing the file or its directories, or if no writable config directory is found.
 pub fn save(config: &ClientConfig) -> std::io::Result<()> {
-    match config_path() {
-        Some(path) => save_to(&path, config),
-        None => Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "No writable config directory found",
-        )),
-    }
+    config_path().map_or_else(
+        || {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "No writable config directory found",
+            ))
+        },
+        |path| save_to(&path, config),
+    )
 }
 
 fn save_to(path: &Path, config: &ClientConfig) -> std::io::Result<()> {
@@ -151,7 +151,7 @@ fn save_to(path: &Path, config: &ClientConfig) -> std::io::Result<()> {
         Err(e) => {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Failed to serialize config: {}", e),
+                format!("Failed to serialize config: {e}"),
             ));
         }
     };
