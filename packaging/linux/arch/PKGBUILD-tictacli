@@ -14,6 +14,7 @@ install=tictacli.install
 
 build() {
   cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  export RUSTFLAGS="${RUSTFLAGS:-} -C linker=gcc"
   cargo build --release --locked --bin tictacli
 }
 
