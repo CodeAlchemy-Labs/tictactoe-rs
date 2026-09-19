@@ -3,19 +3,36 @@ on: workflow_dispatch
 jobs:
   deb:
     runs-on: ubuntu-22.04
+    container: debian:bookworm-slim
     steps:
       - uses: actions/checkout@v4
-      - name: Install fish
+
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fish
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            build-essential pkg-config ca-certificates curl fish \
+            dpkg-dev fakeroot lintian
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-deb
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install cargo-deb --locked
+
       - name: Build Debian packages
         run: fish packaging/linux/build-deb.fish
+
       - name: Verify artefacts
         run: |
           set -euo pipefail
           count=$(ls dist/linux/tictacli*.deb 2>/dev/null | wc -l)
           test "$count" -eq 3 || { echo "expected 3 .deb files, found $count"; ls -la dist/linux/; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-deb
@@ -24,19 +41,34 @@ jobs:
 
   rpm:
     runs-on: ubuntu-22.04
+    container: rockylinux:8
     steps:
       - uses: actions/checkout@v4
-      - name: Install fish
+
+      - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fish
+          dnf install -y epel-release
+          dnf install -y gcc rpm-build curl fish
+
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install cargo-generate-rpm
+        run: |
+          . "$HOME/.cargo/env"
+          cargo install cargo-generate-rpm --locked
+
       - name: Build RPM packages
         run: fish packaging/linux/build-rpm.fish
+
       - name: Verify artefacts
         run: |
           set -euo pipefail
           count=$(ls dist/linux/tictacli*.rpm 2>/dev/null | wc -l)
           test "$count" -eq 3 || { echo "expected 3 .rpm files, found $count"; ls -la dist/linux/; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-rpm
@@ -48,21 +80,26 @@ jobs:
     container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Install build dependencies
         run: |
           pacman -Syu --noconfirm base-devel cargo rust fish sudo
+
       - name: Create unprivileged build user
         run: |
           useradd -m builduser
           chown -R builduser:builduser .
+
       - name: Build Arch packages
         run: |
           su builduser -c "cd $(pwd) && fish packaging/linux/build-arch.fish"
+
       - name: Verify artefacts
         run: |
           set -euo pipefail
           count=$(ls dist/linux/tictacli*.pkg.tar.zst 2>/dev/null | wc -l)
           test "$count" -eq 2 || { echo "expected 2 .pkg.tar.zst files, found $count"; ls -la dist/linux/; exit 1; }
+
       - name: Upload artefacts
         uses: actions/upload-artifact@v4
         with:
@@ -74,21 +111,26 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools fish
+
       - name: Build musl packages
         run: fish packaging/linux/build-musl.fish
+
       - name: Verify artefacts
         run: |
           set -euo pipefail
           count=$(ls dist/linux/tictacli*-linux-musl-*.tar.gz 2>/dev/null | wc -l)
           test "$count" -eq 2 || { echo "expected 2 .tar.gz files, found $count"; ls -la dist/linux/; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-musl
