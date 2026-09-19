@@ -1,6 +1,7 @@
 # Installing the client
 
-For instructions on downloading and installing the TicTacToe Client on Windows 10/11, please see the [Installation Guide](INSTALLATION.md).
+For instructions on downloading and installing the TicTacToe Client on Windows and Linux, please see the [Installation Guide](INSTALLATION.md).
+For Linux users, the `.deb`, `.rpm`, and AUR packages also install a desktop entry. Launching the client from your application menu will open the connection screen directly.
 
 When you launch the client using the created Start Menu shortcut, it starts without arguments, and the connection screen will appear automatically to prompt for your server URL and guest name.
 
