@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-set -e
+# Fish stops on errors by default; explicit error-exit is via: exit
 
 # Resolve repo root from the script location so this works regardless of cwd.
 set REPO_ROOT (realpath (dirname (status filename))/../..)

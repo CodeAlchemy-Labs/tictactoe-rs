@@ -1,5 +1,5 @@
 #!/usr/bin/env fish
-set -e
+# Fish stops on errors by default; explicit error-exit is via: exit
 
 # Resolve repo root from the script location so this works regardless of cwd.
 set REPO_ROOT (realpath (dirname (status filename))/../..)
@@ -22,10 +22,14 @@ echo "Building release binaries..."
 cargo build --release --locked --bin tictacli --bin server
 
 echo "Building client .rpm with cargo-generate-rpm..."
-cargo generate-rpm -p client -o $DIST_DIR/
+cd crates/client
+cargo generate-rpm -o $DIST_DIR/
+cd ../..
 
 echo "Building server .rpm with cargo-generate-rpm..."
-cargo generate-rpm -p server -o $DIST_DIR/
+cd crates/server
+cargo generate-rpm -o $DIST_DIR/
+cd ../..
 
 echo "Building metapackage tictacli-full..."
 set SPEC (mktemp /tmp/tictacli-full-XXXXXX.spec)
