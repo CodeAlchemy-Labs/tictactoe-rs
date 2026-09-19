@@ -5,35 +5,70 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - run: fish packaging/linux/build-deb.fish
+      - name: Install fish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fish
+      - name: Build Debian packages
+        run: fish packaging/linux/build-deb.fish
+      - name: Verify artefacts
+        run: |
+          set -euo pipefail
+          count=$(ls dist/linux/tictacli*.deb 2>/dev/null | wc -l)
+          test "$count" -eq 3 || { echo "expected 3 .deb files, found $count"; ls -la dist/linux/; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-deb
           path: dist/linux/*.deb
+          if-no-files-found: error
 
   rpm:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - run: fish packaging/linux/build-rpm.fish
+      - name: Install fish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fish
+      - name: Build RPM packages
+        run: fish packaging/linux/build-rpm.fish
+      - name: Verify artefacts
+        run: |
+          set -euo pipefail
+          count=$(ls dist/linux/tictacli*.rpm 2>/dev/null | wc -l)
+          test "$count" -eq 3 || { echo "expected 3 .rpm files, found $count"; ls -la dist/linux/; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-rpm
           path: dist/linux/*.rpm
+          if-no-files-found: error
 
   arch:
     runs-on: ubuntu-22.04
-    container:
-      image: archlinux:latest
+    container: archlinux:latest
     steps:
       - uses: actions/checkout@v4
-      - run: pacman -Syu --noconfirm base-devel cargo rust
-      - run: useradd -m builduser && chown -R builduser:builduser .
-      - run: su - builduser -c "fish packaging/linux/build-arch.fish" || su - builduser -c "cd packaging/linux/arch && cp PKGBUILD-tictacli PKGBUILD && makepkg --noconfirm && cp PKGBUILD-tictacli-server PKGBUILD && makepkg --noconfirm && mkdir -p ../../../dist/linux && mv *.pkg.tar.zst ../../../dist/linux/"
-      - uses: actions/upload-artifact@v4
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm base-devel cargo rust fish sudo
+      - name: Create unprivileged build user
+        run: |
+          useradd -m builduser
+          chown -R builduser:builduser .
+      - name: Build Arch packages
+        run: |
+          su builduser -c "cd $(pwd) && fish packaging/linux/build-arch.fish"
+      - name: Verify artefacts
+        run: |
+          set -euo pipefail
+          count=$(ls dist/linux/tictacli*.pkg.tar.zst 2>/dev/null | wc -l)
+          test "$count" -eq 2 || { echo "expected 2 .pkg.tar.zst files, found $count"; ls -la dist/linux/; exit 1; }
+      - name: Upload artefacts
+        uses: actions/upload-artifact@v4
         with:
-          name: tictacli-arch
+          name: linux-arch
           path: dist/linux/*.pkg.tar.zst
+          if-no-files-found: error
 
   musl:
     runs-on: ubuntu-22.04
@@ -43,13 +78,19 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
-      - run: sudo apt-get update && sudo apt-get install -y musl-tools
-      - run: fish packaging/linux/build-musl.fish
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools fish
+      - name: Build musl packages
+        run: fish packaging/linux/build-musl.fish
+      - name: Verify artefacts
+        run: |
+          set -euo pipefail
+          count=$(ls dist/linux/tictacli*-linux-musl-*.tar.gz 2>/dev/null | wc -l)
+          test "$count" -eq 2 || { echo "expected 2 .tar.gz files, found $count"; ls -la dist/linux/; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
           name: tictacli-musl
           path: dist/linux/*.tar.gz
-
-# Note: The .deb and .rpm files produced by this workflow are not signed yet.
-# Please use --allow-unsafe-permissions or equivalent if needed, though they
-# should install fine without signing for local tests.
+          if-no-files-found: error
