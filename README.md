@@ -92,6 +92,8 @@ tictactoe-rs/
 
 ## Pre-built binaries
 
+Signed Windows installers for Windows 10/11 are produced by the packaging pipeline. See the [Installation Guide](docs/INSTALLATION.md) for download and setup instructions.
+
 If you only want to try the demo and do not need to build from source, the
 release page provides pre-compiled binaries for Linux and Windows:
 
