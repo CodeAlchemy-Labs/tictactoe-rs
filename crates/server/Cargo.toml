@@ -56,7 +56,7 @@ summary = "TicTacToe WebSocket server"
 license = "MIT"
 url = "https://github.com/CodeAlchemy-Labs/tictactoe-rs"
 assets = [
-    { source = "target/release/server", dest = "/usr/bin/tictacli-server", mode = "755" },
+    { source = "../../target/release/server", dest = "/usr/bin/tictacli-server", mode = "755" },
     { source = "../../packaging/linux/common/tictacli-server.1", dest = "/usr/share/man/man1/tictacli-server.1", mode = "644", doc = true },
     { source = "../../packaging/linux/common/tictacli-server.service", dest = "/usr/share/doc/tictacli-server/systemd/tictacli-server.service", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/tictacli-server/LICENSE", mode = "644", doc = true },

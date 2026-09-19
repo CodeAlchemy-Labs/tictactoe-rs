@@ -30,7 +30,7 @@ jobs:
       - name: Verify artefacts
         run: |
           set -e
-          count=$(ls dist/linux/tictacli*.deb 2>/dev/null | wc -l)
+          count=$(ls dist/linux/*.deb 2>/dev/null | wc -l)
           test "$count" -eq 3 || { echo "expected 3 .deb files, found $count"; ls -la dist/linux/; exit 1; }
 
       - uses: actions/upload-artifact@v4
@@ -83,7 +83,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          pacman -Syu --noconfirm base-devel cargo rust fish sudo
+          pacman -Syu --noconfirm base-devel cargo rust fish sudo git gzip
 
       - name: Create unprivileged build user
         run: |
