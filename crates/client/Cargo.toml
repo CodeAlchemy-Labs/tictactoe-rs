@@ -31,3 +31,5 @@ url.workspace = true
 
 [dev-dependencies]
 tokio-tungstenite.workspace = true
+[lints]
+workspace = true

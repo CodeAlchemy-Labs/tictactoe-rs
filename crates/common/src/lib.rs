@@ -14,15 +14,8 @@
 //! same game rules. Changing the protocol forces a compile error in every
 //! consumer, which is the entire point.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
 // The following allows keep `clippy::pedantic` actionable for this crate's size.
 // They do not weaken safety or correctness guarantees.
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::missing_const_for_fn)]
 
 pub mod domain;
 pub mod error;

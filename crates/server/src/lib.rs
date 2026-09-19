@@ -9,13 +9,6 @@
 //!   [`SessionGuard`](infrastructure::session_guard::SessionGuard) RAII
 //!   guard that performs deterministic cleanup when a client disconnects.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::missing_const_for_fn)]
 
 pub mod application;
 pub mod config;

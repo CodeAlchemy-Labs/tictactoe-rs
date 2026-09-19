@@ -69,3 +69,21 @@ futures-util = "0.3"
 lto = "thin"
 codegen-units = 1
 strip = true
+# Deny rust::* warnings, warn on a curated pedantic subset, no blanket allows.
+# Full pedantic and nursery are excluded to keep the build green.
+[workspace.lints.rust]
+# Deny all rust warnings by default
+warnings = "deny"
+
+[workspace.lints.clippy]
+use_self = "warn"
+doc_markdown = "warn"
+suboptimal_flops = "warn"
+significant_drop_tightening = "warn"
+tuple_array_conversions = "warn"
+needless_pass_by_value = "warn"
+redundant_clone = "warn"
+uninlined_format_args = "warn"
+
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "warn"

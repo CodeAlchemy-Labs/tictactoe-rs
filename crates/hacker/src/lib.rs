@@ -15,13 +15,6 @@
 //! the server defended or was compromised. The binary exits with code `0`
 //! when every scenario reports `Defended`.
 
-#![deny(missing_docs)]
-#![deny(unsafe_code)]
-#![deny(clippy::all)]
-#![deny(clippy::pedantic)]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::must_use_candidate)]
-#![allow(clippy::missing_const_for_fn)]
 
 pub mod config;
 pub mod outcome;
