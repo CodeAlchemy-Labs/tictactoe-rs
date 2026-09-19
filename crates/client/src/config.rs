@@ -33,7 +33,7 @@ pub struct Cli {
 
 /// Validated configuration for the terminal client.
 #[derive(Debug, Clone)]
-pub struct ClientConfig {
+pub struct ArgsConfig {
     /// The WebSocket URL of the server.
     pub server_url: String,
     /// The display name to announce via `Hello`.
@@ -42,7 +42,7 @@ pub struct ClientConfig {
     pub insecure: bool,
 }
 
-impl ClientConfig {
+impl ArgsConfig {
     /// Builds the configuration from process arguments and environment
     /// variables.
     ///
@@ -66,9 +66,145 @@ impl ClientConfig {
     }
 }
 
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+/// Persisted user configuration for the client.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ClientConfig {
+    /// Server WebSocket URL, e.g. `ws://127.0.0.1:8080/ws`.
+    pub server_url: Option<String>,
+    /// Preferred guest display name. Falls back to the OS username when None.
+    pub guest_name: Option<String>,
+    /// Whether TLS was requested the last time the user connected.
+    pub use_tls: Option<bool>,
+}
+
+/// Returns the absolute path of the config file, or `None` if the platform
+/// has no writable config directory.
+pub fn config_path() -> Option<PathBuf> {
+    directories::ProjectDirs::from("", "", "tictacli")
+        .map(|dirs| dirs.config_dir().join("config.toml"))
+}
+
+/// Loads the configuration from the platform config directory.
+///
+/// Returns `ClientConfig::default()` if the file is missing, unreadable, or
+/// malformed. Never panics. Logs a warning on parse failure.
+pub fn load() -> ClientConfig {
+    match config_path() {
+        Some(path) => load_from(&path),
+        None => ClientConfig::default(),
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn load_from(path: &Path) -> ClientConfig {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return ClientConfig::default(),
+    };
+    match toml::from_str(&content) {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::warn!("Failed to parse config at {}: {}", path.display(), e);
+            ClientConfig::default()
+        }
+    }
+}
+#[cfg(not(test))]
+fn load_from(path: &Path) -> ClientConfig {
+    let content = match std::fs::read_to_string(path) {
+        Ok(c) => c,
+        Err(_) => return ClientConfig::default(),
+    };
+    match toml::from_str(&content) {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::warn!("Failed to parse config at {}: {}", path.display(), e);
+            ClientConfig::default()
+        }
+    }
+}
+
+/// Persists the configuration to the platform config directory.
+///
+/// Creates parent directories as needed. Returns an error only if the write
+/// itself fails; missing parents are not an error because the function
+/// creates them.
+pub fn save(config: &ClientConfig) -> std::io::Result<()> {
+    match config_path() {
+        Some(path) => save_to(&path, config),
+        None => Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No writable config directory found",
+        )),
+    }
+}
+
+fn save_to(path: &Path, config: &ClientConfig) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let content = match toml::to_string(config) {
+        Ok(c) => c,
+        Err(e) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Failed to serialize config: {}", e),
+            ));
+        }
+    };
+    std::fs::write(path, content)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_round_trip() {
+        let config = ClientConfig {
+            server_url: Some("ws://127.0.0.1:8080/ws".to_string()),
+            guest_name: Some("Alice".to_string()),
+            use_tls: Some(true),
+        };
+        let serialized = toml::to_string(&config).unwrap();
+        let deserialized: ClientConfig = toml::from_str(&serialized).unwrap();
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn test_load_missing_file_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing.toml");
+        let config = load_from(&path);
+        assert_eq!(config, ClientConfig::default());
+    }
+
+    #[test]
+    fn test_load_malformed_file_returns_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("malformed.toml");
+        std::fs::write(&path, "invalid toml content = [] ]").unwrap();
+        let config = load_from(&path);
+        assert_eq!(config, ClientConfig::default());
+    }
+
+    #[test]
+    fn test_save_creates_directories() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("nested").join("dirs").join("config.toml");
+        let config = ClientConfig {
+            server_url: Some("ws://test".to_string()),
+            ..Default::default()
+        };
+        assert!(save_to(&path, &config).is_ok());
+        assert!(path.exists());
+
+        let loaded = load_from(&path);
+        assert_eq!(loaded, config);
+    }
 
     fn validate(url: &str) -> anyhow::Result<()> {
         let parsed = Url::parse(url).with_context(|| format!("invalid `{url}`"))?;

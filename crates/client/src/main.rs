@@ -15,14 +15,14 @@ use tracing_subscriber::EnvFilter;
 
 use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
-use client::config::ClientConfig;
+use client::config::ArgsConfig;
 use client::infrastructure::{Transport, WsTransport};
 use client::tui::{InputEvent, KeyAction, read_input_event, render, translate_key};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
-    let config = ClientConfig::from_args_and_env()?;
+    let config = ArgsConfig::from_args_and_env()?;
 
     let mut terminal = TerminalSession::enter()?;
 
