@@ -7,14 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
+- `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
+- Static musl build distributed as a `.tar.gz` for maximum cross-distro compatibility.
+- Sample systemd unit for the server, shipped under `/usr/share/doc/tictacli-server/systemd/` and disabled by default.
+- Man pages for `tictacli` and `tictacli-server`.
+- `package-linux.yml` GitHub Actions workflow for producing all Linux artefacts on demand.
 - Signed Windows installers for Windows 10/11: Inno Setup `.exe` and WiX `.msi`, with Start Menu and Desktop shortcuts that launch `tictacli` directly.
 - Self-signed code-signing certificate for CodeAlchemy-Labs. The public certificate is distributed in `packaging/certs/` so users can add it to their trust store; instructions are in `docs/INSTALLATION.md`.
 - `docs/INSTALLATION.md`: user-facing installation guide for Windows.
 
 ### Changed
+- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 - The Windows installers ship only the `tictacli` client. The `server` portable build and the `hacker` binary remain available as source builds.
 
 ### Added
+- Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
+- `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
+- Static musl build distributed as a `.tar.gz` for maximum cross-distro compatibility.
+- Sample systemd unit for the server, shipped under `/usr/share/doc/tictacli-server/systemd/` and disabled by default.
+- Man pages for `tictacli` and `tictacli-server`.
+- `package-linux.yml` GitHub Actions workflow for producing all Linux artefacts on demand.
 
 - Interactive Connection screen in the `tictacli` client. On startup, the client presents a form to input the server host, guest name, and TLS toggle before connecting.
 - Precedence-based configuration resolution: `tictacli` resolves the server and guest name in the order of CLI flags > environment variables > saved configuration file > OS `whoami`.
@@ -34,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   managing the production image locally.
 
 ### Changed
+- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 
 - The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
@@ -54,6 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2026-09-18
 
 ### Added
+- Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
+- `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
+- Static musl build distributed as a `.tar.gz` for maximum cross-distro compatibility.
+- Sample systemd unit for the server, shipped under `/usr/share/doc/tictacli-server/systemd/` and disabled by default.
+- Man pages for `tictacli` and `tictacli-server`.
+- `package-linux.yml` GitHub Actions workflow for producing all Linux artefacts on demand.
 
 - Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
 
@@ -68,6 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/USER_GUIDE.md` comprehensive guide covering the client TUI, server configuration, screen flows, and troubleshooting.
 
 ### Changed
+- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 
 - The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
@@ -89,6 +110,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2026-09-17
 
 ### Added
+- Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
+- `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
+- Static musl build distributed as a `.tar.gz` for maximum cross-distro compatibility.
+- Sample systemd unit for the server, shipped under `/usr/share/doc/tictacli-server/systemd/` and disabled by default.
+- Man pages for `tictacli` and `tictacli-server`.
+- `package-linux.yml` GitHub Actions workflow for producing all Linux artefacts on demand.
 
 - Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
 
@@ -113,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminates at a proxy, including the implications of `--insecure`.
 
 ### Changed
+- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 
 - The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
@@ -145,6 +173,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-09-17
 
 ### Added
+- Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
+- `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
+- Static musl build distributed as a `.tar.gz` for maximum cross-distro compatibility.
+- Sample systemd unit for the server, shipped under `/usr/share/doc/tictacli-server/systemd/` and disabled by default.
+- Man pages for `tictacli` and `tictacli-server`.
+- `package-linux.yml` GitHub Actions workflow for producing all Linux artefacts on demand.
 
 - Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
 
@@ -178,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 91 tests across the workspace at the time of release.
 
 ### Changed
+- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 
 - The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
