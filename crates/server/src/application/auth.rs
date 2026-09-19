@@ -339,12 +339,12 @@ mod tests {
             .register(profile("Bob", "bob_77", 25), "hunter2hunter2".to_string())
             .await
             .unwrap();
-        let (alice_hash, bob_hash) = {
-            let users = service.lock();
-            let alice = users.get(&Username::new("alice_99").unwrap()).unwrap();
-            let bob = users.get(&Username::new("bob_77").unwrap()).unwrap();
-            (alice.password_hash.clone(), bob.password_hash.clone())
-        };
+        let users = service.lock();
+        let alice = users.get(&Username::new("alice_99").unwrap()).unwrap();
+        let bob = users.get(&Username::new("bob_77").unwrap()).unwrap();
+        let alice_hash = alice.password_hash.clone();
+        let bob_hash = bob.password_hash.clone();
+        drop(users);
         assert_ne!(alice_hash, bob_hash);
     }
 }

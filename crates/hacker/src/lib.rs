@@ -15,7 +15,6 @@
 //! the server defended or was compromised. The binary exits with code `0`
 //! when every scenario reports `Defended`.
 
-
 pub mod config;
 pub mod outcome;
 pub mod scenarios;

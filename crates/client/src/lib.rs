@@ -11,7 +11,6 @@
 //!   a mock in tests.
 //! - [`tui`]: rendering and input handling for the terminal UI.
 
-
 pub mod app;
 pub mod config;
 pub mod domain;

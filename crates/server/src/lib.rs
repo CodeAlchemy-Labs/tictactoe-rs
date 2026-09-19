@@ -9,7 +9,6 @@
 //!   [`SessionGuard`](infrastructure::session_guard::SessionGuard) RAII
 //!   guard that performs deterministic cleanup when a client disconnects.
 
-
 pub mod application;
 pub mod config;
 pub mod domain;
