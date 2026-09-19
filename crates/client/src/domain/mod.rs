@@ -4,7 +4,9 @@
 //! to display and what the state machine needs to track.
 
 pub mod auth_form;
+pub mod connection_form;
 pub mod screen;
 
 pub use auth_form::{AuthField, AuthForm, AuthMode, PendingAction};
+pub use connection_form::{ConnectionField, ConnectionForm};
 pub use screen::{ActiveMatch, Screen, SpectatedMatch};

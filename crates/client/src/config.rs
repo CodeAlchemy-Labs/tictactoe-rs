@@ -12,16 +12,12 @@ use url::Url;
 #[command(name = "tictacli", about = "Terminal client for tictactoe-rs", version)]
 pub struct Cli {
     /// WebSocket URL of the server. Accepts `ws://` and `wss://`.
-    #[arg(
-        long,
-        env = "TICTACTOE_SERVER",
-        default_value = "ws://127.0.0.1:8080/ws"
-    )]
-    pub server: String,
+    #[arg(long, env = "TICTACTOE_SERVER")]
+    pub server: Option<String>,
 
     /// Display name announced to the server.
     #[arg(long, env = "TICTACTOE_NAME")]
-    pub name: String,
+    pub name: Option<String>,
 
     /// Disable TLS certificate verification.
     ///
@@ -35,9 +31,9 @@ pub struct Cli {
 #[derive(Debug, Clone)]
 pub struct ArgsConfig {
     /// The WebSocket URL of the server.
-    pub server_url: String,
+    pub server_url: Option<String>,
     /// The display name to announce via `Hello`.
-    pub display_name: String,
+    pub display_name: Option<String>,
     /// Whether TLS certificate verification should be disabled.
     pub insecure: bool,
 }
@@ -52,11 +48,12 @@ impl ArgsConfig {
     /// `ws` or `wss`.
     pub fn from_args_and_env() -> anyhow::Result<Self> {
         let cli = Cli::parse();
-        let url = Url::parse(&cli.server)
-            .with_context(|| format!("invalid server URL `{}`", cli.server))?;
-        match url.scheme() {
-            "ws" | "wss" => {}
-            other => bail!("unsupported URL scheme `{other}`; expected `ws` or `wss`"),
+        if let Some(ref s) = cli.server {
+            let url = Url::parse(s).with_context(|| format!("invalid server URL `{s}`"))?;
+            match url.scheme() {
+                "ws" | "wss" => {}
+                other => bail!("unsupported URL scheme `{other}`; expected `ws` or `wss`"),
+            }
         }
         Ok(Self {
             server_url: cli.server,
@@ -99,7 +96,9 @@ pub fn load() -> ClientConfig {
 
 #[cfg(test)]
 pub(crate) fn load_from(path: &Path) -> ClientConfig {
-    let Ok(content) = std::fs::read_to_string(path) else { return ClientConfig::default() };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return ClientConfig::default();
+    };
     match toml::from_str(&content) {
         Ok(config) => config,
         Err(e) => {
@@ -110,7 +109,9 @@ pub(crate) fn load_from(path: &Path) -> ClientConfig {
 }
 #[cfg(not(test))]
 fn load_from(path: &Path) -> ClientConfig {
-    let Ok(content) = std::fs::read_to_string(path) else { return ClientConfig::default() };
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return ClientConfig::default();
+    };
     match toml::from_str(&content) {
         Ok(config) => config,
         Err(e) => {

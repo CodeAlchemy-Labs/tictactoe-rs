@@ -44,6 +44,11 @@ pub struct SpectatedMatch {
 /// The screen currently shown to the user.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Screen {
+    /// The pre-lobby connection screen.
+    ///
+    /// Shown at startup when the server URL or the guest name is not fully
+    /// resolvable from the command line or environment.
+    Connection,
     /// Waiting for the connection to be established and the welcome message.
     Connecting,
     /// Authenticating as a registered user.
@@ -83,6 +88,7 @@ impl Screen {
     #[must_use]
     pub const fn title(&self) -> &'static str {
         match self {
+            Self::Connection => "Connection",
             Self::Connecting => "Connecting",
             Self::Auth(_) => "Auth",
             Self::Lobby { .. } => "Lobby",
@@ -127,6 +133,7 @@ mod tests {
 
     #[test]
     fn title_matches_variant() {
+        assert_eq!(Screen::Connection.title(), "Connection");
         assert_eq!(Screen::Connecting.title(), "Connecting");
         assert_eq!(
             Screen::Lobby {

@@ -16,6 +16,9 @@ keywords = ["websocket", "game", "tictactoe", "async", "axum"]
 categories = ["games", "network-programming"]
 
 [workspace.dependencies]
+
+whoami = "1"
+
 # Config
 directories = "5"
 toml = "0.8"

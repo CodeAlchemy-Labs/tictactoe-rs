@@ -39,7 +39,7 @@ async fn full_happy_path_over_the_mock_transport() {
     let outgoing = handle.outgoing;
     let mut incoming = handle.incoming;
 
-    let mut state = AppState::new("alice");
+    let mut state = AppState::with_config(None, Some("alice"), &client::config::ClientConfig::default());
 
     // The main loop always starts by sending Hello.
     outgoing
@@ -166,7 +166,7 @@ async fn server_disconnect_marks_state_as_fatal() {
     let handle = transport.start();
     let mut incoming = handle.incoming;
 
-    let mut state = AppState::new("alice");
+    let mut state = AppState::with_config(None, Some("alice"), &client::config::ClientConfig::default());
     drop(server_tx);
     assert!(incoming.recv().await.is_none());
     let mut effects = Vec::new();

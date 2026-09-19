@@ -1,5 +1,6 @@
 //! Rendering for the terminal UI.
 
+use crate::domain::{ConnectionField, ConnectionForm};
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -43,6 +44,9 @@ fn render_header(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
 
 fn render_body(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
     match &state.screen {
+        Screen::Connection => {
+            render_connection(frame, area, &state.connection_form);
+        }
         Screen::Connecting => {
             frame.render_widget(
                 Paragraph::new("Connecting to the server...")
@@ -402,4 +406,54 @@ fn cell_style(cell: Cell) -> Style {
             .add_modifier(Modifier::BOLD),
         Cell::Empty => Style::default(),
     }
+}
+
+fn render_connection(frame: &mut Frame<'_>, area: Rect, form: &ConnectionForm) {
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(5),
+            Constraint::Length(3),
+            Constraint::Length(3),
+        ])
+        .split(area);
+
+    let mut lines: Vec<Line<'static>> = Vec::new();
+
+    let scheme_label = if form.use_tls { "wss://" } else { "ws://" };
+
+    let host_line = format!("{}{}", scheme_label, form.host);
+    lines.push(field_line(
+        "Server",
+        &host_line,
+        form.focus == ConnectionField::Server,
+    ));
+
+    lines.push(field_line(
+        "Name",
+        &form.guest_name,
+        form.focus == ConnectionField::GuestName,
+    ));
+
+    let tls_value = if form.use_tls { "enabled" } else { "disabled" };
+    lines.push(field_line(
+        "TLS",
+        tls_value,
+        form.focus == ConnectionField::Tls,
+    ));
+
+    let fields =
+        Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("Connection"));
+    frame.render_widget(fields, rows[0]);
+
+    let error_text = form.error.clone().unwrap_or_default();
+    let error = Paragraph::new(error_text)
+        .block(Block::default().borders(Borders::ALL).title("Message"))
+        .style(Style::default().fg(Color::Red));
+    frame.render_widget(error, rows[1]);
+
+    let help =
+        Paragraph::new("Tab: next  Shift-Tab: previous  Enter: submit  F3: toggle TLS  Esc: quit")
+            .block(Block::default().borders(Borders::ALL));
+    frame.render_widget(help, rows[2]);
 }

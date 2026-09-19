@@ -119,9 +119,23 @@ pub fn read_key_action(screen: &Screen) -> Result<KeyAction, InputError> {
 #[must_use]
 pub const fn translate_key(code: KeyCode, screen: &Screen) -> KeyAction {
     match screen {
+        Screen::Connection => translate_connection_key(code),
         Screen::Auth(_) => translate_auth_key(code),
         Screen::Spectating(_) => translate_spectating_key(code),
         _ => translate_default_key(code, screen),
+    }
+}
+
+const fn translate_connection_key(code: KeyCode) -> KeyAction {
+    match code {
+        KeyCode::Esc => KeyAction::Event(AppEvent::Cancel),
+        KeyCode::Enter => KeyAction::Event(AppEvent::Submit),
+        KeyCode::Tab => KeyAction::Event(AppEvent::Tab),
+        KeyCode::BackTab => KeyAction::Event(AppEvent::ShiftTab),
+        KeyCode::Backspace => KeyAction::Event(AppEvent::PopChar),
+        KeyCode::F(3) => KeyAction::Event(AppEvent::ToggleTls),
+        KeyCode::Char(c) => KeyAction::Event(AppEvent::Input(c)),
+        _ => KeyAction::Ignored,
     }
 }
 
@@ -183,6 +197,7 @@ const fn translate_default_key(code: KeyCode, screen: &Screen) -> KeyAction {
                 }
                 Screen::InGame(_) => KeyAction::Event(AppEvent::PlayMove(value)),
                 Screen::Connecting
+                | Screen::Connection
                 | Screen::Auth(_)
                 | Screen::Ranking { .. }
                 | Screen::Spectating(_)

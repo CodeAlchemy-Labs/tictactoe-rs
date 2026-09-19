@@ -33,6 +33,12 @@ use server::apply_server;
 pub enum SideEffect {
     /// Send a message to the server.
     Send(ClientMessage),
+    /// Connect to a new server.
+    Connect {
+        url: String,
+        name: String,
+        use_tls: bool,
+    },
     /// Quit the process.
     Quit,
 }
@@ -51,6 +57,10 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         AppEvent::Disconnected => {
             state.screen = Screen::Fatal(String::from("server closed the connection"));
             state.should_quit = true;
+        }
+        AppEvent::ConnectionFailed { reason } => {
+            state.screen = Screen::Connection;
+            state.connection_form.error = Some(reason);
         }
         AppEvent::Quit => {
             state.should_quit = true;
@@ -138,6 +148,54 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         // `Redraw` only wakes the main loop so it can redraw the frame; the
         // auth events are handled at the top of this function. Both are
         // intentional no-ops in this match, so they share an arm.
+        AppEvent::Input(c) => {
+            if let Screen::Connection = state.screen {
+                state.connection_form.push_char(c);
+            }
+        }
+        AppEvent::PopChar => {
+            if let Screen::Connection = state.screen {
+                state.connection_form.pop_char();
+            }
+        }
+        AppEvent::Tab => {
+            if let Screen::Connection = state.screen {
+                state.connection_form.tab();
+            }
+        }
+        AppEvent::ShiftTab => {
+            if let Screen::Connection = state.screen {
+                state.connection_form.shift_tab();
+            }
+        }
+        AppEvent::ToggleTls => {
+            if let Screen::Connection = state.screen {
+                state.connection_form.toggle_tls();
+            }
+        }
+        AppEvent::Submit => {
+            if let Screen::Connection = state.screen {
+                match state.connection_form.build_url() {
+                    Ok(url) => {
+                        effects.push(SideEffect::Connect {
+                            url,
+                            name: state.connection_form.guest_name.clone(),
+                            use_tls: state.connection_form.use_tls,
+                        });
+                        state.screen = Screen::Connecting;
+                        state.status = String::from("connecting...");
+                    }
+                    Err(msg) => {
+                        state.connection_form.error = Some(msg);
+                    }
+                }
+            }
+        }
+        AppEvent::Cancel => {
+            if let Screen::Connection = state.screen {
+                state.should_quit = true;
+            }
+        }
         AppEvent::Redraw
         | AppEvent::AuthInput(_)
         | AppEvent::AuthBackspace
@@ -167,6 +225,7 @@ pub fn dispatch(
                 let _ = outgoing.send(message);
             }
             SideEffect::Quit => *should_quit = true,
+            SideEffect::Connect { .. } => {}
         }
     }
 }

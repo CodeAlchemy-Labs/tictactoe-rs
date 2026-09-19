@@ -13,7 +13,6 @@ use ratatui::backend::CrosstermBackend;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
-use client::app::update::dispatch;
 use client::app::{AppEvent, AppState, apply_event};
 use client::config::ArgsConfig;
 use client::infrastructure::{Transport, WsTransport};
@@ -23,31 +22,21 @@ use client::tui::{InputEvent, KeyAction, read_input_event, render, translate_key
 async fn main() -> anyhow::Result<()> {
     init_tracing();
     let config = ArgsConfig::from_args_and_env()?;
+    let client_config = client::config::load();
 
     let mut terminal = TerminalSession::enter()?;
 
-    let transport = WsTransport::new(config.server_url.clone(), config.insecure);
-    let handle = transport.start();
-    let outgoing = handle.outgoing;
-    let mut incoming = handle.incoming;
-
     let (event_tx, mut event_rx) = mpsc::unbounded_channel::<AppEvent>();
 
-    let server_events = event_tx.clone();
-    tokio::spawn(async move {
-        while let Some(message) = incoming.recv().await {
-            if server_events.send(AppEvent::Server(message)).is_err() {
-                return;
-            }
-        }
-        let _ = server_events.send(AppEvent::Disconnected);
-    });
+    // Global outgoing sender that can be replaced on reconnect
+    let (dummy_tx, _) = mpsc::unbounded_channel();
+    let global_outgoing = Arc::new(RwLock::new(dummy_tx));
 
-    // The keyboard thread reads a raw input event, then looks up the current
-    // screen through an `RwLock` and translates the key against it. Reading
-    // the screen after the key arrives keeps the translation fresh without
-    // adding any lag. Resize events are forwarded as `AppEvent::Redraw`.
-    let mut state = AppState::new(config.display_name.clone());
+    let mut state = AppState::with_config(
+        config.server_url.as_deref(),
+        config.display_name.as_deref(),
+        &client_config,
+    );
     let screen = Arc::new(RwLock::new(state.screen.clone()));
 
     let keyboard_events = event_tx.clone();
@@ -82,11 +71,31 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    outgoing
-        .send(common::protocol::ClientMessage::Hello {
-            display_name: config.display_name,
-        })
-        .map_err(|_| anyhow::anyhow!("transport closed before sending hello"))?;
+    // Fast path connection
+    if !state.uses_connection_form {
+        let url = config.server_url.clone().unwrap();
+        let insecure = config.insecure;
+        let name = config.display_name.clone().unwrap();
+
+        let transport = WsTransport::new(url, insecure);
+        let handle = transport.start();
+        *global_outgoing.write().unwrap() = handle.outgoing.clone();
+        let mut incoming = handle.incoming;
+
+        let server_events = event_tx.clone();
+        tokio::spawn(async move {
+            while let Some(message) = incoming.recv().await {
+                if server_events.send(AppEvent::Server(message)).is_err() {
+                    return;
+                }
+            }
+            let _ = server_events.send(AppEvent::Disconnected);
+        });
+
+        let _ = handle
+            .outgoing
+            .send(common::protocol::ClientMessage::Hello { display_name: name });
+    }
 
     while !state.should_quit {
         terminal
@@ -97,11 +106,95 @@ async fn main() -> anyhow::Result<()> {
         let Some(event) = event_rx.recv().await else {
             break;
         };
+
+        if let AppEvent::Server(common::protocol::ServerMessage::Welcome { .. }) = &event
+            && state.uses_connection_form
+        {
+                let url = state
+                    .connection_form
+                    .build_url()
+                    .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
+                let c = client::config::ClientConfig {
+                    server_url: Some(url),
+                    guest_name: Some(state.connection_form.guest_name.clone()),
+                    use_tls: Some(state.connection_form.use_tls),
+                };
+                if let Err(e) = client::config::save(&c) {
+                    tracing::warn!("Failed to save client config: {}", e);
+                }
+        }
+
         let mut effects = Vec::new();
         apply_event(&mut state, event, &mut effects);
-        let mut quit = state.should_quit;
-        dispatch(effects, &outgoing, &mut quit);
-        state.should_quit = quit;
+
+        for effect in effects {
+            match effect {
+                client::app::update::SideEffect::Send(message) => {
+                    let sender = global_outgoing.read().unwrap().clone();
+                    let _ = sender.send(message);
+                }
+                client::app::update::SideEffect::Connect {
+                    url,
+                    name,
+                    use_tls: _,
+                } => {
+                    let insecure = config.insecure;
+                    let server_events = event_tx.clone();
+                    let outgoing_ref = Arc::clone(&global_outgoing);
+
+                    tokio::spawn(async move {
+                        let transport = WsTransport::new(url, insecure);
+                        let handle = transport.start();
+                        let mut incoming = handle.incoming;
+                        let outgoing = handle.outgoing;
+
+                        if outgoing
+                            .send(common::protocol::ClientMessage::Hello { display_name: name })
+                            .is_err()
+                        {
+                            let _ = server_events.send(AppEvent::ConnectionFailed {
+                                reason: "Failed to send Hello".to_string(),
+                            });
+                            return;
+                        }
+
+                        match tokio::time::timeout(
+                            std::time::Duration::from_secs(10),
+                            incoming.recv(),
+                        )
+                        .await
+                        {
+                            Ok(Some(msg)) => {
+                                *outgoing_ref.write().unwrap() = outgoing;
+                                if server_events.send(AppEvent::Server(msg)).is_err() {
+                                    return;
+                                }
+
+                                tokio::spawn(async move {
+                                    while let Some(m) = incoming.recv().await {
+                                        if server_events.send(AppEvent::Server(m)).is_err() {
+                                            return;
+                                        }
+                                    }
+                                    let _ = server_events.send(AppEvent::Disconnected);
+                                });
+                            }
+                            Ok(None) => {
+                                let _ = server_events.send(AppEvent::ConnectionFailed {
+                                    reason: "Connection refused or unreachable".to_string(),
+                                });
+                            }
+                            Err(_) => {
+                                let _ = server_events.send(AppEvent::ConnectionFailed {
+                                    reason: "Connection timed out".to_string(),
+                                });
+                            }
+                        }
+                    });
+                }
+                client::app::update::SideEffect::Quit => state.should_quit = true,
+            }
+        }
 
         *screen
             .write()
