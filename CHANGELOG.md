@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
+
 - Server-only production Docker image (`Dockerfile.server`). Unlike the demo
   image, the production image ships only the `server` binary and defaults to
   `TICTACTOE_ENV=production`.
@@ -19,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   managing the production image locally.
 
 ### Changed
+
+- The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
 - `render.yaml` now references `Dockerfile.server`, so the deployed container
   ships only the `server` binary. The `[Unreleased]` comparison link above
@@ -38,6 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
+
 - Authentication system using Argon2id password hashing and user registry.
 - Global ranking service that tracks and exposes the top 10 players by wins.
 - Real-time spectating of ongoing matches, including a 5-spectator cap and full state synchronization.
@@ -49,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/USER_GUIDE.md` comprehensive guide covering the client TUI, server configuration, screen flows, and troubleshooting.
 
 ### Changed
+
+- The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
 - Elevated workspace `rustc` and `clippy` lint configurations. Denied standard warnings and promoted a curated subset of `clippy::pedantic` lints to `warn` level.
 - Refactored formatting to align with the Rust 2024 edition style guidelines, configuring `rustfmt.toml` with shorthand initializers and Unix newlines.
@@ -68,6 +76,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2026-09-17
 
 ### Added
+
+- Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
 
 - TLS support in the client. `tokio-tungstenite` is now built with the
   `rustls-tls-native-roots` feature, so the client can connect to `wss://`
@@ -90,6 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   terminates at a proxy, including the implications of `--insecure`.
 
 ### Changed
+
+- The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
 - The client now uses `clap` for argument parsing, matching the hacker
   crate. Environment variables (`TICTACTOE_SERVER`, `TICTACTOE_NAME`) are
@@ -121,6 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
+
 - Cargo workspace with four crates: `common`, `server`, `client`, and `hacker`.
 - `common` crate with the JSON wire protocol (`ClientMessage`, `ServerMessage`,
   `ErrorCode`, `ClientId`, `MatchId`, `MatchSummary`) and the pure Tic-Tac-Toe
@@ -151,6 +165,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 91 tests across the workspace at the time of release.
 
 ### Changed
+
+- The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
 
 - The `port_reuse` hacker scenario now reports the outcome honestly for both
   shared and isolated network namespaces, instead of assuming that the
