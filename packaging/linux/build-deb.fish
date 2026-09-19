@@ -1,47 +1,43 @@
 #!/usr/bin/env fish
 set -e
 
+# Resolve repo root from the script location so this works regardless of cwd.
 set REPO_ROOT (realpath (dirname (status filename))/../..)
 cd $REPO_ROOT
 
 set DIST_DIR $REPO_ROOT/dist/linux
+set VERSION "0.2.0"
 
 echo "Cleaning old .deb artefacts..."
 mkdir -p $DIST_DIR
 rm -f $DIST_DIR/tictacli*.deb
 
-echo "Building Debian packages via Docker..."
-docker run --rm \
-    -v $REPO_ROOT:/work \
-    -w /work \
-    -e CARGO_HOME=/work/.cargo-cache \
-    debian:bullseye-slim \
-    bash -c "set -euo pipefail && \
-        apt-get update && \
-        apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl dpkg-dev && \
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.80.0 && \
-        . ~/.cargo/env && \
-        cargo install cargo-deb --locked && \
-        cargo build --release --locked --bin tictacli --bin tictacli-server && \
-        cargo deb -p client --no-build --output dist/linux/ && \
-        cargo deb -p server --no-build --output dist/linux/ && \
-        mkdir -p dist/linux/tictacli-full-meta/DEBIAN && \
-        echo 'Package: tictacli-full' > dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Version: 0.2.0' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Architecture: all' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Maintainer: CodeAlchemy-Labs <maintainers@codealchemy-labs.example>' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Depends: tictacli, tictacli-server' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Section: metapackages' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Priority: optional' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo 'Description: TicTacToe full metapackage' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        echo ' Installs both the client and server.' >> dist/linux/tictacli-full-meta/DEBIAN/control && \
-        dpkg-deb --build dist/linux/tictacli-full-meta dist/linux/tictacli-full_0.2.0_all.deb && \
-        rm -rf dist/linux/tictacli-full-meta"
+# Source cargo env if it exists (container may have installed Rust via rustup)
+if test -f "$HOME/.cargo/env"
+    bash -c "source $HOME/.cargo/env && echo \$PATH" | read -l CARGO_PATH
+    set -x PATH $CARGO_PATH
+end
 
-echo "Verifying generated .deb files..."
+echo "Building release binaries..."
+cargo build --release --locked --bin tictacli --bin server
+
+echo "Building client .deb with cargo-deb..."
+cargo deb -p client --no-build --output $DIST_DIR/
+
+echo "Building server .deb with cargo-deb..."
+cargo deb -p server --no-build --output $DIST_DIR/
+
+echo "Building metapackage tictacli-full..."
+set META (mktemp -d)
+trap "rm -rf $META" EXIT
+mkdir -p $META/DEBIAN
+printf 'Package: tictacli-full\nVersion: %s\nArchitecture: all\nMaintainer: CodeAlchemy-Labs <maintainers@codealchemy-labs.example>\nDepends: tictacli, tictacli-server\nSection: metapackages\nPriority: optional\nDescription: TicTacToe full metapackage\n Installs both the client and server.\n' $VERSION > $META/DEBIAN/control
+dpkg-deb --build $META $DIST_DIR/tictacli-full_"$VERSION"_all.deb
+
+echo "Verifying .deb files..."
 for file in $DIST_DIR/tictacli*.deb
-    echo "Checking $file"
-    docker run --rm -v $DIST_DIR:/pkg debian:bullseye-slim dpkg-deb --info /pkg/(basename $file)
+    echo "--- $file ---"
+    dpkg-deb --info $file
     sha256sum $file
 end
 
