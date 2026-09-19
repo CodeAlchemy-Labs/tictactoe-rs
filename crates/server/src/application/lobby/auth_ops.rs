@@ -21,6 +21,7 @@ use super::{
 
 impl LobbyService {
     /// Handles `Hello`.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to mutate session and send response
     pub fn hello(&self, client: ClientId, display_name: &str) {
         let mut state = self.lock();
         let Some(session) = state.sessions.get_mut(&client) else {

@@ -32,6 +32,7 @@ impl LobbyService {
     /// current mode. This keeps the server stateless with respect to the
     /// user's intent and lets a spectator see matches that already have two
     /// players.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to iterate matches and send response
     pub fn list_matches(&self, client: ClientId) {
         let state = self.lock();
         let Some(session) = state.sessions.get(&client) else {
@@ -209,6 +210,7 @@ impl LobbyService {
     }
 
     /// Handles `Spectate`.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to mutate session and broadcast
     pub fn spectate(&self, client: ClientId, match_id: MatchId) {
         let mut state = self.lock();
 
@@ -385,6 +387,7 @@ impl LobbyService {
     /// unexpected disconnections (handled by
     /// [`LobbyService::disconnect`](LobbyService::disconnect)) go through
     /// the reconnection grace period.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to mutate session and detach
     pub fn leave_match(&self, client: ClientId) {
         let mut state = self.lock();
         let Some(match_id) = state.sessions.get(&client).and_then(|s| s.current_match) else {

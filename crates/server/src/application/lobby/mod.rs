@@ -166,8 +166,9 @@ impl LobbyService {
     ///
     /// # Errors
     ///
-    /// Returns [`ErrorCode::TooManySessions`] if the global session limit or the
+    /// Returns [`common::protocol::ErrorCode::TooManySessions`] if the global session limit or the
     /// per-IP session limit has been reached.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to mutate sessions
     pub fn register_client(
         &self,
         sender: mpsc::UnboundedSender<ServerMessage>,
@@ -200,6 +201,7 @@ impl LobbyService {
     /// caller is expected to start the grace-period timer with the returned
     /// [`Disconnection`]. If the client was not in a match, the username is
     /// released immediately.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to clean up sessions
     pub fn disconnect(&self, client: ClientId) -> Option<Disconnection> {
         let mut state = self.lock();
         let session = state.sessions.remove(&client)?;
@@ -333,6 +335,7 @@ pub(super) const fn reason_message(reason: AuthFailureReason) -> &'static str {
 impl LobbyService {
     /// Checks and updates the rate limit for the client's IP.
     /// Returns `true` if the request is allowed, `false` if rate limited.
+    #[allow(clippy::significant_drop_tightening)] // reason: state is required to update auth buckets
     pub(super) fn consume_auth_token(&self, client_id: ClientId) -> bool {
         let mut state = self.lock();
         let ip = if let Some(session) = state.sessions.get(&client_id) {
@@ -357,7 +360,7 @@ impl LobbyService {
         });
 
         let elapsed = now.duration_since(bucket.last_update).as_secs_f32();
-        bucket.tokens = (bucket.tokens + elapsed * refill_rate).min(max_tokens);
+        bucket.tokens = elapsed.mul_add(refill_rate, bucket.tokens).min(max_tokens);
         bucket.last_update = now;
 
         if bucket.tokens >= 1.0 {
