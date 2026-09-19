@@ -62,4 +62,7 @@ assets = [
     { source = "../../LICENSE", dest = "/usr/share/licenses/tictacli-server/LICENSE", mode = "644", doc = true },
 ]
 auto-req = "no"
-requires = "glibc >= 2.28, ca-certificates"
+
+[package.metadata.generate-rpm.requires]
+glibc = ">= 2.28"
+ca-certificates = "*"
