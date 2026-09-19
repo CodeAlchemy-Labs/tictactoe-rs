@@ -38,8 +38,8 @@ impl std::str::FromStr for Environment {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "development" => Ok(Environment::Development),
-            "production" => Ok(Environment::Production),
+            "development" => Ok(Self::Development),
+            "production" => Ok(Self::Production),
             _ => anyhow::bail!("invalid environment `{s}`"),
         }
     }
