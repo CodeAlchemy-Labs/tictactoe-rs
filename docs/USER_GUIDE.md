@@ -1,3 +1,9 @@
+# Installing the client
+
+For instructions on downloading and installing the TicTacToe Client on Windows 10/11, please see the [Installation Guide](INSTALLATION.md).
+
+When you launch the client using the created Start Menu shortcut, it starts without arguments, and the connection screen will appear automatically to prompt for your server URL and guest name.
+
 # User Guide
 
 Welcome to the `tictactoe-rs` user guide. This document explains how to install, configure, and use the Tic-Tac-Toe client and server.
