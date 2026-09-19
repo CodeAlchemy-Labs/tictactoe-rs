@@ -73,11 +73,33 @@ Displays the top 10 registered players ranked by total wins.
 ### Finished
 Shows the final board state and the outcome (Win, Loss, Draw, or Match Abandoned).
 
+
+## Connecting to a server
+
+When you start `tictacli`, it attempts to connect to a server. The target server and guest name are resolved using the following priority (highest to lowest):
+
+1. **CLI Flags**: `--server` and `--name`
+2. **Environment Variables**: `TICTACTOE_SERVER` and `TICTACTOE_NAME`
+3. **Saved Configuration**: Values saved from your last successful interactive connection (stored in your OS config directory).
+4. **Fallback defaults**: `whoami` for the guest name, and empty for the server.
+
+If both the server URL and guest name can be resolved from CLI flags or environment variables, the client takes the **fast-path**: it skips the UI and attempts to connect immediately.
+
+If the information is incomplete, or sourced from the config file, the client will present the **Connection** screen, allowing you to edit the fields before pressing `Enter`. 
+
+When connecting, the client enforces a 10-second timeout. If the server is unreachable, the client will gracefully return you to the Connection screen with an error message so you can retry.
+
 ## Keyboard reference
 
 | Screen | Key | Action |
 |---|---|---|
-| **Anywhere** | `q` | Quit the application (except in Auth) |
+| **Anywhere** | `q` | Quit the application (except in Auth and Connection) |
+| **Connection** | `Tab` | Next field |
+| | `Shift+Tab` | Previous field |
+| | `F3` | Toggle TLS (`ws://` vs `wss://`) |
+| | `Enter` | Attempt connection |
+| | `Esc` | Quit |
+| | `Backspace` | Delete character |
 | **Auth** | `Tab` | Next field |
 | | `Shift+Tab` | Previous field |
 | | `F2` | Toggle mode (Login / Register) |
@@ -203,7 +225,9 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Guest : Connects
+    [*] --> Connection : Startup
+    Connection --> Guest : Attempt connection (10s timeout)
+    Connection --> Connection : Connection failed (retry)
     Guest --> Authenticated : Login / Register
     Authenticated --> Playing : Create / Join Match
     Authenticated --> Spectating : Spectate Match

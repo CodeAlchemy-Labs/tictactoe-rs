@@ -28,6 +28,13 @@ This repository makes that behavior observable through a scripted demo: a
 released, and the server rejects both attempts because Rust has already
 cleaned up.
 
+
+## Client
+
+The `tictacli` client presents a full-screen terminal interface. On startup, it attempts to connect to a server. If the server is provided via CLI flags (`--server` / `--name`) or environment variables, it fast-tracks the connection. Otherwise, it presents an interactive Connection screen to input the host, guest name, and TLS toggle.
+
+If a connection attempt fails or times out (10-second limit), it returns gracefully to the Connection form to allow retrying without restarting the application. Successfully connected credentials are saved locally across restarts.
+
 ## Architecture
 
 The project is organized as a Cargo workspace with four crates:

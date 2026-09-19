@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Interactive Connection screen in the `tictacli` client. On startup, the client presents a form to input the server host, guest name, and TLS toggle before connecting.
+- Precedence-based configuration resolution: `tictacli` resolves the server and guest name in the order of CLI flags > environment variables > saved configuration file > OS `whoami`.
+- Connection fast-path: if both the server URL and guest name are provided via CLI or environment, `tictacli` skips the Connection screen and attempts to connect immediately.
+- Interactive connection retry: if the server is unreachable, `tictacli` bounds the attempt to a 10-second timeout, returns to the Connection screen with an error, and allows you to retry without restarting.
+- Saved configuration uses a "write-on-success" strategy: the config file is only updated after the server replies with a `Welcome` message, preventing bad inputs from overwriting a working setup.
+
 - Cross-platform configuration file for the client (`ClientConfig`), persisted under the platform's config directory (`%APPDATA%\tictacli\config.toml` on Windows, `~/.config/tictacli/config.toml` on Linux). Loaded and saved through `client::config`; currently holds `server_url`, `guest_name`, and `use_tls`.
 
 - Server-only production Docker image (`Dockerfile.server`). Unlike the demo

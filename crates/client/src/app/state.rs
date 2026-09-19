@@ -184,11 +184,8 @@ mod tests {
 
     #[test]
     fn new_state_starts_on_connection_if_not_resolved() {
-        let state = AppState::with_config(
-            None,
-            Some("alice"),
-            &crate::config::ClientConfig::default(),
-        );
+        let state =
+            AppState::with_config(None, Some("alice"), &crate::config::ClientConfig::default());
         assert!(matches!(state.screen, Screen::Connection));
     }
 }

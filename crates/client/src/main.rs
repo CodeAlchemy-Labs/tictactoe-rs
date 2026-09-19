@@ -110,18 +110,18 @@ async fn main() -> anyhow::Result<()> {
         if let AppEvent::Server(common::protocol::ServerMessage::Welcome { .. }) = &event
             && state.uses_connection_form
         {
-                let url = state
-                    .connection_form
-                    .build_url()
-                    .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
-                let c = client::config::ClientConfig {
-                    server_url: Some(url),
-                    guest_name: Some(state.connection_form.guest_name.clone()),
-                    use_tls: Some(state.connection_form.use_tls),
-                };
-                if let Err(e) = client::config::save(&c) {
-                    tracing::warn!("Failed to save client config: {}", e);
-                }
+            let url = state
+                .connection_form
+                .build_url()
+                .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
+            let c = client::config::ClientConfig {
+                server_url: Some(url),
+                guest_name: Some(state.connection_form.guest_name.clone()),
+                use_tls: Some(state.connection_form.use_tls),
+            };
+            if let Err(e) = client::config::save(&c) {
+                tracing::warn!("Failed to save client config: {}", e);
+            }
         }
 
         let mut effects = Vec::new();

@@ -138,7 +138,9 @@ impl ConnectionForm {
         match Url::parse(&url_str) {
             Ok(url) => match url.scheme() {
                 "ws" | "wss" => Ok(url_str),
-                other => Err(format!("unsupported URL scheme `{other}`; expected `ws` or `wss`")),
+                other => Err(format!(
+                    "unsupported URL scheme `{other}`; expected `ws` or `wss`"
+                )),
             },
             Err(e) => Err(format!("Invalid URL: {e}")),
         }
