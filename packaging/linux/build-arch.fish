@@ -1,5 +1,4 @@
 #!/usr/bin/env fish
-# Fish stops on errors by default; explicit error-exit is via: exit
 
 # Resolve repo root from the script location so this works regardless of cwd.
 set REPO_ROOT (realpath (dirname (status filename))/../..)
@@ -18,15 +17,18 @@ rm -f $DIST_DIR/tictacli*.pkg.tar.zst
 # a top-level directory tictactoe-rs-0.2.0/.
 set TARBALL (mktemp -d)
 trap "rm -rf $TARBALL" EXIT
-git -C $REPO_ROOT archive --prefix=tictactoe-rs-$VERSION/ HEAD \
-    | gzip -c > $TARBALL/tictacli-$VERSION.tar.gz
+
+# Use tar to package the repo without relying on git (in case of a shallow zip checkout)
+mkdir -p $TARBALL/tictactoe-rs-$VERSION
+cp -a crates common Cargo.toml Cargo.lock LICENSE README.md CHANGELOG.md packaging src $TARBALL/tictactoe-rs-$VERSION/ 2>/dev/null; or true
+tar -czf $TARBALL/tictacli-$VERSION.tar.gz -C $TARBALL tictactoe-rs-$VERSION
 
 # Build each package in an isolated scratch directory.
 for PKG in tictacli tictacli-server
     echo ""
     echo "Building $PKG..."
     set BUILD_DIR (mktemp -d)
-    trap "rm -rf $BUILD_DIR" EXIT
+    # Don't trap EXIT here because it overrides the previous trap and we need to clean up BUILD_DIR manually
 
     # Lay out everything makepkg needs inside the build dir.
     cp $ARCH_DIR/PKGBUILD-$PKG $BUILD_DIR/PKGBUILD
@@ -36,9 +38,13 @@ for PKG in tictacli tictacli-server
     cd $BUILD_DIR
     # --skipinteg: the tarball was just created from HEAD, no checksum needed.
     # --nodeps: deps are already installed in the container by the workflow.
-    makepkg --cleanbuild --force --skipinteg --nodeps
+    if not makepkg --cleanbuild --force --skipinteg --nodeps
+        echo "makepkg failed for $PKG!"
+        exit 1
+    end
     mv $BUILD_DIR/*.pkg.tar.zst $DIST_DIR/
     cd $REPO_ROOT
+    rm -rf $BUILD_DIR
 end
 
 echo ""
