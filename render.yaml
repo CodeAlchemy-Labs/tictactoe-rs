@@ -5,11 +5,15 @@
 # Render terminates TLS at its edge and forwards plain HTTP/WS traffic to
 # the container on the port given in $PORT. The server reads $PORT as a
 # fallback when TICTACTOE_BIND is not set, so no configuration is required.
+#
+# This blueprint now builds from Dockerfile.server, which ships only the
+# `server` binary. The demo Dockerfile (which also ships `client` and
+# `hacker`) remains at the root for local development and demo use.
 services:
   - type: web
     name: tictactoe-rs
     runtime: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.server
     plan: free
     region: oregon
     healthCheckPath: /health
@@ -17,3 +21,18 @@ services:
     envVars:
       - key: RUST_LOG
         value: info
+      # TICTACTOE_ENV is baked into the image as "production" by default.
+      # Set it here only if you want to override (not recommended).
+      - key: TICTACTOE_ENV
+        value: production
+      # Production hardening: set these in the Render dashboard after deploy.
+      # The image defaults are used if these are left empty.
+      # TICTACTOE_MAX_SESSIONS: global concurrent WebSocket limit.
+      - key: TICTACTOE_MAX_SESSIONS
+        value: ""
+      # TICTACTOE_MAX_SESSIONS_PER_IP: per-IP connection cap (default 10 in production).
+      - key: TICTACTOE_MAX_SESSIONS_PER_IP
+        value: ""
+      # TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE: per-IP auth rate limit (default 10 in production).
+      - key: TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE
+        value: ""
