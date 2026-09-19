@@ -113,3 +113,17 @@ prod-down:
 
 prod-logs:
 	docker compose -f docker-compose.prod.yml logs -f server
+
+package-deb:
+	fish packaging/linux/build-deb.fish
+
+package-rpm:
+	fish packaging/linux/build-rpm.fish
+
+package-arch:
+	fish packaging/linux/build-arch.fish
+
+package-musl:
+	fish packaging/linux/build-musl.fish
+
+package-linux: package-deb package-rpm package-arch package-musl
