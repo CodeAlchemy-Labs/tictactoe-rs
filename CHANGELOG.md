@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Fixed
+- `package-linux.yml`: the `deb`, `rpm`, `musl`, and `arch` jobs failed on the first dispatch because `fish` was not installed on the runners and the `arch` job used `su -` which reset the working directory. All four jobs now install `fish`, the `arch` job uses `su` without the login shell and preserves the repository root, every job verifies the expected number of artefacts, and every `upload-artifact` step fails when no files are produced.
+
 ### Added
 - Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
 - `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
@@ -20,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 - The Windows installers ship only the `tictacli` client. The `server` portable build and the `hacker` binary remain available as source builds.
+
 
 ### Added
 - Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
@@ -67,6 +72,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0] - 2026-09-18
 
+
 ### Added
 - Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
 - `tictacli`, `tictacli-server`, and `tictacli-full` package variants. The client package installs a desktop entry that launches the connection screen directly.
@@ -108,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Default-denial behavior in the `hacker` adversarial actor to prevent accidental disruption of production clusters.
 
 ## [0.1.1] - 2026-09-17
+
 
 ### Added
 - Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
@@ -171,6 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   This restores compatibility between newer clients and older servers.
 
 ## [0.1.0] - 2026-09-17
+
 
 ### Added
 - Linux packages: `.deb` (Debian 11+, Ubuntu 20.04+), `.rpm` (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+), and Arch `PKGBUILD` for `makepkg` and AUR.
