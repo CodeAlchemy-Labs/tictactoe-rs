@@ -205,7 +205,7 @@ flowchart LR
 
     subgraph Demo ["Demo image (Dockerfile)"]
         DemoServer["server"]
-        DemoClient["client"]
+        DemoClient["tictacli"]
         DemoHacker["hacker"]
     end
 
