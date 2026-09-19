@@ -49,12 +49,15 @@ tictactoe-rs/
 ├── Cargo.toml
 ├── Cargo.lock
 ├── rustfmt.toml
-├── Dockerfile
-├── docker-compose.yml
+├── Dockerfile                  ← demo image (server + client + hacker)
+├── Dockerfile.server           ← production image (server only)
+├── docker-compose.yml          ← demo stack
+├── docker-compose.prod.yml     ← local production testing
 ├── Makefile
 ├── LICENSE
 ├── README.md
 ├── CHANGELOG.md
+├── render.yaml
 ├── .dockerignore
 ├── .gitignore
 ├── .github/
@@ -63,7 +66,8 @@ tictactoe-rs/
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── SECURITY.md
-│   └── USER_GUIDE.md
+│   ├── USER_GUIDE.md
+│   └── DEPLOYMENT.md
 └── crates/
     ├── common/
     ├── server/
@@ -203,6 +207,58 @@ Tear down the stack:
 ```fish
 make demo-down
 ```
+
+## Production image
+
+The demo image (`Dockerfile`) ships all three binaries — `server`, `client`,
+and `hacker` — so that `make demo`, `make client-1`, `make client-2`, and
+`make hacker` all work from the same image. That is deliberate for a demo,
+but wrong for production:
+
+- `hacker` is an adversarial tool. Shipping it in a production container
+  hands an attacker a ready-made weapon if they ever break in.
+- `client` is a TUI that requires a terminal. It has no function in a
+  headless server container.
+
+**`Dockerfile.server`** is the production image. It builds and ships only
+the `server` binary, defaults to `TICTACTOE_ENV=production`, runs as
+uid 1000, and includes a `/health` liveness check.
+
+Build the production image:
+
+```fish
+make prod-build
+```
+
+Start the server on localhost:
+
+```fish
+make prod-up
+```
+
+Smoke-test it with the bundled client:
+
+```fish
+./client --server ws://127.0.0.1:8080/ws --name alice
+```
+
+Or, if you don't have a local binary:
+
+```fish
+cargo run --release --bin client -- --server ws://127.0.0.1:8080/ws --name alice
+```
+
+Stop the stack:
+
+```fish
+make prod-down
+```
+
+`docker-compose.prod.yml` binds to `127.0.0.1:8080`, not `0.0.0.0:8080`,
+on purpose. If you want to expose the service on your LAN or the internet,
+put a TLS-terminating reverse proxy (Caddy, Traefik, nginx) in front of it.
+See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full deployment
+walkthrough including Render, Fly.io, and self-hosted paths.
 
 ### Connecting to a remote instance
 
