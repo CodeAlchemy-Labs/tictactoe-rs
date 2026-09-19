@@ -179,6 +179,8 @@ When `TICTACTOE_ENV` is set to `production`, the server imposes robust defenses 
 
 ## Hacker safety
 
+For the operator-facing counterpart — how to deploy a server and keep it safe from the hacker — see [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
 The adversarial `hacker` is a potent tool capable of fuzzing internal state and blasting traffic at a server. In 0.2.0, the hacker gained a safety mechanism: it actively parses the target URL and refuses to run against non-loopback addresses by default.
 
 To run scenarios against a deployed staging or production instance, the operator must provide the `--allow-production` flag, explicitly acknowledging the risk of unleashing adversarial attacks across a remote network.
