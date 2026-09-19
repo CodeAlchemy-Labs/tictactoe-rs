@@ -1,0 +1,30 @@
+[Unit]
+Description=TicTacToe WebSocket Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tictacli
+Group=tictacli
+Environment="TICTACTOE_ENV=production"
+Environment="TICTACTOE_BIND=127.0.0.1:8080"
+Environment="RUST_LOG=info"
+ExecStart=/usr/bin/tictacli-server
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

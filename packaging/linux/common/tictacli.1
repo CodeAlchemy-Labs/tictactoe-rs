@@ -1,0 +1,38 @@
+.TH tictacli 1
+.SH NAME
+tictacli \- TicTacToe WebSocket client
+.SH SYNOPSIS
+.B tictacli
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+A terminal TicTacToe client that speaks the WebSocket protocol of the tictacli-server. Supports authenticated accounts, global ranking, real-time spectating, and a reconnection grace period.
+.SH OPTIONS
+.TP
+\fB\-\-server\fR \fIURL\fR
+Server URL to connect to.
+.TP
+\fB\-\-name\fR \fINAME\fR
+Guest name.
+.TP
+\fB\-\-insecure\fR
+Allow insecure connections (e.g. self-signed certificates).
+.SH ENVIRONMENT
+.TP
+\fBTICTACTOE_SERVER\fR
+Default server URL.
+.TP
+\fBTICTACTOE_NAME\fR
+Default guest name.
+.SH FILES
+.TP
+\fI~/.config/tictacli/config.toml\fR
+User configuration file.
+.SH EXAMPLES
+.TP
+Launch connection screen:
+.B tictacli
+.TP
+Connect directly:
+.B tictacli \-\-server wss://game.example.com \-\-name Bob
+.SH SEE ALSO
+\fBtictacli-server\fR(1)

@@ -1,0 +1,23 @@
+.TH tictacli-server 1
+.SH NAME
+tictacli-server \- TicTacToe WebSocket server
+.SH SYNOPSIS
+.B tictacli-server
+.SH DESCRIPTION
+TicTacToe WebSocket server that handles client connections, matchmaking, global ranking, and real-time spectating.
+.SH ENVIRONMENT
+.TP
+\fBTICTACTOE_BIND\fR
+Address to bind to (e.g. 127.0.0.1:8080).
+.TP
+\fBTICTACTOE_ENV\fR
+Environment profile (e.g. production).
+.TP
+\fBRUST_LOG\fR
+Logging configuration.
+.SH EXAMPLES
+.TP
+Start server:
+.B tictacli-server
+.SH SEE ALSO
+\fBtictacli\fR(1)

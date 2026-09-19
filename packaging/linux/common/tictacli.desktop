@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TicTacToe Client
+GenericName=Board Game
+Comment=Play TicTacToe over WebSocket
+Exec=tictacli
+Icon=tictacli
+Terminal=true
+Categories=Game;BoardGame;
+Keywords=tictactoe;game;multiplayer;tui;
+StartupNotify=false
