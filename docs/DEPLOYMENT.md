@@ -32,20 +32,39 @@ services:
   - type: web
     name: tictactoe-rs
     runtime: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.server
     healthCheckPath: /health
-    autoDeploy: false
+    autoDeploy: true
     plan: free
-    region: frankfurt
+    region: oregon
+    envVars:
+      - key: RUST_LOG
+        value: info
+      - key: TICTACTOE_ENV
+        value: production
+      - key: TICTACTOE_MAX_SESSIONS
+        value: ""
+      - key: TICTACTOE_MAX_SESSIONS_PER_IP
+        value: ""
+      - key: TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE
+        value: ""
 ```
 
 - `type: web`: Defines this as a web service that accepts incoming HTTP/WS traffic.
 - `runtime: docker`: Instructs Render to build the image from source.
-- `dockerfilePath`: The path to the multi-stage Dockerfile.
-- `healthCheckPath`: The endpoint Render will poll to confirm the container is alive before routing traffic (verified in `crates/server/src/main.rs`).
-- `autoDeploy: false`: Prevents automatic deployment on every push (you can enable this in the dashboard).
+- `dockerfilePath`: Points to `Dockerfile.server` — the production image that ships
+  **only** the `server` binary. The root `Dockerfile` (which also ships `client` and
+  `hacker`) is intentionally not used here. Using the production image means a
+  compromised container does not have an adversarial tool on its filesystem.
+- `healthCheckPath`: The endpoint Render will poll to confirm the container is alive
+  before routing traffic (`GET /health` is registered in `infrastructure/http.rs`).
+- `autoDeploy: true`: Deploys automatically on every push to the default branch.
 - `plan: free`: Deploys to the free tier by default.
 - `region`: The geographic region to deploy in.
+- `envVars`: All `0.2.0` hardening variables are now declared so they appear in the
+  Render dashboard. Variables with `value: ""` should be filled in via the dashboard;
+  the production-mode defaults baked into `Dockerfile.server` apply if they are left
+  empty.
 
 ### 3.2 One-click deploy via Blueprint
 
@@ -53,7 +72,9 @@ services:
 2. In the Render dashboard, click **New > Blueprint**.
 3. Connect your GitHub repository.
 4. Render will read `render.yaml` automatically and prompt you to confirm the deployment.
-5. Note: The YAML does not declare all the `0.2.0` environment variables yet. You will need to add them manually in the Render dashboard after the service is created.
+5. After the service is created, visit **Settings > Environment** and set the hardening
+   variables to values appropriate for your expected traffic. The production-mode
+   defaults baked into the image apply if you leave them empty.
 
 ### 3.3 Manual Web Service alternative
 
@@ -62,7 +83,7 @@ If you prefer to configure everything manually without the blueprint:
 2. Connect your repository.
 3. Configure the following fields:
    - **Language**: Docker
-   - **Dockerfile Path**: `./Dockerfile`
+   - **Dockerfile Path**: `./Dockerfile.server`
    - **Docker Context**: `.` (the repository root)
    - **Health Check Path**: `/health`
 
@@ -105,38 +126,116 @@ If you are using the free plan:
 - **Crucial**: Fly requires an explicit `[http_service]` block in `fly.toml` to support WebSocket upgrades.
 
 ### Railway / Koyeb
-- Deploy directly from GitHub using the provided `Dockerfile`.
+- Deploy directly from GitHub using `Dockerfile.server` (the production image).
+- Set **Dockerfile Path** to `./Dockerfile.server` in the service settings.
 - Environment variables are configured in the platform's dashboard UI.
 - The health check path (`/health`) must be configured manually in the service settings.
 - The platform will automatically handle TLS and port injection.
 
 ### Self-hosted Docker Compose
-For VPS deployments, here is a complete `docker-compose.prod.yml` template:
 
-```yaml
-version: "3.9"
-services:
-  server:
-    build: .
-    ports:
-      - "127.0.0.1:8080:8080" # Bind to localhost, expose via reverse proxy
-    environment:
-      - TICTACTOE_ENV=production
-      - TICTACTOE_MAX_SESSIONS=2000
-      - TICTACTOE_MAX_SESSIONS_PER_IP=10
-      - TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE=10
-    restart: always
+The repository includes `docker-compose.prod.yml` as the canonical self-hosted
+configuration. It uses `Dockerfile.server`, binds only to `127.0.0.1`, and
+sets all production hardening variables to their recommended values.
+
+**Test it on your laptop first:**
+
+```bash
+# Build the server-only production image
+make prod-build
+
+# Start (binds to 127.0.0.1:8080 only)
+make prod-up
+
+# Verify
+curl http://127.0.0.1:8080/health
+
+# Stop
+make prod-down
 ```
-- **Note**: You must place a reverse proxy (like Caddy, Traefik, or Nginx) in front of this container to terminate TLS and forward WebSocket traffic to `127.0.0.1:8080`.
+
+**Deploy to a VPS:**
+
+1. Copy `docker-compose.prod.yml` and `Dockerfile.server` (or the entire repository)
+   to your VPS.
+2. Run `docker compose -f docker-compose.prod.yml up -d`.
+3. Place a TLS-terminating reverse proxy (Caddy example below) in front on port 443:
+
+   ```caddyfile
+   your-domain.example.com {
+       reverse_proxy 127.0.0.1:8080
+   }
+   ```
+
+The `docker-compose.prod.yml` port binding (`127.0.0.1:8080:8080`) intentionally
+prevents the container from listening on your public IP. All internet traffic must
+flow through the reverse proxy, which handles TLS. Do not change this to
+`0.0.0.0:8080` unless you have an external firewall restricting access.
+
+### Using the production image on any platform
+
+The `Dockerfile.server` image has three invariants that hold regardless of which
+platform runs it:
+
+1. **Server binary only.** No `client` or `hacker` binary exists in the image.
+   Verify with:
+   ```bash
+   docker run --rm --entrypoint ls tictactoe-rs-server:prod /usr/local/bin
+   ```
+   The output lists `server` and nothing else from the workspace.
+
+2. **Non-root user.** The container runs as uid 1000 (`app`). It does not need
+   `--privileged` or any Linux capabilities beyond the defaults.
+
+3. **`TICTACTOE_ENV=production` baked in.** The image sets this variable in the
+   `ENV` layer. Forgetting to set it in your platform's configuration does not
+   silently revert to development mode; the image already applied the stricter
+   default. You can override it on any platform if needed.
 
 ### Raw VPS with systemd
 While possible, running the raw binary as a systemd service is not recommended. Use the Docker approach above for predictable dependencies, isolated networking, and simpler updates.
+
+## Demo image vs production image
+
+The repository ships two Docker configurations for different purposes:
+
+```mermaid
+flowchart LR
+    Workspace["Workspace source\n(crates/common, crates/server,\ncrates/client, crates/hacker)"]
+
+    subgraph Demo ["Demo image (Dockerfile)"]
+        DemoServer["server"]
+        DemoClient["client"]
+        DemoHacker["hacker"]
+    end
+
+    subgraph Prod ["Production image (Dockerfile.server)"]
+        ProdServer["server only"]
+    end
+
+    DemoCompose["docker-compose.yml\n(make demo, make client-1,\nmake client-2, make hacker)"]
+    ProdCompose["docker-compose.prod.yml\n(make prod-up)"]
+    RenderBlue["render.yaml Blueprint"]
+
+    Workspace --> Demo
+    Workspace --> Prod
+    Demo --> DemoCompose
+    Prod --> ProdCompose
+    Prod --> RenderBlue
+```
+
+The two images share the same source but diverge at the build step: the demo
+image compiles all four workspace members and copies all three binaries; the
+production image compiles only `--bin server` and copies only that binary.
 
 ## Production hardening checklist
 
 Before exposing your server to the public internet, ensure you have completed this checklist:
 
-- [ ] `TICTACTOE_ENV=production` is explicitly set.
+- [ ] The deployed image is `Dockerfile.server` (the server-only production image),
+      not `Dockerfile` (the demo image that also ships `client` and `hacker`).
+- [ ] `TICTACTOE_ENV=production` is set (baked into `Dockerfile.server`; verify it
+      is not overridden to `development` in your platform configuration).
 - [ ] `TICTACTOE_MAX_SESSIONS` is set to a value your instance can actually handle. (Start low, monitor memory usage, and increase as needed).
 - [ ] `TICTACTOE_MAX_SESSIONS_PER_IP` is configured to prevent a single malicious actor from exhausting the global cap.
 - [ ] `TICTACTOE_AUTH_RATE_LIMIT_PER_MINUTE` is set. This token-bucket limit restricts authentication attempts per IP (not per username) to prevent brute-forcing and CPU starvation via Argon2id hashing.
