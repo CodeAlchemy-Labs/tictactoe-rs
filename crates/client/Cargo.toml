@@ -47,3 +47,25 @@ workspace = true
 
 [features]
 # TODO(stage-6): legacy-console = ["ratatui/no-underline-color"]
+
+[package.metadata.deb]
+maintainer = "CodeAlchemy-Labs <maintainers@codealchemy-labs.example>"
+copyright = "2026, CodeAlchemy-Labs"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+A terminal TicTacToe client that speaks the WebSocket protocol of the \
+tictacli-server. Supports authenticated accounts, global ranking, \
+real-time spectating, and a reconnection grace period. Launches a \
+connection screen when no server URL and guest name are provided on \
+the command line."""
+section = "games"
+priority = "optional"
+depends = "$auto, ca-certificates"
+assets = [
+    ["target/release/tictacli", "usr/bin/", "755"],
+    ["packaging/linux/common/tictacli.desktop", "usr/share/applications/", "644"],
+    ["packaging/linux/common/tictacli.png", "usr/share/icons/hicolor/256x256/apps/tictacli.png", "644"],
+    ["packaging/linux/common/tictacli.1", "usr/share/man/man1/tictacli.1", "644"],
+    ["../../README.md", "usr/share/doc/tictacli/README.md", "644"],
+    ["../../CHANGELOG.md", "usr/share/doc/tictacli/CHANGELOG.md", "644"],
+]

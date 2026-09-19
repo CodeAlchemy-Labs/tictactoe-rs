@@ -31,3 +31,21 @@ zeroize.workspace = true
 tokio-tungstenite.workspace = true
 [lints]
 workspace = true
+
+[package.metadata.deb]
+maintainer = "CodeAlchemy-Labs <maintainers@codealchemy-labs.example>"
+copyright = "2026, CodeAlchemy-Labs"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+TicTacToe WebSocket server that handles client connections, matchmaking, \
+global ranking, and real-time spectating."""
+section = "net"
+priority = "optional"
+depends = "$auto, ca-certificates"
+assets = [
+    ["target/release/tictacli-server", "usr/bin/", "755"],
+    ["packaging/linux/common/tictacli-server.1", "usr/share/man/man1/tictacli-server.1", "644"],
+    ["packaging/linux/common/tictacli-server.service", "usr/share/doc/tictacli-server/systemd/tictacli-server.service", "644"],
+    ["../../README.md", "usr/share/doc/tictacli-server/README.md", "644"],
+    ["../../CHANGELOG.md", "usr/share/doc/tictacli-server/CHANGELOG.md", "644"],
+]
