@@ -92,6 +92,8 @@ tictactoe-rs/
 
 ## Pre-built binaries
 
+We provide pre-built Windows installers (`.msi`, `.exe`) and Linux packages (`.deb`, `.rpm`, `.pkg.tar.zst`, and static `.tar.gz` for musl) on the [Releases](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases) page.
+
 Signed Windows installers for Windows 10/11 are produced by the packaging pipeline. See the [Installation Guide](docs/INSTALLATION.md) for download and setup instructions.
 
 If you only want to try the demo and do not need to build from source, the
