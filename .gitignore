@@ -1,31 +1,35 @@
-# Rust build artifacts
-/target/
-**/*.rs.bk
 
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
 *~
-
-# Operating system files
-.DS_Store
-Thumbs.db
-
-# Coverage artifacts
 /coverage/
-*.profraw
-*.profdata
-lcov.info
-
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Local Docker overrides
+# Coverage artifacts
 docker-compose.override.yml
-
+.DS_Store
+.env
+# Environment files
+.env.*.local
+.env.local
+.idea/
+# IDE and editor files
+*.key
+lcov.info
+# Local Docker overrides
+*.log*.pfx
 # Logs
-*.log
+# Operating system files
+/packaging/certs/*.pfx
+*.pass
+*.profdata
+*.profraw
+**/*.rs.bk
+# Rust build artifacts
+*.swo
+*.swp
+/target/
+Thumbs.db
+.vscode/
+dist/
+*.pfx
+*.key
+*.pass
+packaging/windows/obj/
+packaging/windows/Output/
