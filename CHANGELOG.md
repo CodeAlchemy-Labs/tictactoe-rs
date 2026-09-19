@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Signed Windows installers for Windows 10/11: Inno Setup `.exe` and WiX `.msi`, with Start Menu and Desktop shortcuts that launch `tictacli` directly.
+- Self-signed code-signing certificate for CodeAlchemy-Labs. The public certificate is distributed in `packaging/certs/` so users can add it to their trust store; instructions are in `docs/INSTALLATION.md`.
+- `docs/INSTALLATION.md`: user-facing installation guide for Windows.
+
+### Changed
+- The Windows installers ship only the `tictacli` client. The `server` portable build and the `hacker` binary remain available as source builds.
 
 ### Added
 
