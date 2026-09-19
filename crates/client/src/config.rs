@@ -9,7 +9,7 @@ use url::Url;
 /// Environment variables are used as fallbacks so that containerized
 /// deployments can override values without rewriting the command line.
 #[derive(Debug, Parser)]
-#[command(name = "client", about = "Terminal client for tictactoe-rs", version)]
+#[command(name = "tictacli", about = "Terminal client for tictactoe-rs", version)]
 pub struct Cli {
     /// WebSocket URL of the server. Accepts `ws://` and `wss://`.
     #[arg(
