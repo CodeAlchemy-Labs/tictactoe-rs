@@ -28,6 +28,7 @@ impl AppState {
     ///
     /// If both `server_url` and `guest_name` are fully resolved (e.g. via CLI flags or env vars),
     /// starts on `Screen::Connecting`. Otherwise, starts on `Screen::Connection`.
+    #[must_use]
     pub fn with_config(
         server_url: Option<&str>,
         guest_name: Option<&str>,
@@ -77,6 +78,7 @@ impl AppState {
     /// Convenience constructor used in tests: creates state with a given
     /// display name and no pre-resolved URL, so the connection form is shown.
     #[cfg(test)]
+    #[must_use]
     pub fn new(display_name: &str) -> Self {
         Self::with_config(
             None,

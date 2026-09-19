@@ -19,6 +19,7 @@ use client::infrastructure::{Transport, WsTransport};
 use client::tui::{InputEvent, KeyAction, read_input_event, render, translate_key};
 
 #[tokio::main]
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     init_tracing();
     let config = ArgsConfig::from_args_and_env()?;

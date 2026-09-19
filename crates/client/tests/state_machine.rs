@@ -33,6 +33,7 @@ fn step(
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn full_happy_path_over_the_mock_transport() {
     let (transport, mut server_rx, server_tx) = MockTransport::new();
     let handle = transport.start();

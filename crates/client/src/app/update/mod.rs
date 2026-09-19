@@ -45,6 +45,7 @@ pub enum SideEffect {
 
 /// Applies `event` to `state`, pushing any resulting side effects into
 /// `effects`.
+#[allow(clippy::too_many_lines)]
 pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<SideEffect>) {
     // Auth events take the event by reference. If one of them handles it,
     // we are done; otherwise, `event` is still available for the main match.
@@ -149,32 +150,32 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
         // auth events are handled at the top of this function. Both are
         // intentional no-ops in this match, so they share an arm.
         AppEvent::Input(c) => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.connection_form.push_char(c);
             }
         }
         AppEvent::PopChar => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.connection_form.pop_char();
             }
         }
         AppEvent::Tab => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.connection_form.tab();
             }
         }
         AppEvent::ShiftTab => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.connection_form.shift_tab();
             }
         }
         AppEvent::ToggleTls => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.connection_form.toggle_tls();
             }
         }
         AppEvent::Submit => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 match state.connection_form.build_url() {
                     Ok(url) => {
                         effects.push(SideEffect::Connect {
@@ -192,7 +193,7 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             }
         }
         AppEvent::Cancel => {
-            if let Screen::Connection = state.screen {
+            if state.screen == Screen::Connection {
                 state.should_quit = true;
             }
         }
