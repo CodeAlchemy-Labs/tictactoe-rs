@@ -30,12 +30,13 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Files]
 Source: "..\..\target\x86_64-pc-windows-msvc\release\tictacli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "tictacli.ico"; DestDir: "{app}"; Flags: ignoreversion
 ; Optional Visual C++ Redistributable included if requested
 ; Source: "vc_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall skipifdoesntexist
 
 [Icons]
-Name: "{autoprograms}\TicTacToe Client"; Filename: "{app}\tictacli.exe"
-Name: "{autodesktop}\TicTacToe Client"; Filename: "{app}\tictacli.exe"; Tasks: desktopicon
+Name: "{autoprograms}\TicTacToe Client"; Filename: "{app}\tictacli.exe"; IconFilename: "{app}\tictacli.ico"
+Name: "{autodesktop}\TicTacToe Client"; Filename: "{app}\tictacli.exe"; IconFilename: "{app}\tictacli.ico"; Tasks: desktopicon
 
 [Run]
 ; Run the VC++ redistributable installer if it was bundled and is needed
