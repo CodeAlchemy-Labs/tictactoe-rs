@@ -1,0 +1,56 @@
+<!--
+  Build with:
+  wix build installer.wxs -d AppVersion=0.2.0 -o ..\..\dist\windows\tictacli-0.2.0.msi
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="TicTacToe Client" Manufacturer="CodeAlchemy-Labs" Version="$(var.AppVersion)" UpgradeCode="C16D360F-F63F-4AF0-95DE-63B0FE5C4151" Scope="perMachine">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of TicTacToe Client is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="tictacli.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+
+    <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="TicTacToe Client">
+        <Component Id="ClientExeComponent" Guid="*">
+          <File Id="ClientExe" Source="..\..\target\x86_64-pc-windows-msvc\release\tictacli.exe" KeyPath="yes" />
+        </Component>
+        <Component Id="ReadmeComponent" Guid="*">
+          <File Id="ReadmeTxt" Source="readme-after-install.txt" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcutComponent" Guid="*">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="TicTacToe Client"
+                  Target="[!ClientExe]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\CodeAlchemy-Labs\TicTacToe" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcutComponent" Guid="*">
+        <Condition>INSTALLDESKTOPSHORTCUT</Condition>
+        <Shortcut Id="DesktopShortcut"
+                  Name="TicTacToe Client"
+                  Target="[!ClientExe]"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\CodeAlchemy-Labs\TicTacToe" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="TicTacToe Client" Level="1">
+      <ComponentRef Id="ClientExeComponent" />
+      <ComponentRef Id="ReadmeComponent" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+      <ComponentRef Id="DesktopShortcutComponent" />
+    </Feature>
+  </Package>
+</Wix>
