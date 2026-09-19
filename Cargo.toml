@@ -16,6 +16,11 @@ keywords = ["websocket", "game", "tictactoe", "async", "axum"]
 categories = ["games", "network-programming"]
 
 [workspace.dependencies]
+# Config
+directories = "5"
+toml = "0.8"
+tempfile = "3"
+
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
