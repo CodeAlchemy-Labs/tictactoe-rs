@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<?ifndef SourceBinary ?>
+  <?error SourceBinary define is required. Pass -d SourceBinary=<absolute path to signed .exe>?>
+<?endif?>
+<?ifndef AppVersion ?>
+  <?error AppVersion define is required. Pass -d AppVersion=<version>?>
+<?endif?>
+<?ifndef TargetArch ?>
+  <?error TargetArch define is required. Pass -d TargetArch=<target>?>
+<?endif?>
+
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="TicTacToe Client (Legacy)"
            Manufacturer="CodeAlchemy-Labs"
@@ -14,7 +24,7 @@
 
     <Feature Id="MainFeature" Title="TicTacToe Client (Legacy)" Level="1">
       <Component Directory="INSTALLFOLDER">
-        <File Source="..\..\target\$(var.TargetArch)\release\tictacli.exe" KeyPath="yes" />
+        <File Source="$(var.SourceBinary)" Name="tictacli.exe" KeyPath="yes" />
       </Component>
     </Feature>
   </Package>

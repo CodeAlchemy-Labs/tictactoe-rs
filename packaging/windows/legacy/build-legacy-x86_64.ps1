@@ -41,7 +41,14 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to sign x86_64 legacy binary" }
 
 Set-Location (Join-Path $repoRoot "packaging\windows\legacy")
 $setupExe = Join-Path $distDir "tictacli-x86_64-legacy-setup.exe"
-& ISCC.exe "/DAppVersion=$Version" "/DOutputBaseName=tictacli-x86_64-legacy-setup" "/DTargetArch=$target" installer-legacy.iss
+$setupBaseName = "tictacli-x86_64-legacy-setup"
+& ISCC.exe `
+    "/DAppVersion=$Version" `
+    "/DSourceBinary=$signedBinary" `
+    "/DOutputDir=$distDir" `
+    "/DOutputBaseName=$setupBaseName" `
+    "/DTargetArch=$target" `
+    "installer-legacy.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed for x86_64" }
 if (-not (Test-Path $setupExe)) { throw "Setup installer not found at $setupExe" }
 
@@ -51,7 +58,7 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to sign x86_64 setup installer" }
 Move-Item -Path $tempSetup -Destination $setupExe -Force
 
 $msiFile = Join-Path $distDir "tictacli-x86_64-legacy.msi"
-& wix build installer-legacy.wxs -d AppVersion=$Version -d TargetArch=$target -o $msiFile
+& wix build installer-legacy.wxs -d SourceBinary=$signedBinary -d AppVersion=$Version -d TargetArch=$target -o $msiFile
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed for x86_64" }
 if (-not (Test-Path $msiFile)) { throw "MSI not found at $msiFile" }
 
