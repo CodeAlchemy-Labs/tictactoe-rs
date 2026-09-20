@@ -26,7 +26,7 @@ RUN apt-get update \
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
-RUN cargo build --release --workspace --bins
+RUN cargo build --release --locked --workspace --bins
 
 # ---------------------------------------------------------------------------
 # Runtime stage: minimal Debian image with the three binaries.
@@ -40,7 +40,7 @@ RUN apt-get update \
     && useradd --create-home --shell /bin/bash --uid 1000 app
 
 COPY --from=builder /build/target/release/tictacli-server /usr/local/bin/tictacli-server
-COPY --from=builder /build/target/release/tictacli /usr/local/bin/client
+COPY --from=builder /build/target/release/tictacli /usr/local/bin/tictacli
 COPY --from=builder /build/target/release/hacker /usr/local/bin/hacker
 
 USER app

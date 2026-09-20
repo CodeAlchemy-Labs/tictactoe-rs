@@ -18,7 +18,7 @@ services:
     depends_on:
       - server
     command:
-      - client
+      - tictacli
       - --server
       - ws://server:8080/ws
       - --name
@@ -36,7 +36,7 @@ services:
     depends_on:
       - server
     command:
-      - client
+      - tictacli
       - --server
       - ws://server:8080/ws
       - --name
