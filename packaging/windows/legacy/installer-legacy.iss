@@ -1,12 +1,22 @@
-#define MyAppVersion "0.2.0"
+#ifndef AppVersion
+  #define AppVersion "0.0.0"
+#endif
+
+#ifndef SourceBinary
+  #error SourceBinary define is required. Pass /DSourceBinary=<absolute path to signed .exe>
+#endif
+
+#ifndef OutputDir
+  #error OutputDir define is required. Pass /DOutputDir=<absolute path to output directory>
+#endif
 
 [Setup]
 AppName=TicTacToe Client (Legacy)
-AppVersion={#MyAppVersion}
+AppVersion={#AppVersion}
 AppId=CodeAlchemy-Labs.TicTacToe.Client.Legacy
 DefaultDirName={autopf}\TicTacToe Client (Legacy)
 DefaultGroupName=TicTacToe Client (Legacy)
-OutputDir=..\..\dist\windows\legacy
+OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseName}
 Compression=lzma2
 SolidCompression=yes
@@ -14,7 +24,7 @@ PrivilegesRequired=lowest
 InfoBeforeFile=legacy-warning.txt
 
 [Files]
-Source: "..\..\target\{#TargetArch}\release\tictacli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SourceBinary}"; DestDir: "{app}"; DestName: "tictacli.exe"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\TicTacToe Client (Legacy)"; Filename: "{app}\tictacli.exe"
