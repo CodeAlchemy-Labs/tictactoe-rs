@@ -74,7 +74,13 @@ tictactoe-rs/
 │   ├── ARCHITECTURE.md
 │   ├── SECURITY.md
 │   ├── USER_GUIDE.md
-│   └── DEPLOYMENT.md
+│   ├── DEPLOYMENT.md
+│   └── INSTALLATION.md
+├── packaging/
+│   ├── linux/
+│   │   └── appimage/
+│   └── windows/
+│       └── portable/
 └── crates/
     ├── common/
     ├── server/
@@ -101,12 +107,23 @@ The CI pipeline automatically produces native packages on every release:
 - **Windows:** `.exe` (Inno Setup) and `.msi` (WiX Toolset)
 - **Linux:** `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL), `.pkg.tar.zst` (Arch), and a statically linked `.tar.gz` (musl)
 
-If you only want to try the demo and do not need to install the application system-wide, the release page also provides portable archives containing all three executables (`tictacli`, `tictacli-server`, and `hacker`):
+If you only want to try the demo and do not need to install the application system-wide, the release page also provides portable archives containing all executables:
 
 - `tictactoe-rs-<version>-x86_64-unknown-linux-gnu.tar.gz`
 - `tictactoe-rs-<version>-x86_64-pc-windows-msvc.zip`
 
-Extract the archive and run the binaries directly. For example, to run the server:
+In addition, we provide portable distributions without installation:
+- `tictacli-<version>-x86_64.AppImage`
+- `tictacli-server-<version>-x86_64.AppImage`
+- `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`
+
+You can build the portable distributions locally by running:
+```fish
+make package-portable
+```
+
+Extract the archive or run the binaries directly. For example, to run the server:
+
 
 ```fish
 ./tictacli-server
