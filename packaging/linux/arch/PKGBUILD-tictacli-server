@@ -1,6 +1,9 @@
 # Maintainer: CodeAlchemy-Labs <maintainers@codealchemy-labs.example>
 pkgname=tictacli-server
-pkgver=0.2.0
+# Placeholder. build-arch.fish overwrites this with the version from
+# Cargo.toml before invoking makepkg. Do not rely on this value being
+# current; it exists only to satisfy `makepkg --printsrcinfo`.
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="TicTacToe WebSocket server"
 arch=('x86_64' 'aarch64')
@@ -9,8 +12,11 @@ license=('MIT')
 depends=('gcc-libs' 'glibc' 'ca-certificates')
 makedepends=('cargo' 'rust' 'nasm')
 options=('!lto' '!debug')
-source=("tictacli-$pkgver.tar.gz::$url/archive/v$pkgver.tar.gz")
-sha256sums=('SKIP') # TODO(packaging): replace SKIP before submitting to AUR
+source=("tictacli-$pkgver.tar.gz")
+# SKIP is safe here: build-arch.fish produces the tarball from the local
+# repository and passes --skipinteg to makepkg. The tarball never leaves
+# this machine before it is consumed.
+sha256sums=('SKIP')
 install=tictacli-server.install
 
 build() {
