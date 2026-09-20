@@ -8,6 +8,9 @@
 <?ifndef TargetArch ?>
   <?error TargetArch define is required. Pass -d TargetArch=<target>?>
 <?endif?>
+<?ifndef IconFile ?>
+  <?error IconFile define is required. Pass -d IconFile=<absolute path to the .ico file>?>
+<?endif?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="TicTacToe Client (Legacy)"
@@ -15,6 +18,8 @@
            Version="$(var.AppVersion)"
            UpgradeCode="E92F0561-9AEF-4D79-BD57-4C182B4A554C">
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
+    <Icon Id="AppIcon.ico" SourceFile="$(var.IconFile)" />
 
     <MediaTemplate CompressionLevel="high" />
 
