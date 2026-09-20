@@ -16,9 +16,10 @@ find $DIST_DIR -name "tictacli*.AppImage" -delete || exit 1
 echo "Building AppImages via Docker..."
 
 # Run inside Docker
-docker run --rm -v "$REPO_ROOT:/work" -w /work debian:bullseye-slim bash -c "
+docker run --pull always --rm -v "$REPO_ROOT:/work" -w /work debian:bullseye-slim bash -c "
 set -e
-apt-get update
+echo 'deb http://archive.debian.org/debian/ bullseye main' > /etc/apt/sources.list
+apt-get update -o Acquire::Check-Valid-Until=false
 apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl file wget fuse squashfs-tools
 
 echo 'Installing Rust...'
