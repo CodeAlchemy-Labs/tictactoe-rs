@@ -22,8 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Signed Windows installers for Windows 10/11: Inno Setup `.exe` and WiX `.msi`, with Start Menu and Desktop shortcuts that launch `tictacli` directly.
 - Self-signed code-signing certificate for CodeAlchemy-Labs. The public certificate is distributed in `packaging/certs/` so users can add it to their trust store; instructions are in `docs/INSTALLATION.md`.
 - `docs/INSTALLATION.md`: user-facing installation guide for Windows.
+- Linux AppImage builds for `tictacli` and `tictacli-server`. Self-contained, no installation, compatible with Debian 11+, Ubuntu 20.04+, and any glibc 2.31+ distribution.
+- Portable Windows server: `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`, a statically-linked `.exe` built with the GNU toolchain, signed with the self-signed certificate, with no installer and no runtime dependencies.
+- `package-portable.yml` GitHub Actions workflow for producing both the AppImages and the portable Windows server on demand.
+- `make package-appimage`, `make package-portable-server`, and `make package-portable` targets.
 
 ### Changed
+- `docs/INSTALLATION.md` extended with the AppImage and portable Windows server sections.
 - The server binary is now named `tictacli-server` on all platforms. Scripts and container configurations must be updated to invoke `./tictacli-server` instead of `./server`. The Cargo package name remains `server`.
 - The Linux packaging scripts have been stripped of fallback behaviors. They now fail loudly on error, derive their versions strictly from Cargo metadata, and properly tear down temporary environments using `trap`.
 - The `package-linux.yml` workflow now pins the Rust toolchain version and uses native containers directly instead of Docker-in-Docker.
