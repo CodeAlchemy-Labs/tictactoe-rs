@@ -9,9 +9,19 @@ The legacy build path is intended for older Windows systems that lack the modern
 
 ```powershell
 cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
+cargo +1.77.2 build --release --target i686-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
 ```
 
 This build disables the Ratatui underline-color support, which is the compatibility toggle needed for older `cmd.exe`/legacy console behavior. The legacy path is not distributed through the modern installer flow and should be treated as a separate compatibility artefact.
+
+### Legacy installers
+
+For older, end-of-life Windows systems, the project releases dedicated compatibility packages:
+
+- `tictacli-<version>-legacy-setup.exe`
+- `tictacli-<version>-legacy.msi`
+
+These are for Windows 7 / 8 / 8.1 only. They are compatibility packages for a deprecated console stack and are intentionally kept separate from the modern Windows 10/11 installer flow.
 
 ## Windows 10/11 (`.exe`)
 
@@ -75,12 +85,14 @@ Get-AuthenticodeSignature -FilePath .\tictacli-0.2.0-setup.exe | Format-List
 
 ## Linux
 
-| Distribution | Version | Package | Minimum glibc |
+| Platform | Version / target | Package | Notes |
 |---|---|---|---|
-| Debian | 11+ | `.deb` | 2.31 |
-| Ubuntu | 20.04+ | `.deb` | 2.31 |
-| Fedora | 30+ | `.rpm` | 2.28 |
-| RHEL / Rocky / Alma | 8+ | `.rpm` | 2.28 |
+| Windows 10 / 11 | modern client | `.exe` / `.msi` | primary supported path |
+| Windows 7 / 8 / 8.1 | legacy compatibility | `tictacli-<version>-legacy-setup.exe` / `tictacli-<version>-legacy.msi` | EOL compatibility build |
+| Debian | 11+ | `.deb` | glibc 2.31 |
+| Ubuntu | 20.04+ | `.deb` | glibc 2.31 |
+| Fedora | 30+ | `.rpm` | glibc 2.28 |
+| RHEL / Rocky / Alma | 8+ | `.rpm` | glibc 2.28 |
 | Arch / Manjaro | rolling | `.pkg.tar.zst` | n/a |
 | Any Linux | fallback | `.tar.gz` (musl) | n/a |
 

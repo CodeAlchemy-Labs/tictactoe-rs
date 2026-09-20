@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Legacy Windows 7/8/8.1 compatibility path for the client with the `legacy-console` feature and a Rust 1.77 MSRV-compatible build profile.
-- A dedicated Windows legacy packaging script and documentation for a portable `tictacli` archive for older consoles.
+- A dedicated Windows legacy packaging script and documentation for the compatibility installer and MSI flow.
 
 ### Changed
 - Downgraded the workspace to Rust 2021, resolver 2, and `rust-version = "1.77"` to match the supported legacy Windows toolchain.
@@ -17,8 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Kept the modern Windows 10/11 installer flow intact while segregating the legacy Windows compatibility bundle.
 
 ### Fixed
+- Server display-name validation now counts Unicode characters, not bytes.
 - Replaced modern Rust 2024-only syntax and const-mutating methods with 1.77-compatible code paths.
 - Restored a clean changelog structure without duplicate or stale release entries.
+
+### Security
+- The server's RAII cleanup guarantees remain the critical defense against stale sessions and leaked resources during disconnects.
 
 ## [0.2.0] - 2026-09-18
 
@@ -55,20 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   RAII rationale, adversarial scenario description).
 - 91 tests across the workspace at the time of release.
 
-### Changed
-- The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
-
-- The client binary is now named `tictacli` on every platform. Scripts that invoked `./client` or `client.exe` must be updated to `./tictacli` / `tictacli.exe`. The Cargo package remains `client`; `cargo run -p client` still works.
-
-- The `port_reuse` hacker scenario now reports the outcome honestly for both
-  shared and isolated network namespaces, instead of assuming that the
-  hacker and the server always share one.
-- The `SessionGuard` is dropped explicitly before awaiting the writer task,
-  making the cleanup ordering visible in the code and eliminating a
-  potential deadlock.
-
 ### Fixed
-
 - Writer task deadlock: the WebSocket handler awaited the writer task before
   dropping the `SessionGuard`, which prevented the outbound channel from
   closing. Detected by the integration test
@@ -99,7 +90,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Redundant and broken intra-doc links resolved in `server` and `client`.
 
 ### Security
-
 - The `SessionGuard` `Drop` implementation guarantees that a session is
   removed from the lobby the instant the WebSocket handler returns. There is
   no window during which a stale session is observable by other clients.

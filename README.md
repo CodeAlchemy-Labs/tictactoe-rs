@@ -69,7 +69,11 @@ tictactoe-rs/
 ├── .gitignore
 ├── .github/
 │   └── workflows/
-│       └── ci.yml
+│       ├── ci.yml
+│       ├── package-linux.yml
+│       ├── package-portable.yml
+│       ├── package-windows.yml
+│       └── package-windows-legacy.yml
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── SECURITY.md
@@ -80,7 +84,9 @@ tictactoe-rs/
 │   ├── linux/
 │   │   └── appimage/
 │   └── windows/
-│       └── portable/
+│       ├── legacy/
+│       ├── portable/
+│       └── build-installers.ps1
 └── crates/
     ├── common/
     ├── server/
@@ -90,15 +96,15 @@ tictactoe-rs/
 
 ## Prerequisites
 
-- Rust 1.97.0 or newer
-- Cargo 1.97.0 or newer
+- Rust 1.77.2 or newer
+- Cargo 1.77.2 or newer
 - Docker 29.8.0 or newer
 - Docker Compose 5.5.1 or newer
 - Fish shell 3.x (or any POSIX-compatible shell)
 
 ## Installation
 
-We provide pre-built native packages for Windows 10/11 and various Linux distributions. See the [Installation Guide](docs/INSTALLATION.md) for download links, setup instructions, and compatibility details.
+We provide pre-built native packages for modern Windows 10/11, legacy Windows 7/8/8.1 compatibility builds, and various Linux distributions. See the [Installation Guide](docs/INSTALLATION.md) for download links, setup instructions, and compatibility details.
 
 ## Packaging
 
@@ -107,15 +113,17 @@ The CI pipeline automatically produces native packages on every release:
 - **Windows:** `.exe` (Inno Setup) and `.msi` (WiX Toolset)
 - **Linux:** `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL), `.pkg.tar.zst` (Arch), and a statically linked `.tar.gz` (musl)
 
-If you only want to try the demo and do not need to install the application system-wide, the release page also provides portable archives containing all executables:
+If you only want to try the demo and do not need to install the application system-wide, the release page also provides portable archives containing the executables:
 
-- `tictactoe-rs-<version>-x86_64-unknown-linux-gnu.tar.gz`
-- `tictactoe-rs-<version>-x86_64-pc-windows-msvc.zip`
-
-In addition, we provide portable distributions without installation:
 - `tictacli-<version>-x86_64.AppImage`
 - `tictacli-server-<version>-x86_64.AppImage`
 - `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`
+- `tictacli-<version>-x86_64-legacy.exe`
+- `tictacli-<version>-i686-legacy.exe`
+- `tictacli-<version>-legacy-setup.exe`
+- `tictacli-<version>-legacy.msi`
+
+The legacy Windows artefacts target Windows 7/8/8.1 and are built with the Rust 1.77 MSRV and `legacy-console` compatibility mode.
 
 You can build the portable distributions locally by running:
 ```fish
@@ -151,6 +159,10 @@ to a server behind a valid certificate authority. If you need to connect to
 a development server with a self-signed certificate, pass `--insecure` to
 disable certificate verification. Do not use `--insecure` against a
 production endpoint.
+
+The legacy Windows clients are intentionally separate from the modern installers
+and are meant for the older Windows 7/8/8.1 console stack. They are end-of-life
+compatibility builds and are not the default installation path.
 
 On Windows, use `.\tictacli-server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
