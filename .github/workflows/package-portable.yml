@@ -4,7 +4,9 @@ name: Package Portable Distributions
 # for the Windows server. It is separate from package-windows.yml (which builds MSI installers)
 # and from release.yml (which will be rewired to trigger these builds in Stage 7).
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
 
 jobs:
   appimage:

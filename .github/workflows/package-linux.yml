@@ -1,5 +1,7 @@
 name: Package Linux
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+  workflow_call:
 jobs:
   deb:
     runs-on: ubuntu-22.04
