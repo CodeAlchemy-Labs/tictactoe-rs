@@ -15,8 +15,8 @@ use common::domain::{Age, Player, UserProfile, Username};
 use common::protocol::{AuthFailureReason, ClientId, ServerMessage};
 
 use super::{
-    LobbyService, LobbyState, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN, MIN_PASSWORD_LEN,
-    reason_message,
+    reason_message, LobbyService, LobbyState, MAX_DISPLAY_NAME_LEN, MAX_PASSWORD_LEN,
+    MIN_PASSWORD_LEN,
 };
 
 impl LobbyService {

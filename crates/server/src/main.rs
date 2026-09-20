@@ -31,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         ) => {
             result.context("server terminated with an error")?;
         }
-        _ = shutdown_signal() => {
+        () = shutdown_signal() => {
             tracing::info!("shutdown signal received");
         }
     }

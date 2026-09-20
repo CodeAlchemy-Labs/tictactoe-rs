@@ -9,10 +9,10 @@ use futures_util::{SinkExt, StreamExt};
 use server::application::lobby::LobbyService;
 use server::infrastructure::http::build_router;
 use tokio::net::TcpListener;
-use tokio_tungstenite::MaybeTlsStream;
-use tokio_tungstenite::WebSocketStream;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
+use tokio_tungstenite::MaybeTlsStream;
+use tokio_tungstenite::WebSocketStream;
 
 type Client = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 

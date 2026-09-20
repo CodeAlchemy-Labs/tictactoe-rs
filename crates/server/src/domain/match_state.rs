@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use common::domain::{Board, GameStatus, Player};
-use common::protocol::{ClientId, MAX_SPECTATORS, MatchId};
+use common::protocol::{ClientId, MatchId, MAX_SPECTATORS};
 
 /// A Tic-Tac-Toe match between a host and (once joined) a guest.
 ///

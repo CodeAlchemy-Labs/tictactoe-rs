@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use axum::Router;
 use axum::routing::get;
+use axum::Router;
 
 use crate::application::lobby::LobbyService;
 use crate::infrastructure::ws_handler::ws_handler;
