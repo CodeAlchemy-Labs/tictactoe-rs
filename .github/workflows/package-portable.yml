@@ -1,0 +1,51 @@
+name: Package Portable Distributions
+
+# This workflow produces portable distributions: AppImages for Linux and a standalone .zip
+# for the Windows server. It is separate from package-windows.yml (which builds MSI installers)
+# and from release.yml (which will be rewired to trigger these builds in Stage 7).
+
+on: workflow_dispatch
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build AppImages
+        run: fish packaging/linux/build-appimage.fish
+
+      - name: Upload Linux AppImage artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tictacli-appimage
+          path: dist/linux/*.AppImage
+          if-no-files-found: error
+
+  windows-portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.97.0
+        with:
+          targets: x86_64-pc-windows-gnu
+
+      - name: Install MinGW and osslsigncode
+        run: |
+          choco install mingw -y --no-progress
+          choco install osslsigncode -y --no-progress
+
+      - name: Build portable server
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: powershell -File packaging\windows\build-portable-server.ps1
+
+      - name: Upload Windows portable server artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tictacli-windows-portable
+          path: dist\windows\*.zip
+          if-no-files-found: error
