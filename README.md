@@ -29,12 +29,6 @@ released, and the server rejects both attempts because Rust has already
 cleaned up.
 
 
-## Client
-
-The `tictacli` client presents a full-screen terminal interface. On startup, it attempts to connect to a server. If the server is provided via CLI flags (`--server` / `--name`) or environment variables, it fast-tracks the connection. Otherwise, it presents an interactive Connection screen to input the host, guest name, and TLS toggle.
-
-If a connection attempt fails or times out (10-second limit), it returns gracefully to the Connection form to allow retrying without restarting the application. Successfully connected credentials are saved locally across restarts.
-
 ## Architecture
 
 The project is organized as a Cargo workspace with four crates:
@@ -61,6 +55,7 @@ tictactoe-rs/
 ├── docker-compose.yml          ← demo stack
 ├── docker-compose.prod.yml     ← local production testing
 ├── Makefile
+├── clippy.toml
 ├── LICENSE
 ├── README.md
 ├── CHANGELOG.md
@@ -79,19 +74,29 @@ tictactoe-rs/
 │   ├── SECURITY.md
 │   ├── USER_GUIDE.md
 │   ├── DEPLOYMENT.md
-│   └── INSTALLATION.md
+│   ├── INSTALLATION.md
+│   └── RELEASING.md
 ├── packaging/
 │   ├── linux/
 │   │   └── appimage/
 │   └── windows/
 │       ├── legacy/
+│       │   ├── build-legacy-i686.ps1
+│       │   ├── build-legacy-x86_64.ps1
+│       │   ├── installer-legacy.iss
+│       │   ├── installer-legacy.wxs
+│       │   └── README.md
 │       ├── portable/
-│       └── build-installers.ps1
+│       ├── build-installers.ps1
+│       ├── build-portable-server.ps1
+│       ├── installer.iss
+│       ├── installer.wxs
+│       └── sign.ps1
 └── crates/
-    ├── common/
-    ├── server/
-    ├── client/
-    └── hacker/
+   ├── common/
+   ├── server/
+   ├── client/
+   └── hacker/
 ```
 
 ## Prerequisites
@@ -120,8 +125,10 @@ If you only want to try the demo and do not need to install the application syst
 - `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`
 - `tictacli-<version>-x86_64-legacy.exe`
 - `tictacli-<version>-i686-legacy.exe`
-- `tictacli-<version>-legacy-setup.exe`
-- `tictacli-<version>-legacy.msi`
+- `tictacli-x86_64-legacy-setup.exe`
+- `tictacli-x86_64-legacy.msi`
+- `tictacli-i686-legacy-setup.exe`
+- `tictacli-i686-legacy.msi`
 
 The legacy Windows artefacts target Windows 7/8/8.1 and are built with the Rust 1.77 MSRV and `legacy-console` compatibility mode.
 
@@ -167,6 +174,12 @@ compatibility builds and are not the default installation path.
 On Windows, use `.\tictacli-server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
 ## Quick start
+
+### Client
+
+The `tictacli` client presents a full-screen terminal interface. On startup, it attempts to connect to a server. If the server is provided via CLI flags (`--server` / `--name`) or environment variables, it fast-tracks the connection. Otherwise, it presents an interactive Connection screen to input the host, guest name, and TLS toggle.
+
+If a connection attempt fails or times out (10-second limit), it returns gracefully to the Connection form to allow retrying without restarting the application. Successfully connected credentials are saved locally across restarts.
 
 ### Local development
 

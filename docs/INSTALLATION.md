@@ -3,45 +3,28 @@
 ## Introduction
 This guide explains how to install the TicTacToe client and server. We provide pre-built native packages for Windows 10/11 and Linux distributions, and a dedicated legacy build path for Windows 7/8/8.1 that targets Rust 1.77 and disables the Ratatui underline-color feature for compatibility with the older console stack.
 
-## Windows 7 / 8 / 8.1 legacy build
+## Compatibility matrix
 
-The legacy build path is intended for older Windows systems that lack the modern Windows 10/11 console features used by the default client configuration. It is built with the Rust 1.77 MSRV and includes the `legacy-console` feature enabled:
-
-```powershell
-cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
-cargo +1.77.2 build --release --target i686-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
-```
-
-This build disables the Ratatui underline-color support, which is the compatibility toggle needed for older `cmd.exe`/legacy console behavior. The legacy path is not distributed through the modern installer flow and should be treated as a separate compatibility artefact.
-
-### Legacy installers
-
-For older, end-of-life Windows systems, the project releases dedicated compatibility packages:
-
-- `tictacli-<version>-legacy-setup.exe`
-- `tictacli-<version>-legacy.msi`
-
-These are for Windows 7 / 8 / 8.1 only. They are compatibility packages for a deprecated console stack and are intentionally kept separate from the modern Windows 10/11 installer flow.
+| Platform | Version / target | Package | Notes |
+|---|---|---|---|
+| Windows 10 / 11 | modern client | `.exe` / `.msi` | primary supported path |
+| Windows 7 / 8 / 8.1 | legacy compatibility | architecture-specific legacy `.exe` / `.msi` | EOL compatibility build |
+| Debian | 11+ | `.deb` | glibc 2.31 |
+| Ubuntu | 20.04+ | `.deb` | glibc 2.31 |
+| Fedora | 30+ | `.rpm` | glibc 2.28 |
+| RHEL / Rocky / Alma | 8+ | `.rpm` | glibc 2.28 |
+| Arch / Manjaro | rolling | `.pkg.tar.zst` | n/a |
+| Any Linux | fallback | `.tar.gz` (musl) | n/a |
 
 ## Windows 10/11 (`.exe`)
 
 The `.exe` installer (built with Inno Setup) is the recommended method for most Windows users. It supports per-user and per-machine installations and creates a Start Menu shortcut.
 
-```mermaid
-flowchart TD
-    A["Download Installer"] --> B{"Verify Signature"}
-    B -- Valid --> D["Run Installer"]
-    B -- UnknownError --> C["Trust Certificate"]
-    C --> D
-    D --> E["Launch from Start Menu"]
-    E --> F["Connect to Server"]
-```
-
 ### 1. Download
 Download `tictacli-<version>-setup.exe` from the GitHub Releases page.
 
 ### 2. Verify Signature and Trust Certificate
-Windows SmartScreen will warn you when running the installer because our certificate is self-signed. You must verify and trust the CodeAlchemy-Labs certificate. See [Verifying the Windows signature](#verifying-the-windows-signature) below, and link to the [Certificate Documentation](../packaging/certs/README.md) to trust it.
+Windows SmartScreen will warn you when running the installer because our certificate is self-signed. You must verify and trust the CodeAlchemy-Labs certificate. See [Verifying the Windows signature](#verifying-the-windows-signature) below, and [Certificate Documentation](../packaging/certs/README.md) to trust it.
 
 ### 3. Install
 Run the installer and follow the prompts.
@@ -71,12 +54,32 @@ Uninstall via Windows Settings, or silently:
 msiexec /x tictacli-<version>.msi /qn
 ```
 
+## Windows 7 / 8 / 8.1 legacy build
+
+The legacy build path is intended for older Windows systems that lack the modern Windows 10/11 console features used by the default client configuration. It is built with the Rust 1.77 MSRV and includes the `legacy-console` feature enabled:
+
+```powershell
+cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
+cargo +1.77.2 build --release --target i686-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
+```
+
+This build disables the Ratatui underline-color support, which is the compatibility toggle needed for older `cmd.exe`/legacy console behavior. The legacy path is not distributed through the modern installer flow and should be treated as a separate compatibility artefact.
+
+### Legacy installers
+
+For older, end-of-life Windows systems, the project releases dedicated compatibility packages:
+
+- `tictacli-x86_64-legacy-setup.exe` and `tictacli-x86_64-legacy.msi`
+- `tictacli-i686-legacy-setup.exe` and `tictacli-i686-legacy.msi`
+
+These are for Windows 7 / 8 / 8.1 only. They are compatibility packages for a deprecated console stack and are intentionally kept separate from the modern Windows 10/11 installer flow.
+
 ## Verifying the Windows signature
 
 You can verify that the `.exe` or `.msi` installer hasn't been tampered with by checking its Authenticode signature in PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature -FilePath .\tictacli-0.2.0-setup.exe | Format-List
+Get-AuthenticodeSignature -FilePath .\tictacli-<version>-setup.exe | Format-List
 ```
 
 - If you have trusted our certificate, the status will be `Valid`.
@@ -84,17 +87,6 @@ Get-AuthenticodeSignature -FilePath .\tictacli-0.2.0-setup.exe | Format-List
 - If the file is corrupt or tampered with, the status will be `HashMismatch`.
 
 ## Linux
-
-| Platform | Version / target | Package | Notes |
-|---|---|---|---|
-| Windows 10 / 11 | modern client | `.exe` / `.msi` | primary supported path |
-| Windows 7 / 8 / 8.1 | legacy compatibility | `tictacli-<version>-legacy-setup.exe` / `tictacli-<version>-legacy.msi` | EOL compatibility build |
-| Debian | 11+ | `.deb` | glibc 2.31 |
-| Ubuntu | 20.04+ | `.deb` | glibc 2.31 |
-| Fedora | 30+ | `.rpm` | glibc 2.28 |
-| RHEL / Rocky / Alma | 8+ | `.rpm` | glibc 2.28 |
-| Arch / Manjaro | rolling | `.pkg.tar.zst` | n/a |
-| Any Linux | fallback | `.tar.gz` (musl) | n/a |
 
 ```mermaid
 flowchart TD

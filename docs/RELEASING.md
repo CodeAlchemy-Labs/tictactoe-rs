@@ -35,7 +35,8 @@ artifacts into one GitHub release.
 4. Commit the version and changelog changes and push to `main`.
 5. Create the annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`.
 6. Push the tag: `git push origin vX.Y.Z`.
-7. The release workflow runs automatically. Watch it with `gh run watch`.
+7. The release workflow runs automatically. Poll it with
+   `gh run list --workflow=release.yml --limit 1`.
 8. Once the release is published, verify the artifact list matches the table
    below.
 
@@ -54,6 +55,23 @@ artifacts into one GitHub release.
 | `tictacli` musl archives | tar.gz | Linux x86_64 musl | `package-linux.yml` `musl` |
 | `tictacli` AppImages | AppImage | Linux desktop | `package-portable.yml` `appimage` |
 | Windows portable server | zip | Windows x86_64 | `package-portable.yml` `windows-portable` |
+
+The `publish` job uploads these paths from the separate artifact directories:
+
+```text
+dist/binaries-*/*.tar.gz
+dist/binaries-*/*.zip
+dist/windows-installers/*.exe
+dist/windows-installers/*.msi
+dist/windows-legacy-*/*.exe
+dist/windows-legacy-*/*.msi
+dist/tictacli-deb/*.deb
+dist/tictacli-rpm/*.rpm
+dist/linux-arch/*.pkg.tar.zst
+dist/tictacli-musl/*.tar.gz
+dist/tictacli-appimage/*.AppImage
+dist/tictacli-windows-portable/*.zip
+```
 
 ## Verifying a release
 

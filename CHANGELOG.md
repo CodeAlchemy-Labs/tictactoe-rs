@@ -5,7 +5,7 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-09-20
 
 ### Added
 - Legacy Windows 7/8/8.1 compatibility path for the client with the `legacy-console` feature and a Rust 1.77 MSRV-compatible build profile.
@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 - The server's RAII cleanup guarantees remain the critical defense against stale sessions and leaked resources during disconnects.
 
+## [Unreleased]
+
 ## [0.2.0] - 2026-09-18
 
 ### Added
@@ -42,6 +44,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Corrected broken packaging references, stale binary names, and documentation mismatches around release artifacts.
 - Resolved several compile-time and compatibility issues in the client and server code paths before the release.
+
+## [0.1.1] - 2026-09-17
+
+### Added
+- TLS support in the client using the system trust store.
+- The client's `--insecure` flag for development servers with self-signed certificates.
+- `PORT` environment variable support and the root `render.yaml` deployment blueprint.
+- README, architecture, and security documentation for remote deployments and TLS termination.
+
+### Changed
+- The client now uses `clap` and environment-variable fallbacks for its connection flags.
+- The client validates `ws://` and `wss://` URL schemes on startup.
+- The `port_reuse` scenario reports shared-namespace, privileged-port, and isolated-namespace outcomes honestly.
+- Terminal tracing output disables ANSI sequences when the output terminal cannot render them; `NO_COLOR` and `CLICOLOR_FORCE` are honored.
+
+### Fixed
+- ANSI escape sequences are no longer emitted on Windows consoles that do not process Virtual Terminal codes.
+- `ServerMessage::Error` tolerates a missing `code` field and falls back to `ErrorCode::Unknown` for compatibility with older servers.
 
 ## [0.1.0] - 2026-09-17
 
@@ -100,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected, that the server owns its port for as long as it runs, and that
   ephemeral ports are released synchronously on `drop`.
 
-[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases/tag/v0.1.0
