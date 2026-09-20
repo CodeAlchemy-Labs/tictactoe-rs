@@ -1,21 +1,23 @@
 #define MyAppVersion "0.2.0"
 
 [Setup]
-AppName=TicTacToe Client Legacy
+AppName=TicTacToe Client (Legacy)
 AppVersion={#MyAppVersion}
-DefaultDirName={autopf}\TicTacToe Client
-DefaultGroupName=TicTacToe Client
-OutputDir=..\..\dist\windows
-OutputBaseFilename=tictacli-legacy-setup
+AppId=CodeAlchemy-Labs.TicTacToe.Client.Legacy
+DefaultDirName={autopf}\TicTacToe Client (Legacy)
+DefaultGroupName=TicTacToe Client (Legacy)
+OutputDir=..\..\dist\windows\legacy
+OutputBaseFilename={#OutputBaseName}
 Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
+InfoBeforeFile=legacy-warning.txt
 
 [Files]
-Source: "..\..\target\x86_64-pc-windows-gnu\release\tictacli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\target\{#TargetArch}\release\tictacli.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\TicTacToe Client"; Filename: "{app}\tictacli.exe"
+Name: "{group}\TicTacToe Client (Legacy)"; Filename: "{app}\tictacli.exe"
 
 [Code]
 function InitializeSetup(): Boolean;

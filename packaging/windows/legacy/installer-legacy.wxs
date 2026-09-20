@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
-  <Package Name="TicTacToe Client Legacy"
+  <Package Name="TicTacToe Client (Legacy)"
            Manufacturer="CodeAlchemy-Labs"
            Version="$(var.AppVersion)"
-           UpgradeCode="D43AF8D5-421F-4D2E-9AD3-9DFAEFD0A1A2">
+           UpgradeCode="E92F0561-9AEF-4D79-BD57-4C182B4A554C">
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
 
     <MediaTemplate CompressionLevel="high" />
 
     <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="TicTacToe Client Legacy" />
+      <Directory Id="INSTALLFOLDER" Name="TicTacToe Client (Legacy)" />
     </StandardDirectory>
 
-    <Feature Id="MainFeature" Title="TicTacToe Client Legacy" Level="1">
+    <Feature Id="MainFeature" Title="TicTacToe Client (Legacy)" Level="1">
       <Component Directory="INSTALLFOLDER">
-        <File Source="..\..\target\x86_64-pc-windows-gnu\release\tictacli.exe" KeyPath="yes" />
+        <File Source="..\..\target\$(var.TargetArch)\release\tictacli.exe" KeyPath="yes" />
       </Component>
     </Feature>
   </Package>

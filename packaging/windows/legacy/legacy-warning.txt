@@ -1,0 +1,5 @@
+This legacy build is intended for Windows 7, 8, and 8.1 only.
+
+It is a compatibility package for end-of-life operating systems and is not the recommended installation path for modern Windows 10/11 systems.
+
+The legacy client uses the Rust 1.77 MSRV and the compatibility `legacy-console` feature set.
