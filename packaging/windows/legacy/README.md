@@ -21,6 +21,17 @@ pwsh -File packaging/windows/legacy/build-legacy.ps1
 
 The script writes the archive to `dist/windows/tictacli-<version>-legacy-win7.zip`.
 
+## Build host prerequisites
+
+- Rust 1.77.2 with both `x86_64-pc-windows-gnu` and `i686-pc-windows-gnu` targets.
+- MinGW-w64 toolchain for both architectures:
+  - 64-bit: `x86_64-w64-mingw32-gcc`
+  - 32-bit: `i686-w64-mingw32-gcc`
+- On GitHub Actions, both are installed via `egor-tensin/setup-mingw@v3`.
+- On a local Windows machine, install MSYS2 and run:
+  `pacman -S mingw-w64-x86_64-gcc mingw-w64-i686-gcc`
+  Then add both `C:\msys64\mingw64\bin` and `C:\msys64\mingw32\bin` to `PATH`.
+
 ## Root resolution
 
 The script resolves the repository root explicitly instead of relying on the caller's current working directory:
