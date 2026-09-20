@@ -12,6 +12,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install fish
+        run: |
+          sudo apt-add-repository ppa:fish-shell/release-3 -y
+          sudo apt-get update
+          sudo apt-get install -y fish
+
       - name: Build AppImages
         run: fish packaging/linux/build-appimage.fish
 
