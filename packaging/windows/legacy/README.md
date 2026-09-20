@@ -24,6 +24,26 @@ pwsh -File packaging/windows/legacy/build-legacy-i686.ps1
 
 The scripts write their archives to `dist/windows/legacy`.
 
+## Installer parameterization
+
+`installer-legacy.iss` and `installer-legacy.wxs` do not hard-code paths.
+They receive `SourceBinary` and `OutputDir` (or the WiX equivalent) as
+absolute paths from the PowerShell build script. This keeps the installer
+scripts independent of the repository layout and ensures they package the
+signed binary rather than the pre-signing artefact in `target/`.
+
+If you invoke `ISCC.exe` or `wix build` manually, you must pass these
+variables yourself:
+
+```powershell
+ISCC.exe /DAppVersion=0.2.0 `
+         /DSourceBinary=C:\path\to\dist\windows\legacy\tictacli-x86_64-legacy.exe `
+         /DOutputDir=C:\path\to\dist\windows\legacy `
+         /DOutputBaseName=tictacli-x86_64-legacy-setup `
+         /DTargetArch=x86_64-pc-windows-gnu `
+         installer-legacy.iss
+```
+
 ## Build host prerequisites
 
 - Rust 1.77.2 with the appropriate target:
