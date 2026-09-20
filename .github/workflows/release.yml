@@ -34,7 +34,7 @@ jobs:
           fi
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
 
-  build:
+  binaries:
     name: Build ${{ matrix.target }}
     needs: verify
     runs-on: ${{ matrix.runner }}
@@ -95,28 +95,46 @@ jobs:
       - name: Upload the release asset
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ matrix.target }}
+          name: binaries-${{ matrix.target }}
           path: ${{ env.ASSET }}
           retention-days: 1
 
+  package-windows:
+    needs: verify
+    uses: ./.github/workflows/package-windows.yml
+    secrets: inherit
+
+  package-windows-legacy:
+    needs: verify
+    uses: ./.github/workflows/package-windows-legacy.yml
+    secrets: inherit
+
+  package-linux:
+    needs: verify
+    uses: ./.github/workflows/package-linux.yml
+    secrets: inherit
+
+  package-portable:
+    needs: verify
+    uses: ./.github/workflows/package-portable.yml
+    secrets: inherit
+
   publish:
     name: Publish the GitHub release
-    needs: [verify, build]
+    needs: [verify, binaries, package-windows, package-windows-legacy, package-linux, package-portable]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Download all release assets
+      - name: Download all release artefacts
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: release-*
-          merge-multiple: true
 
       - name: List the downloaded assets
-        run: ls -la dist
+        run: find dist -type f | sort
 
       - name: Create the GitHub release
         uses: softprops/action-gh-release@v2
@@ -125,7 +143,17 @@ jobs:
           name: ${{ github.ref_name }}
           generate_release_notes: true
           files: |
-            dist/*.tar.gz
-            dist/*.zip
+            dist/binaries-*/*.tar.gz
+            dist/binaries-*/*.zip
+            dist/windows-installers/*.exe
+            dist/windows-installers/*.msi
+            dist/windows-legacy-*/*.exe
+            dist/windows-legacy-*/*.msi
+            dist/tictacli-deb/*.deb
+            dist/tictacli-rpm/*.rpm
+            dist/linux-arch/*.pkg.tar.zst
+            dist/tictacli-musl/*.tar.gz
+            dist/tictacli-appimage/*.AppImage
+            dist/tictacli-windows-portable/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
