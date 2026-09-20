@@ -46,6 +46,17 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-targets
 
+  msrv:
+    name: MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.77.2"
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo +1.77.2 build --workspace --locked
+
   doc:
     name: Documentation
     runs-on: ubuntu-latest
