@@ -18,6 +18,8 @@ function Get-RepoRoot {
 
 $repoRoot = Get-RepoRoot
 $distDir = Join-Path $repoRoot "dist\windows\legacy"
+$iconFile = Join-Path $repoRoot "packaging\windows\tictacli.ico"
+if (-not (Test-Path $iconFile)) { throw "Icon not found at $iconFile" }
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
@@ -46,6 +48,7 @@ $setupBaseName = "tictacli-x86_64-legacy-setup"
     "/DAppVersion=$Version" `
     "/DSourceBinary=$signedBinary" `
     "/DOutputDir=$distDir" `
+    "/DIconFile=$iconFile" `
     "/DOutputBaseName=$setupBaseName" `
     "/DTargetArch=$target" `
     "installer-legacy.iss"
@@ -58,7 +61,7 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to sign x86_64 setup installer" }
 Move-Item -Path $tempSetup -Destination $setupExe -Force
 
 $msiFile = Join-Path $distDir "tictacli-x86_64-legacy.msi"
-& wix build installer-legacy.wxs -d SourceBinary=$signedBinary -d AppVersion=$Version -d TargetArch=$target -o $msiFile
+& wix build installer-legacy.wxs -d SourceBinary=$signedBinary -d AppVersion=$Version -d TargetArch=$target -d IconFile=$iconFile -o $msiFile
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed for x86_64" }
 if (-not (Test-Path $msiFile)) { throw "MSI not found at $msiFile" }
 
