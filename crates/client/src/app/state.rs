@@ -35,15 +35,15 @@ impl AppState {
         config: &crate::config::ClientConfig,
     ) -> Self {
         let mut form = ConnectionForm::new(config);
-        if let Some(url) = &server_url
-            && let Ok(u) = url::Url::parse(url)
-        {
-            let host_str = u.host_str().unwrap_or_default();
-            let port_str = u.port().map(|p| format!(":{p}")).unwrap_or_default();
-            let path_str = u.path();
-            let path_str = if path_str == "/" { "" } else { path_str };
-            form.host = format!("{host_str}{port_str}{path_str}");
-            form.use_tls = u.scheme() == "wss" || u.scheme() == "https";
+        if let Some(url) = &server_url {
+            if let Ok(u) = url::Url::parse(url) {
+                let host_str = u.host_str().unwrap_or_default();
+                let port_str = u.port().map(|p| format!(":{p}")).unwrap_or_default();
+                let path_str = u.path();
+                let path_str = if path_str == "/" { "" } else { path_str };
+                form.host = format!("{host_str}{port_str}{path_str}");
+                form.use_tls = u.scheme() == "wss" || u.scheme() == "https";
+            }
         }
         if let Some(name) = &guest_name {
             form.guest_name = name.to_string();

@@ -15,7 +15,7 @@ use crate::domain::screen::{ActiveMatch, Screen, SpectatedMatch};
 
 /// Renders the whole UI for the current state.
 pub fn render(frame: &mut Frame<'_>, state: &AppState) {
-    let area = frame.area();
+    let area = frame.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -187,7 +187,8 @@ fn render_ranking(frame: &mut Frame<'_>, area: Rect, entries: &[RankingEntry]) {
         Constraint::Length(6),
     ];
 
-    let table = Table::new(rows, widths)
+    let table = Table::new(rows)
+        .widths(&widths)
         .header(
             Row::new(vec!["#", "Username", "Name", "Wins"])
                 .style(Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED)),

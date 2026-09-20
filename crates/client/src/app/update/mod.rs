@@ -131,10 +131,10 @@ pub fn apply_event(state: &mut AppState, event: AppEvent, effects: &mut Vec<Side
             effects.push(SideEffect::Send(ClientMessage::LeaveSpectate));
         }
         AppEvent::PlayMove(cell) => {
-            if let Some(zero_based) = cell.checked_sub(1)
-                && let Ok(position) = common::domain::Position::new(zero_based)
-            {
-                effects.push(SideEffect::Send(ClientMessage::MakeMove { position }));
+            if let Some(zero_based) = cell.checked_sub(1) {
+                if let Ok(position) = common::domain::Position::new(zero_based) {
+                    effects.push(SideEffect::Send(ClientMessage::MakeMove { position }));
+                }
             }
         }
         AppEvent::LeaveMatch => {

@@ -64,10 +64,10 @@ async fn main() -> anyhow::Result<()> {
                 }
                 InputEvent::Resize(_, _) => Some(AppEvent::Redraw),
             };
-            if let Some(event) = app_event
-                && keyboard_events.send(event).is_err()
-            {
-                return;
+            if let Some(event) = app_event {
+                if keyboard_events.send(event).is_err() {
+                    return;
+                }
             }
         }
     });
@@ -108,20 +108,20 @@ async fn main() -> anyhow::Result<()> {
             break;
         };
 
-        if let AppEvent::Server(common::protocol::ServerMessage::Welcome { .. }) = &event
-            && state.uses_connection_form
-        {
-            let url = state
-                .connection_form
-                .build_url()
-                .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
-            let c = client::config::ClientConfig {
-                server_url: Some(url),
-                guest_name: Some(state.connection_form.guest_name.clone()),
-                use_tls: Some(state.connection_form.use_tls),
-            };
-            if let Err(e) = client::config::save(&c) {
-                tracing::warn!("Failed to save client config: {}", e);
+        if let AppEvent::Server(common::protocol::ServerMessage::Welcome { .. }) = &event {
+            if state.uses_connection_form {
+                let url = state
+                    .connection_form
+                    .build_url()
+                    .unwrap_or_else(|_| "ws://127.0.0.1:8080/ws".to_string());
+                let c = client::config::ClientConfig {
+                    server_url: Some(url),
+                    guest_name: Some(state.connection_form.guest_name.clone()),
+                    use_tls: Some(state.connection_form.use_tls),
+                };
+                if let Err(e) = client::config::save(&c) {
+                    tracing::warn!("Failed to save client config: {}", e);
+                }
             }
         }
 

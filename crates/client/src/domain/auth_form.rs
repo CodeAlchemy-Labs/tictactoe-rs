@@ -183,7 +183,7 @@ impl AuthForm {
     }
 
     /// Toggles password visibility.
-    pub const fn toggle_reveal_password(&mut self) {
+    pub fn toggle_reveal_password(&mut self) {
         self.reveal_password = !self.reveal_password;
     }
 
