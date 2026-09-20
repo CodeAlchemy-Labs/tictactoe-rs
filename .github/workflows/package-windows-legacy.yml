@@ -10,25 +10,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust 1.77 toolchain
+      - name: Install Rust 1.77.2 toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.77.2
-          targets: x86_64-pc-windows-gnu
+          targets: x86_64-pc-windows-gnu, i686-pc-windows-gnu
 
-      - name: Install MinGW cross toolchain
-        shell: powershell
-        run: choco install mingw --no-progress
-
-      - name: Build legacy portable bundle
+      - name: Install MinGW and Windows packaging dependencies
         shell: powershell
         run: |
-          cd packaging/windows/legacy
-          .\build-legacy.ps1
+          choco install mingw --no-progress
+          choco install innosetup --no-progress
+          choco install osslsigncode --no-progress
 
-      - name: Upload legacy artefact
+      - name: Install WiX Toolset v4
+        shell: powershell
+        run: |
+          dotnet tool install --global wix --version 4.0.5
+          wix extension add WixToolset.UI.wixext/4.0.5 --global
+
+      - name: Build legacy Windows binaries and installers
+        shell: powershell
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          packaging\windows\legacy\build-legacy.ps1
+
+      - name: Upload legacy artefacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-legacy
-          path: dist/windows/tictacli-*-legacy-win7.zip
+          path: |
+            dist/windows/legacy/tictacli-x86_64-legacy.exe
+            dist/windows/legacy/tictacli-i686-legacy.exe
+            dist/windows/legacy/tictacli-*-legacy-setup.exe
+            dist/windows/legacy/tictacli-*-legacy.msi
           if-no-files-found: error
