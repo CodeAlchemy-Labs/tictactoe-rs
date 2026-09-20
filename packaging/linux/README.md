@@ -29,5 +29,37 @@ pacman -U /pkg/tictacli-*.pkg.tar.zst
 ```
 
 ## Context in the Delivery Pipeline
-This directory focuses on Stage 4 of the deployment strategy (native distros).
-AppImage support (Stage 5) and fully automated CI publication (Stage 7) will be added later. Currently, builds are executed on demand through a manually triggered GitHub Actions workflow (`package-linux.yml`) or locally via `make package-linux`.
+This directory focuses on Stage 4 of the deployment strategy (native distros) and Stage 5 (AppImage).
+Fully automated CI publication (Stage 7) will be added later. Currently, builds are executed on demand through manually triggered GitHub Actions workflows (`package-linux.yml`, `package-portable.yml`) or locally via `make package-linux` / `make package-appimage`.
+
+## AppImage (Portable)
+
+The AppImage provides a self-contained, single-executable version of TicTacToe. It is ideal for users on immutable distributions (like Fedora Silverblue or NixOS), systems where root access is unavailable, or environments where the native `.deb` / `.rpm` packages cannot be used.
+
+### Building Locally
+
+You can build the AppImage locally using the provided script. It requires Docker and will build inside a `debian:bullseye-slim` container (glibc 2.31) to ensure broad compatibility.
+
+```bash
+fish packaging/linux/build-appimage.fish
+```
+
+### Testing in a Clean Environment
+
+To verify that the AppImage is truly self-contained, you can test it inside a clean Docker container (e.g., `archlinux:latest` or `debian:stable-slim`) that lacks a Rust toolchain:
+
+```bash
+docker run --rm -it -v $(pwd)/dist/linux:/pkg archlinux:latest bash
+# Inside the container:
+chmod +x /pkg/tictacli-*.AppImage
+/pkg/tictacli-*.AppImage --appimage-version
+```
+
+### Known Limitations
+
+- **FUSE Requirement**: AppImages rely on FUSE (Filesystem in Userspace) to mount themselves. Older systems or certain container environments may lack `libfuse2`.
+- **Fallback**: If FUSE is unavailable, you can extract and run the contents directly:
+  ```bash
+  ./tictacli-*.AppImage --appimage-extract-and-run
+  ```
+- **Terminal Execution**: The TicTacToe server AppImage is a console application; it must be run from a terminal to view its logs.
