@@ -28,11 +28,13 @@ lcov.info
 Thumbs.db
 .vscode/
 dist/
+dist/windows/legacy/
 *.pfx
 *.key
 *.pass
 packaging/windows/obj/
 packaging/windows/Output/
+packaging/windows/legacy/*.AppDir
 
 packaging/linux/arch/pkg/
 packaging/linux/arch/src/
