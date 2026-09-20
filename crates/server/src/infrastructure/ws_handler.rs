@@ -2,8 +2,8 @@
 
 use std::sync::Arc;
 
-use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::State;
 use axum::response::IntoResponse;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
@@ -37,7 +37,7 @@ async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>, peer_ip: std
                 message: "too many sessions".to_string(),
             };
             let payload = serde_json::to_string(&msg).unwrap_or_default();
-            let _ = sink.send(Message::Text(payload.into())).await;
+            let _ = sink.send(Message::Text(payload)).await;
             let _ = sink.close().await;
             return;
         }
@@ -55,7 +55,7 @@ async fn handle_socket(socket: WebSocket, lobby: Arc<LobbyService>, peer_ip: std
                     continue;
                 }
             };
-            if sink.send(Message::Text(payload.into())).await.is_err() {
+            if sink.send(Message::Text(payload)).await.is_err() {
                 break;
             }
         }
