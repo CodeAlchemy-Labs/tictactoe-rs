@@ -142,6 +142,75 @@ Run the binary directly:
 ./tictacli-<version>/tictacli
 ```
 
+## Portable distributions
+
+```mermaid
+flowchart TD
+    Start[What do you want to do?] --> Linux[I want to run Linux software]
+    Start --> Win[I want to run the server on Windows]
+    
+    Linux --> LinuxRoot[Do I have root and a package manager?]
+    LinuxRoot -- Yes --> LinuxNative[Use .deb / .rpm / .pkg.tar.zst]
+    LinuxRoot -- No --> LinuxAppImage[Use AppImage]
+    
+    Win --> WinInstall[Do I want an installer?]
+    WinInstall -- Yes --> WinMSI[Use the .msi]
+    WinInstall -- No --> WinZip[Use the portable .zip]
+```
+
+### Linux AppImage (portable)
+
+The AppImage is a single executable file containing everything needed to run the application. It requires no installation and no root access.
+
+**Download:**
+Download `tictacli-<version>-x86_64.AppImage` or `tictacli-server-<version>-x86_64.AppImage` from the GitHub Releases page.
+
+**Run:**
+Make the file executable and run it:
+```bash
+chmod +x tictacli-*.AppImage
+./tictacli-*.AppImage
+```
+
+If FUSE is not available on your system (common in containers or minimal systems), you can extract and run it:
+```bash
+./tictacli-*.AppImage --appimage-extract-and-run
+```
+
+**Desktop integration:**
+The AppImage does not install anything to disk. To add it to your desktop's application menu, you can manually create a `.desktop` file that points to the AppImage's location, or use an integration tool like `appimaged` to automatically discover and integrate AppImages. Removing the AppImage file is all that is needed to "uninstall" the application.
+
+### Windows portable server
+
+The Windows portable server is a standalone distribution of the server. It requires no installer, no external DLLs, and writes nothing to the registry.
+
+**Download:**
+Download `tictacli-server-<version>-x86_64-pc-windows-gnu.zip` from the GitHub Releases page.
+
+**Contents:**
+The `.zip` archive contains `tictacli-server.exe`, `README.txt`, `sample.env`, `LICENSE`, and `CHANGELOG.md`.
+
+**Run:**
+Extract the `.zip` archive to a folder of your choice. You can run `tictacli-server.exe` by double-clicking it, or from `cmd` / PowerShell.
+
+**Configuration:**
+The server reads environment variables for configuration.
+In `cmd`:
+```cmd
+set TICTACTOE_ENV=production
+tictacli-server.exe
+```
+In PowerShell:
+```powershell
+$env:TICTACTOE_ENV = 'production'
+.\tictacli-server.exe
+```
+
+**Firewall and Signature:**
+Windows Defender Firewall will prompt you on the first launch. Allow the app on private networks, but do not allow it on public networks unless necessary.
+The `.exe` is signed with a self-signed certificate. You may see a Windows SmartScreen warning unless you trust the certificate as described in [Verifying the Windows signature](#verifying-the-windows-signature).
+
+
 ## Service installation
 
 ```mermaid
