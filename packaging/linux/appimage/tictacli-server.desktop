@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TicTacToe Server
+Comment=Run the TicTacToe WebSocket server
+Exec=AppRun
+Icon=tictacli
+Terminal=true
+Categories=Network;
+StartupNotify=false
