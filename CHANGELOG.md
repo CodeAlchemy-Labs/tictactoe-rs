@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Legacy Windows 7/8/8.1 compatibility path for the client with the `legacy-console` feature and a Rust 1.77 MSRV-compatible build profile.
 - A dedicated Windows legacy packaging script and documentation for the compatibility installer and MSI flow.
+- Unified release pipeline. Pushing a `v*.*.*` tag now triggers every packaging workflow and attaches all artefacts to a single GitHub release.
+- `docs/RELEASING.md`: maintainer-facing guide for cutting a release.
 
 ### Changed
 - Downgraded the workspace to Rust 2021, resolver 2, and `rust-version = "1.77"` to match the supported legacy Windows toolchain.
@@ -20,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Server display-name validation now counts Unicode characters, not bytes.
 - Replaced modern Rust 2024-only syntax and const-mutating methods with 1.77-compatible code paths.
 - Restored a clean changelog structure without duplicate or stale release entries.
+- The legacy Windows installers now show the CodeAlchemy-Labs icon in the Windows Explorer, the taskbar, and the Add/Remove Programs entry.
 
 ### Security
 - The server's RAII cleanup guarantees remain the critical defense against stale sessions and leaked resources during disconnects.
