@@ -16,21 +16,34 @@ From the repository root:
 
 ```powershell
 cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
-pwsh -File packaging/windows/legacy/build-legacy.ps1
+pwsh -File packaging/windows/legacy/build-legacy-x86_64.ps1
+
+cargo +1.77.2 build --release --target i686-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
+pwsh -File packaging/windows/legacy/build-legacy-i686.ps1
 ```
 
-The script writes the archive to `dist/windows/tictacli-<version>-legacy-win7.zip`.
+The scripts write their archives to `dist/windows/legacy`.
 
 ## Build host prerequisites
 
-- Rust 1.77.2 with both `x86_64-pc-windows-gnu` and `i686-pc-windows-gnu` targets.
-- MinGW-w64 toolchain for both architectures:
+- Rust 1.77.2 with the appropriate target:
+  - 64-bit: `rustup +1.77.2 target add x86_64-pc-windows-gnu`
+  - 32-bit: `rustup +1.77.2 target add i686-pc-windows-gnu`
+- MinGW-w64 toolchain for the corresponding architecture:
   - 64-bit: `x86_64-w64-mingw32-gcc`
   - 32-bit: `i686-w64-mingw32-gcc`
-- On GitHub Actions, both are installed via `egor-tensin/setup-mingw@v3`.
+- On GitHub Actions, each job installs only the MinGW platform it needs via `egor-tensin/setup-mingw@v3`.
 - On a local Windows machine, install MSYS2 and run:
-  `pacman -S mingw-w64-x86_64-gcc mingw-w64-i686-gcc`
-  Then add both `C:\msys64\mingw64\bin` and `C:\msys64\mingw32\bin` to `PATH`.
+  ```
+  pacman -S mingw-w64-x86_64-gcc   # for the 64-bit build
+  pacman -S mingw-w64-i686-gcc     # for the 32-bit build
+  ```
+  Add the corresponding `bin` directory to `PATH` before building. Do not add both at once; that is the conflict that produced the `invalid bfd target` error.
+
+## Build commands
+
+- 64-bit: `packaging\windows\legacy\build-legacy-x86_64.ps1`
+- 32-bit: `packaging\windows\legacy\build-legacy-i686.ps1`
 
 ## Root resolution
 
