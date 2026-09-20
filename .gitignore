@@ -38,3 +38,6 @@ packaging/linux/arch/pkg/
 packaging/linux/arch/src/
 packaging/linux/arch/*.pkg.tar.zst
 packaging/linux/arch/*.tar.gz
+packaging/linux/appimage/*.AppImage
+packaging/linux/appimage/*.AppDir
+packaging/windows/portable/staging/

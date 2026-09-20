@@ -32,7 +32,11 @@ help:
 		"  prod-build         build the server-only production image" \
 		"  prod-up            start the production stack on localhost:8080" \
 		"  prod-down          stop the production stack" \
-		"  prod-logs          tail production server logs"
+		"  prod-logs          tail production server logs" \
+		"" \
+		"Packaging targets:" \
+		"  package-linux      build all Linux native packages" \
+		"  package-portable   build AppImage and portable Windows server"
 
 tools:
 	@command -v cargo-llvm-cov >/dev/null 2>&1 || cargo install cargo-llvm-cov --locked
@@ -127,3 +131,11 @@ package-musl:
 	fish packaging/linux/build-musl.fish
 
 package-linux: package-deb package-rpm package-arch package-musl
+
+package-appimage:
+	fish packaging/linux/build-appimage.fish
+
+package-portable-server:
+	pwsh -NoProfile -File packaging/windows/build-portable-server.ps1
+
+package-portable: package-appimage package-portable-server
