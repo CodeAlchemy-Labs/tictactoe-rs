@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replaced modern Rust 2024-only syntax and const-mutating methods with 1.77-compatible code paths.
 - Restored a clean changelog structure without duplicate or stale release entries.
 - The legacy Windows installers now show the CodeAlchemy-Labs icon in the Windows Explorer, the taskbar, and the Add/Remove Programs entry.
+- `packaging/linux/arch/PKGBUILD-*`: the `pkgver` was hardcoded and fell out of sync with the workspace. `build-arch.fish` now injects the version from `Cargo.toml` at build time, and the source tarball is consumed locally instead of being downloaded from an old tag.
 
 ### Security
 - The server's RAII cleanup guarantees remain the critical defense against stale sessions and leaked resources during disconnects.
