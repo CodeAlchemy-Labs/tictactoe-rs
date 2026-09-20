@@ -90,25 +90,23 @@ tictactoe-rs/
 - Docker Compose 5.5.1 or newer
 - Fish shell 3.x (or any POSIX-compatible shell)
 
-## Pre-built binaries
+## Installation
 
-We provide pre-built Windows installers (`.msi`, `.exe`) and Linux packages (`.deb`, `.rpm`, `.pkg.tar.zst`, and static `.tar.gz` for musl) on the [Releases](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases) page.
+We provide pre-built native packages for Windows 10/11 and various Linux distributions. See the [Installation Guide](docs/INSTALLATION.md) for download links, setup instructions, and compatibility details.
 
-Signed Windows installers for Windows 10/11 are produced by the packaging pipeline. See the [Installation Guide](docs/INSTALLATION.md) for download and setup instructions.
+## Packaging
 
-If you only want to try the demo and do not need to build from source, the
-release page provides pre-compiled binaries for Linux and Windows:
+The CI pipeline automatically produces native packages on every release:
+
+- **Windows:** `.exe` (Inno Setup) and `.msi` (WiX Toolset)
+- **Linux:** `.deb` (Debian/Ubuntu), `.rpm` (Fedora/RHEL), `.pkg.tar.zst` (Arch), and a statically linked `.tar.gz` (musl)
+
+If you only want to try the demo and do not need to install the application system-wide, the release page also provides portable archives containing all three executables (`tictacli`, `tictacli-server`, and `hacker`):
 
 - `tictactoe-rs-<version>-x86_64-unknown-linux-gnu.tar.gz`
 - `tictactoe-rs-<version>-x86_64-pc-windows-msvc.zip`
 
-Each archive contains three executables (`server`, `client`, `hacker` and
-their `.exe` counterparts on Windows), plus `README.md`, `CHANGELOG.md`, and
-`LICENSE`.
-
-Download the archive for your platform from
-[the latest release](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases/latest),
-extract it, and run the server:
+Extract the archive and run the binaries directly. For example, to run the server:
 
 ```fish
 ./tictacli-server
@@ -139,7 +137,6 @@ production endpoint.
 
 On Windows, use `.\tictacli-server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
-
 ## Quick start
 
 ### Local development

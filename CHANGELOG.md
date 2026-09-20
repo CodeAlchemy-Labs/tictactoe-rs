@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/INSTALLATION.md`: user-facing installation guide for Windows.
 
 ### Changed
+- The server binary is now named `tictacli-server` on all platforms. Scripts and container configurations must be updated to invoke `./tictacli-server` instead of `./server`. The Cargo package name remains `server`.
+- The Linux packaging scripts have been stripped of fallback behaviors. They now fail loudly on error, derive their versions strictly from Cargo metadata, and properly tear down temporary environments using `trap`.
+- The `package-linux.yml` workflow now pins the Rust toolchain version and uses native containers directly instead of Docker-in-Docker.
 - The `Makefile` gained `package-deb`, `package-rpm`, `package-arch`, `package-musl`, and `package-linux` targets.
 - The Windows installers ship only the `tictacli` client. The `server` portable build and the `hacker` binary remain available as source builds.
 

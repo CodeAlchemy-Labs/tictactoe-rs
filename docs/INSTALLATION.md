@@ -1,13 +1,11 @@
 # Installation Guide
 
-This guide explains how to install the TicTacToe Client.
+## Introduction
+This guide explains how to install the TicTacToe client and server. We currently provide pre-built native packages for Windows 10/11 and various Linux distributions. Support for Windows 7/8/8.1 is planned for Stage 6.
 
-## Supported Platforms
+## Windows 10/11 (`.exe`)
 
-Currently, pre-built installers are available for **Windows 10 and 11**.
-
-
-## Overview
+The `.exe` installer (built with Inno Setup) is the recommended method for most Windows users. It supports per-user and per-machine installations and creates a Start Menu shortcut.
 
 ```mermaid
 flowchart TD
@@ -19,110 +17,171 @@ flowchart TD
     E --> F["Connect to Server"]
 ```
 
-## Windows 10/11 (.exe installer)
+### 1. Download
+Download `tictacli-<version>-setup.exe` from the GitHub Releases page.
 
-The recommended installation method for most users is the `.exe` installer (built with Inno Setup). It supports per-user and per-machine installations and creates a Start Menu shortcut.
+### 2. Verify Signature and Trust Certificate
+Windows SmartScreen will warn you when running the installer because our certificate is self-signed. You must verify and trust the CodeAlchemy-Labs certificate. See [Verifying the Windows signature](#verifying-the-windows-signature) below, and link to the [Certificate Documentation](../packaging/certs/README.md) to trust it.
+
+### 3. Install
+Run the installer and follow the prompts.
+
+### 4. Launch
+Launch "TicTacToe Client" from your Start Menu.
+
+### 5. Uninstall
+Uninstall by going to **Settings > Apps > Installed apps**, searching for "TicTacToe Client", and clicking **Uninstall**.
+
+## Windows 10/11 (`.msi`)
+
+For enterprise environments or silent deployments, use the `.msi` package (built with WiX Toolset).
 
 ### 1. Download
-Download the latest `tictacli-X.Y.Z-setup.exe` from the GitHub Releases page.
+Download `tictacli-<version>.msi` from the GitHub Releases page.
 
-### 2. Verify the Signature
-The installer is signed using a self-signed certificate by CodeAlchemy-Labs. You can verify it hasn't been tampered with by running this in PowerShell:
+### 2. Install
+Double-click to install, or run silently:
+```cmd
+msiexec /i tictacli-<version>.msi /qn
+```
+
+### 3. Uninstall
+Uninstall via Windows Settings, or silently:
+```cmd
+msiexec /x tictacli-<version>.msi /qn
+```
+
+## Verifying the Windows signature
+
+You can verify that the `.exe` or `.msi` installer hasn't been tampered with by checking its Authenticode signature in PowerShell:
 
 ```powershell
 Get-AuthenticodeSignature -FilePath .\tictacli-0.2.0-setup.exe | Format-List
 ```
 
-If you have trusted the certificate, you will see `Status : Valid`.
-If you haven't trusted it, you will see `Status : UnknownError`. Both are acceptable. `HashMismatch` means the file is corrupt.
+- If you have trusted our certificate, the status will be `Valid`.
+- If you have not trusted it yet, the status will be `UnknownError`.
+- If the file is corrupt or tampered with, the status will be `HashMismatch`.
 
-### 3. Trust the Certificate (Optional but Recommended)
-Because the certificate is self-signed, Windows SmartScreen will warn you when running the installer. To suppress this warning, you must trust the CodeAlchemy-Labs certificate.
-For instructions on how to do this, see the [Certificate Documentation](../packaging/certs/README.md).
-
-### 4. Install
-Run the installer. Follow the prompts to complete the installation. You can choose to add a Desktop shortcut during this process.
-
-### 5. Launch
-You can now launch the game by searching for "TicTacToe Client" in your Start Menu.
-The application will open and present a connection screen, prompting you for a server URL and a guest name.
-
-### 6. Uninstall
-You can uninstall the client by going to Settings > Apps > Installed apps, searching for "TicTacToe Client", and clicking Uninstall.
-
-## Windows 10/11 (.msi installer)
-
-Enterprise users or users who prefer Windows Installer can use the `.msi` package (built with WiX Toolset).
-
-### 1. Download and Verify
-Download `tictacli-X.Y.Z.msi` and verify the signature using the same method as above.
-
-### 2. Install
-Double-click the `.msi` file to run the installer.
-
-**Silent Installation:**
-```cmd
-msiexec /i tictacli-0.2.0.msi /qn
-```
-
-### 3. Uninstall
-You can uninstall via Windows Settings, or silently via the command line:
-
-```cmd
-msiexec /x tictacli-0.2.0.msi /qn
-```
 ## Linux
 
-| Distribution | Version range | Package | Compatibility |
+| Distribution | Version | Package | Minimum glibc |
 |---|---|---|---|
-| Debian | 11+ | `.deb` | glibc 2.31+ |
-| Ubuntu | 20.04+ | `.deb` | glibc 2.31+ |
-| Linux Mint | 20+ | `.deb` | glibc 2.31+ |
-| Fedora | 30+ | `.rpm` | glibc 2.28+ |
-| RHEL / Rocky / Alma | 8+ | `.rpm` | glibc 2.28+ |
-| Arch, Manjaro, EndeavourOS | rolling | `.pkg.tar.zst` | n/a (native) |
-| Any Linux (fallback) | any | `.tar.gz` (musl) | static |
+| Debian | 11+ | `.deb` | 2.31 |
+| Ubuntu | 20.04+ | `.deb` | 2.31 |
+| Fedora | 30+ | `.rpm` | 2.28 |
+| RHEL / Rocky / Alma | 8+ | `.rpm` | 2.28 |
+| Arch / Manjaro | rolling | `.pkg.tar.zst` | n/a |
+| Any Linux | fallback | `.tar.gz` (musl) | n/a |
 
 ```mermaid
 flowchart TD
     Start[Choose Linux Distro] --> Debian[Debian / Ubuntu]
-    Start --> RedHat[Fedora / RHEL]
-    Start --> Arch[Arch Linux]
-    Start --> Other[Other / Static]
-    Debian -->|Download .deb| CmdDeb[sudo apt install ./tictacli_0.2.0_amd64.deb]
-    RedHat -->|Download .rpm| CmdRpm[sudo dnf install ./tictacli-0.2.0-1.x86_64.rpm]
+    Start --> RedHat[Fedora / RHEL / Rocky / Alma]
+    Start --> Arch[Arch / Manjaro]
+    Start --> Other[Any Linux]
+    Debian -->|Download .deb| CmdDeb[apt install ./tictacli_*.deb]
+    RedHat -->|Download .rpm| CmdRpm[dnf install ./tictacli-*.rpm]
     Arch -->|AUR| CmdArch[yay -S tictacli]
-    Other -->|Download .tar.gz| CmdTar[tar -xzf tictacli-0.2.0-linux-musl-x86_64.tar.gz]
+    Other -->|Download .tar.gz| CmdTar[tar -xzf tictacli-*-linux-musl-*.tar.gz]
 ```
 
-### Debian / Ubuntu (`.deb`)
+## Debian / Ubuntu (`.deb`)
+
 Download the `.deb` package and install it via `apt`:
 ```bash
-sudo apt install ./tictacli_0.2.0_amd64.deb
+sudo apt install ./tictacli_<version>_amd64.deb
 ```
-Launch the client from your application menu or by running `tictacli` in the terminal. To uninstall: `sudo apt remove tictacli`.
+Launch the client from your application menu or by running `tictacli` in your terminal.
 
-For the server: `sudo apt install ./tictacli-server_0.2.0_amd64.deb`
-For both: `sudo apt install ./tictacli-full_0.2.0_all.deb`
+**Uninstalling:**
+```bash
+sudo apt remove tictacli
+```
 
-### Fedora / RHEL / Rocky / Alma (`.rpm`)
+## Fedora / RHEL / Rocky / Alma (`.rpm`)
+
 Download the `.rpm` package and install it via `dnf`:
 ```bash
-sudo dnf install ./tictacli-0.2.0-1.x86_64.rpm
+sudo dnf install ./tictacli-<version>-1.x86_64.rpm
 ```
-Launch from the application menu or terminal. To uninstall: `sudo dnf remove tictacli`.
+Launch the client from your application menu or terminal.
 
-### Arch Linux (AUR)
-Install the package from the Arch User Repository (AUR) using an AUR helper like `yay` or `paru`:
+**Uninstalling:**
+```bash
+sudo dnf remove tictacli
+```
+
+## Arch Linux (AUR)
+
+Install the package from the Arch User Repository (AUR) using a helper like `yay`:
 ```bash
 yay -S tictacli
 ```
-*(Note: AUR packages will be published after Stage 7. Until then, you can run `makepkg` manually from the `packaging/linux/arch/` directory).* 
-
-### Static musl build
-For older distributions, chroot environments, or containers without glibc, a statically linked musl variant is available. Extract and run it:
+Alternatively, if you clone the repository, you can build and install it using `makepkg`:
 ```bash
-tar -xzf tictacli-0.2.0-linux-musl-x86_64.tar.gz
-./tictacli-0.2.0/tictacli
+cd packaging/linux/arch
+makepkg -si
 ```
 
+**Uninstalling:**
+```bash
+sudo pacman -R tictacli
+```
+
+## Static musl build
+
+The musl builds are statically linked, making them completely independent of the system's glibc version. Prefer this fallback for older distributions, minimal container environments (like Alpine), or chroots where native packages are unavailable.
+
+Extract the tarball:
+```bash
+tar -xzf tictacli-<version>-linux-musl-x86_64.tar.gz
+```
+Run the binary directly:
+```bash
+./tictacli-<version>/tictacli
+```
+
+## Service installation
+
+```mermaid
+flowchart LR
+    A[Internet] --> B[Reverse Proxy]
+    B --> C[tictacli-server]
+    subgraph systemd
+    C
+    end
+```
+
+The `.deb` and `.rpm` server packages (`tictacli-server`) include a sample systemd unit. This unit is disabled by default to ensure it does not start automatically before you configure it.
+
+1. **Install the server package:**
+   ```bash
+   # Debian / Ubuntu
+   sudo apt install ./tictacli-server_<version>_amd64.deb
+   
+   # Fedora / RHEL
+   sudo dnf install ./tictacli-server-<version>-1.x86_64.rpm
+   ```
+
+2. **Create the dedicated system user:**
+   The service is configured to run as `tictacli`.
+   ```bash
+   sudo useradd --system --no-create-home --shell /sbin/nologin tictacli
+   ```
+
+3. **Copy the systemd unit:**
+   ```bash
+   sudo cp /usr/share/doc/tictacli-server/systemd/tictacli-server.service /etc/systemd/system/
+   ```
+
+4. **Enable and start the service:**
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now tictacli-server
+   ```
+
+5. **Check the status:**
+   ```bash
+   sudo systemctl status tictacli-server
+   ```

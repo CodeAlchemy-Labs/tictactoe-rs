@@ -228,6 +228,46 @@ The two images share the same source but diverge at the build step: the demo
 image compiles all four workspace members and copies all three binaries; the
 production image compiles only `--bin tictacli-server` and copies only that binary.
 
+## Native packages and systemd
+
+If you prefer deploying directly to a virtual machine (e.g., AWS EC2, DigitalOcean Droplet) instead of using containers, we provide native `.deb` and `.rpm` packages for the server.
+
+The server package (`tictacli-server`) installs the binary to `/usr/bin/tictacli-server` and includes a sample systemd unit file at `/usr/share/doc/tictacli-server/systemd/tictacli-server.service`.
+
+### Setting up the service
+
+1. **Install the package:**
+   ```bash
+   sudo apt install ./tictacli-server_<version>_amd64.deb # Debian/Ubuntu
+   # or
+   sudo dnf install ./tictacli-server-<version>-1.x86_64.rpm # RHEL/Fedora
+   ```
+
+2. **Create the service user:**
+   The systemd unit runs the server as a dedicated `tictacli` user for security.
+   ```bash
+   sudo useradd --system --no-create-home --shell /sbin/nologin tictacli
+   ```
+
+3. **Configure the environment (Optional):**
+   Create a drop-in directory to override default limits or set a custom port.
+   ```bash
+   sudo mkdir -p /etc/systemd/system/tictacli-server.service.d
+   echo -e "[Service]\nEnvironment=TICTACTOE_MAX_SESSIONS_PER_IP=50" | sudo tee /etc/systemd/system/tictacli-server.service.d/override.conf
+   ```
+
+4. **Activate the service:**
+   Copy the unit file, reload systemd, and enable the service:
+   ```bash
+   sudo cp /usr/share/doc/tictacli-server/systemd/tictacli-server.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now tictacli-server
+   ```
+
+5. **View logs:**
+   ```bash
+   sudo journalctl -fu tictacli-server
+   ```\
 ## Production hardening checklist
 
 Before exposing your server to the public internet, ensure you have completed this checklist:

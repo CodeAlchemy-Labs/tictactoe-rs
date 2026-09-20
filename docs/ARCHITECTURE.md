@@ -48,7 +48,7 @@ contains game logic.
 
 ## Concurrency model
 
-### Server
+### tictacli-server
 
 One process-wide `LobbyService` holds a `Mutex<LobbyState>`:
 
@@ -81,7 +81,7 @@ removed from the lobby, the sender side of the outbound channel drops, the
 writer task observes `None` on `recv`, and the socket closes. Every step is
 deterministic and enforced by the type system.
 
-### Client
+### tictacli
 
 The client runs three tasks plus the main loop:
 
@@ -209,6 +209,10 @@ either recovered or aborted).
   process boundaries (server WebSocket, hacker scenarios, client state
   machine).
 - The `common` crate has no I/O and is fully testable without a runtime.
+### Packaging tests
+
+The CI pipeline runs automated packaging tests. We test native package generation for Linux using Docker. We spawn temporary containers for various OS environments (Debian, Arch, Alpine, Rocky Linux) and run the identical build scripts that produce `.deb`, `.pkg.tar.zst`, `.tar.gz` and `.rpm` artifacts. These tests ensure the build scripts do not break silently, they capture the correct dependencies, and properly pull the version from `Cargo.toml`.
+
 - The server has 3 integration tests that spin up a real Axum server on an
   ephemeral port.
 - The client has 2 integration tests that drive the state machine over a

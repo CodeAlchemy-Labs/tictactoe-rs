@@ -1,45 +1,23 @@
-# Installing the client
-
-For instructions on downloading and installing the TicTacToe Client on Windows and Linux, please see the [Installation Guide](INSTALLATION.md).
-For Linux users, the `.deb`, `.rpm`, and AUR packages also install a desktop entry. Launching the client from your application menu will open the connection screen directly.
-
-When you launch the client using the created Start Menu shortcut, it starts without arguments, and the connection screen will appear automatically to prompt for your server URL and guest name.
-
 # User Guide
 
-Welcome to the `tictactoe-rs` user guide. This document explains how to install, configure, and use the Tic-Tac-Toe client and server.
+Welcome to the `tictactoe-rs` user guide. This document explains how to use the Tic-Tac-Toe client and server.
 
-## Installing and running
+## Installation
 
-The client binary is `tictacli` on every platform.
-
-
-### Pre-built binaries
-For a quick start, download the binaries for your platform from the [Releases](https://github.com/CodeAlchemy-Labs/tictactoe-rs/releases) page. Extract the archive and you'll have three executables: `server`, `client`, and `hacker`.
-
-### Docker
-To run the server in Docker:
-```bash
-make demo
-```
-This builds and starts the server on port 8080. You can then connect clients normally. To shut down:
-```bash
-make demo-down
-```
-
-### Source build
-Ensure you have Rust and Cargo installed, then run:
-```bash
-cargo run --release --bin tictacli-server
-cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name alice
-```
+For instructions on downloading and installing the client and server on Windows and Linux, please see the [Installation Guide](INSTALLATION.md).
 
 ## Connecting to a server
 
-Start the client with the required arguments:
-- `--server`: The WebSocket URL of the server (e.g., `ws://127.0.0.1:8080/ws`). Can also be set via the `TICTACTOE_SERVER` environment variable.
-- `--name`: Your display name. Can also be set via `TICTACTOE_NAME`.
-- `--insecure`: Use this flag to disable TLS certificate verification when connecting to a development server with a self-signed certificate (e.g., `wss://...`). Never use this against production endpoints.
+If you launch the client from your application menu (or via the Start Menu on Windows), it will start without arguments and present an interactive Connection screen.
+You can enter the server URL, toggle TLS, and specify your guest name to connect.
+
+If a connection attempt fails or times out (10-second limit), it returns gracefully to the Connection form to allow retrying without restarting the application. Successfully connected credentials are saved locally across restarts.
+
+Alternatively, you can fast-track the connection by providing CLI flags:
+```bash
+tictacli --server ws://127.0.0.1:8080/ws --name alice
+```
+Or by setting environment variables (`TICTACTOE_SERVER` and `TICTACTOE_NAME`).
 
 ## Screen map
 
