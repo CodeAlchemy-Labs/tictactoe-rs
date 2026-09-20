@@ -16,10 +16,31 @@ jobs:
           toolchain: 1.77.2
           targets: x86_64-pc-windows-gnu, i686-pc-windows-gnu
 
-      - name: Install MinGW and Windows packaging dependencies
+      - name: Install 64-bit MinGW
+        uses: egor-tensin/setup-mingw@v3
+        with:
+          platform: x64
+          cc: 0
+
+      - name: Install 32-bit MinGW
+        uses: egor-tensin/setup-mingw@v3
+        with:
+          platform: x86
+          cc: 0
+
+      - name: Verify both linkers are available
         shell: powershell
         run: |
-          choco install mingw --no-progress
+          $x64 = Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue
+          $x86 = Get-Command i686-w64-mingw32-gcc -ErrorAction SilentlyContinue
+          if (-not $x64) { throw "x86_64-w64-mingw32-gcc not found on PATH" }
+          if (-not $x86) { throw "i686-w64-mingw32-gcc not found on PATH" }
+          Write-Host "x86_64 linker: $($x64.Source)"
+          Write-Host "i686 linker: $($x86.Source)"
+
+      - name: Install Windows packaging tools
+        shell: powershell
+        run: |
           choco install innosetup --no-progress
           choco install osslsigncode --no-progress
 
