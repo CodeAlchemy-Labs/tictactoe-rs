@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `package-linux.yml`: the `deb` and `rpm` jobs failed inside GitHub Actions containers because rustup refuses to install when `$HOME` differs from the effective user's home. Both jobs now set `CARGO_HOME`, `RUSTUP_HOME`, and `HOME` to `/root` at the job level.
+- `packaging/linux/arch/PKGBUILD-tictacli-server`: updated to build and install the renamed `tictacli-server` binary. The `build()` and `package()` functions previously referenced the old `server` binary name and caused `makepkg` to fail with `no bin target named 'server'`.
 - `package-linux.yml`: on the first dispatch, the `deb` job used `debian:bullseye-slim` which has broken `debian-security` package URLs (HTTP 404); the `rpm` job tried to install `fish` from the default Rocky Linux 8 repos where it does not exist; both the `deb` and `rpm` jobs tried to spawn Docker-in-Docker which is unavailable inside GitHub Actions containers; the `arch` job used `su -` which reset the working directory and contained a fallback that hid failures; and the PKGBUILD and Cargo metadata both referenced `target/release/tictacli-server` which does not exist (the compiled binary is named `server`). All four jobs now run inside the appropriate native container (`debian:bookworm-slim`, `rockylinux:8`, `archlinux:latest`) with no Docker-in-Docker; `fish` is installed via the container's own package manager (including EPEL for Rocky); the `arch` job uses `su` without the login flag; every job verifies the expected artefact count; every `upload-artifact` step has `if-no-files-found: error`; and all binary asset paths are corrected to `target/release/server`.
 
 ### Added

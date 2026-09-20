@@ -15,7 +15,7 @@ install=tictacli-server.install
 
 build() {
   cd "tictactoe-rs-$pkgver" || cd "$srcdir"
-  cargo build --release --locked --bin server
+  cargo build --release --locked --bin tictacli-server
 }
 
 check() {
@@ -25,7 +25,7 @@ check() {
 
 package() {
   cd "tictactoe-rs-$pkgver" || cd "$srcdir"
-  install -Dm755 target/release/server "$pkgdir/usr/bin/tictacli-server"
+  install -Dm755 target/release/tictacli-server "$pkgdir/usr/bin/tictacli-server"
   install -Dm644 packaging/linux/common/tictacli-server.1 "$pkgdir/usr/share/man/man1/tictacli-server.1"
   install -Dm644 packaging/linux/common/tictacli-server.service "$pkgdir/usr/share/doc/tictacli-server/systemd/tictacli-server.service"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"

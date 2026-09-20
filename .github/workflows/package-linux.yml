@@ -6,6 +6,10 @@ jobs:
     container:
       image: debian:bookworm-slim
       options: --pull=always
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      HOME: /root
     steps:
       - uses: actions/checkout@v4
 
@@ -18,13 +22,12 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.0
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain 1.97.0 --profile minimal --no-modify-path
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install cargo-deb
-        run: |
-          . "$HOME/.cargo/env"
-          cargo install cargo-deb --locked
+        run: cargo install cargo-deb --locked
 
       - name: Build Debian packages
         run: fish packaging/linux/build-deb.fish
@@ -46,6 +49,10 @@ jobs:
     container:
       image: rockylinux:9
       options: --pull=always
+    env:
+      CARGO_HOME: /root/.cargo
+      RUSTUP_HOME: /root/.rustup
+      HOME: /root
     steps:
       - uses: actions/checkout@v4
 
@@ -56,13 +63,12 @@ jobs:
 
       - name: Install Rust
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.0
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain 1.97.0 --profile minimal --no-modify-path
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
 
       - name: Install cargo-generate-rpm
-        run: |
-          . "$HOME/.cargo/env"
-          cargo install cargo-generate-rpm --locked
+        run: cargo install cargo-generate-rpm --locked
 
       - name: Build RPM packages
         run: fish packaging/linux/build-rpm.fish
