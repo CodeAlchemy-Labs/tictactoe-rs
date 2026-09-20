@@ -1,7 +1,17 @@
 # Installation Guide
 
 ## Introduction
-This guide explains how to install the TicTacToe client and server. We currently provide pre-built native packages for Windows 10/11 and various Linux distributions. Support for Windows 7/8/8.1 is planned for Stage 6.
+This guide explains how to install the TicTacToe client and server. We provide pre-built native packages for Windows 10/11 and Linux distributions, and a dedicated legacy build path for Windows 7/8/8.1 that targets Rust 1.77 and disables the Ratatui underline-color feature for compatibility with the older console stack.
+
+## Windows 7 / 8 / 8.1 legacy build
+
+The legacy build path is intended for older Windows systems that lack the modern Windows 10/11 console features used by the default client configuration. It is built with the Rust 1.77 MSRV and includes the `legacy-console` feature enabled:
+
+```powershell
+cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
+```
+
+This build disables the Ratatui underline-color support, which is the compatibility toggle needed for older `cmd.exe`/legacy console behavior. The legacy path is not distributed through the modern installer flow and should be treated as a separate compatibility artefact.
 
 ## Windows 10/11 (`.exe`)
 

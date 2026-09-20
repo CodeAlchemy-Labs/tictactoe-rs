@@ -2,7 +2,7 @@
 
 This directory contains the scripts and assets required to build the Windows 10 and 11 installers for the TicTacToe Client.
 
-* Legacy Windows (7/8/8.1) is handled in Stage 6.
+* Legacy Windows (7/8/8.1) is handled in the dedicated `packaging/windows/legacy/` bundle.
 * Automated CI integration will be generalized in Stage 7.
 * This folder is specifically for the modern `.exe` and `.msi` installers.
 
