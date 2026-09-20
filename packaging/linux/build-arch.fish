@@ -38,23 +38,45 @@ else
     tar -czf $TARBALL/tictacli-$VERSION.tar.gz -C $TARBALL tictactoe-rs-$VERSION || exit 1
 end
 
+if not test -f $TARBALL/tictacli-$VERSION.tar.gz
+    echo "Expected tarball not found: $TARBALL/tictacli-$VERSION.tar.gz" >&2
+    exit 1
+end
+
 # Build each package in an isolated scratch directory.
 for PKG in tictacli tictacli-server
     echo ""
     echo "Building $PKG..."
     set BUILD_DIR (mktemp -d)
 
+    # Inject the current version into the PKGBUILD before makepkg reads it.
+    # `sed` rewrites only the `pkgver=` line; everything else is preserved.
+    set PKGBUILD_SRC $ARCH_DIR/PKGBUILD-$PKG
+    set PKGBUILD_DST $BUILD_DIR/PKGBUILD
+    sed -e "s/^pkgver=.*/pkgver=$VERSION/" \
+        -e "s/^pkgrel=.*/pkgrel=1/" \
+        $PKGBUILD_SRC > $PKGBUILD_DST
+    if not test -s $PKGBUILD_DST
+        echo "Failed to generate PKGBUILD for $PKG" >&2
+        exit 1
+    end
+    if not grep -q "^pkgver=$VERSION\$" $PKGBUILD_DST
+        echo "PKGBUILD for $PKG does not contain pkgver=$VERSION" >&2
+        echo "--- $PKGBUILD_DST ---" >&2
+        cat $PKGBUILD_DST >&2
+        exit 1
+    end
+
     # Lay out everything makepkg needs inside the build dir.
-    cp $ARCH_DIR/PKGBUILD-$PKG $BUILD_DIR/PKGBUILD || exit 1
     if test -f $ARCH_DIR/$PKG.install
         cp $ARCH_DIR/$PKG.install $BUILD_DIR/ || exit 1
     end
     cp $TARBALL/tictacli-$VERSION.tar.gz $BUILD_DIR/ || exit 1
 
     cd $BUILD_DIR || exit 1
-    # --skipinteg: the tarball was just created from HEAD, no checksum needed.
-    # --nodeps: deps are already installed in the container by the workflow.
-    if not makepkg --cleanbuild --force --skipinteg --nodeps
+    # --skipinteg: git archive changes with every commit, so its checksum
+    # cannot be pinned in the PKGBUILD.
+    if not makepkg --cleanbuild --force --skipinteg
         echo "makepkg failed for $PKG!" >&2
         exit 1
     end
