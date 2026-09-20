@@ -2,6 +2,19 @@
 
 This directory contains the scripts and assets for producing Linux packaging artefacts for TicTacToe.
 
+## Version synchronization
+
+The Arch PKGBUILDs do not carry a live version. `build-arch.fish` reads the
+version from the workspace `Cargo.toml` and rewrites `pkgver=` in a scratch
+copy of each PKGBUILD before invoking `makepkg`. The committed `pkgver=`
+value is a placeholder and does not need to be updated on every release.
+
+The source tarball is produced by `git archive HEAD` and named
+`tictacli-$VERSION.tar.gz`. It is placed in the same directory as the
+scratch PKGBUILD so `makepkg` finds it locally and does not attempt a
+network download. `sha256sums=('SKIP')` and `--skipinteg` are deliberate:
+the tarball changes with every commit and cannot be pinned.
+
 ## Supported Distros and glibc Requirements
 - `.deb`: Built on Debian 11 (bullseye). Targets glibc >= 2.31 (Debian 11+, Ubuntu 20.04+, Linux Mint 20+, Pop!_OS 20.04+).
 - `.rpm`: Built on Rocky Linux 8. Targets glibc >= 2.28 (RHEL 8+, Fedora 30+, Rocky 8+, Alma 8+).
