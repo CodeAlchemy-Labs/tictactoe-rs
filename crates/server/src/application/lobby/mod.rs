@@ -227,10 +227,10 @@ impl LobbyService {
                     grace_seconds: common::protocol::GRACE_PERIOD_SECS,
                 };
                 if let Some(m) = state.matches.get(&match_id) {
-                    if let Some(opponent_id) = m.opponent_of(client)
-                        && let Some(session) = state.sessions.get(&opponent_id)
-                    {
-                        session.try_send(notice.clone());
+                    if let Some(opponent_id) = m.opponent_of(client) {
+                        if let Some(session) = state.sessions.get(&opponent_id) {
+                            session.try_send(notice.clone());
+                        }
                     }
                     for spectator in &m.spectators {
                         if let Some(session) = state.sessions.get(spectator) {

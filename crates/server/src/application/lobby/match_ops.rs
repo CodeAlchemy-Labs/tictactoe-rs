@@ -521,16 +521,16 @@ fn broadcast_spectator_joined(
     if let Some(session) = state.sessions.get(&m.host) {
         session.try_send(joined.clone());
     }
-    if let Some(guest_id) = m.guest
-        && let Some(session) = state.sessions.get(&guest_id)
-    {
-        session.try_send(joined.clone());
+    if let Some(guest_id) = m.guest {
+        if let Some(session) = state.sessions.get(&guest_id) {
+            session.try_send(joined.clone());
+        }
     }
     for spectator in &m.spectators {
-        if *spectator != new_spectator
-            && let Some(session) = state.sessions.get(spectator)
-        {
-            session.try_send(joined.clone());
+        if *spectator != new_spectator {
+            if let Some(session) = state.sessions.get(spectator) {
+                session.try_send(joined.clone());
+            }
         }
     }
 }
@@ -548,10 +548,10 @@ fn broadcast_to_participants(
     if let Some(session) = state.sessions.get(&host) {
         session.try_send(message.clone());
     }
-    if let Some(guest_id) = guest
-        && let Some(session) = state.sessions.get(&guest_id)
-    {
-        session.try_send(message.clone());
+    if let Some(guest_id) = guest {
+        if let Some(session) = state.sessions.get(&guest_id) {
+            session.try_send(message.clone());
+        }
     }
     if let Some(m) = state.matches.get(&match_id) {
         for spectator in &m.spectators {
@@ -629,10 +629,10 @@ pub(super) fn detach_spectator_from_match(
     if let Some(session) = state.sessions.get(&host) {
         session.try_send(left.clone());
     }
-    if let Some(guest_id) = guest
-        && let Some(session) = state.sessions.get(&guest_id)
-    {
-        session.try_send(left.clone());
+    if let Some(guest_id) = guest {
+        if let Some(session) = state.sessions.get(&guest_id) {
+            session.try_send(left.clone());
+        }
     }
     for id in other_spectators {
         if let Some(session) = state.sessions.get(&id) {
@@ -727,11 +727,11 @@ fn finish_match(
         session.current_match = None;
         session.mark = None;
     }
-    if let Some(guest_id) = guest
-        && let Some(session) = state.sessions.get_mut(&guest_id)
-    {
-        session.current_match = None;
-        session.mark = None;
+    if let Some(guest_id) = guest {
+        if let Some(session) = state.sessions.get_mut(&guest_id) {
+            session.current_match = None;
+            session.mark = None;
+        }
     }
 
     // The spectators stay attached to the match until they dismiss the

@@ -24,13 +24,17 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!(address = %config.bind_address, "server listening");
 
-    axum::serve(
-        listener,
-        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .context("server terminated with an error")?;
+    tokio::select! {
+        result = axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+        ) => {
+            result.context("server terminated with an error")?;
+        }
+        _ = shutdown_signal() => {
+            tracing::info!("shutdown signal received");
+        }
+    }
 
     tracing::info!("server stopped");
     Ok(())

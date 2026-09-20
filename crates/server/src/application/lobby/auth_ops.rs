@@ -295,10 +295,10 @@ fn reconnect_pending(state: &mut LobbyState, username: &Username, new_client: Cl
         session.mark = Some(mark);
     }
 
-    if let Some(opponent_id) = opponent
-        && let Some(session) = state.sessions.get(&opponent_id)
-    {
-        session.try_send(reconnected.clone());
+    if let Some(opponent_id) = opponent {
+        if let Some(session) = state.sessions.get(&opponent_id) {
+            session.try_send(reconnected.clone());
+        }
     }
     for spectator in spectators {
         if let Some(session) = state.sessions.get(&spectator) {
