@@ -4,8 +4,29 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Get-RepoRoot {
+    if ($env:GITHUB_WORKSPACE -and (Test-Path (Join-Path $env:GITHUB_WORKSPACE "Cargo.toml"))) {
+        return (Resolve-Path $env:GITHUB_WORKSPACE).Path
+    }
+
+    $candidate = Join-Path $PSScriptRoot "..\..\.."
+    $resolved = Resolve-Path $candidate -ErrorAction SilentlyContinue
+    if (-not $resolved) {
+        Write-Error "Could not locate the repository root. Expected Cargo.toml above $PSScriptRoot"
+        exit 1
+    }
+
+    if (-not (Test-Path (Join-Path $resolved.Path "Cargo.toml"))) {
+        Write-Error "Could not locate the repository root. Expected Cargo.toml at $($resolved.Path)"
+        exit 1
+    }
+
+    return $resolved.Path
+}
+
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $cargoToml = Join-Path $PSScriptRoot "..\..\Cargo.toml"
+    $repoRoot = Get-RepoRoot
+    $cargoToml = Join-Path $repoRoot "Cargo.toml"
     $match = Select-String -Path $cargoToml -Pattern '^version = "(.+)"'
     if (-not $match) {
         throw "Could not determine version from Cargo.toml"
@@ -13,7 +34,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = $match.Matches[0].Groups[1].Value
 }
 
-$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+$repoRoot = Get-RepoRoot
 $distDir = Join-Path $repoRoot "dist\windows\legacy"
 New-Item -ItemType Directory -Force -Path $distDir | Out-Null
 
