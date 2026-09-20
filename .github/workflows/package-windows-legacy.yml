@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-legacy-windows:
+  build-legacy-x86_64:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Rust 1.77.2 toolchain
+      - name: Install Rust 1.77.2 toolchain (x86_64 target)
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.77.2
-          targets: x86_64-pc-windows-gnu, i686-pc-windows-gnu
+          targets: x86_64-pc-windows-gnu
 
       - name: Install 64-bit MinGW
         uses: egor-tensin/setup-mingw@v3
@@ -22,21 +22,12 @@ jobs:
           platform: x64
           cc: 0
 
-      - name: Install 32-bit MinGW
-        uses: egor-tensin/setup-mingw@v3
-        with:
-          platform: x86
-          cc: 0
-
-      - name: Verify both linkers are available
+      - name: Verify 64-bit linker
         shell: powershell
         run: |
-          $x64 = Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue
-          $x86 = Get-Command i686-w64-mingw32-gcc -ErrorAction SilentlyContinue
-          if (-not $x64) { throw "x86_64-w64-mingw32-gcc not found on PATH" }
-          if (-not $x86) { throw "i686-w64-mingw32-gcc not found on PATH" }
-          Write-Host "x86_64 linker: $($x64.Source)"
-          Write-Host "i686 linker: $($x86.Source)"
+          $linker = Get-Command x86_64-w64-mingw32-gcc -ErrorAction SilentlyContinue
+          if (-not $linker) { throw "x86_64-w64-mingw32-gcc not found on PATH" }
+          Write-Host "Linker: $($linker.Source)"
 
       - name: Install Windows packaging tools
         shell: powershell
@@ -50,21 +41,75 @@ jobs:
           dotnet tool install --global wix --version 4.0.5
           wix extension add WixToolset.UI.wixext/4.0.5 --global
 
-      - name: Build legacy Windows binaries and installers
+      - name: Build legacy x86_64 artefacts
         shell: powershell
         env:
           WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          packaging\windows\legacy\build-legacy.ps1
+          packaging\windows\legacy\build-legacy-x86_64.ps1
 
-      - name: Upload legacy artefacts
+      - name: Upload x86_64 artefacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-legacy
+          name: windows-legacy-x86_64
           path: |
             dist/windows/legacy/tictacli-x86_64-legacy.exe
+            dist/windows/legacy/tictacli-x86_64-legacy-setup.exe
+            dist/windows/legacy/tictacli-x86_64-legacy.msi
+          if-no-files-found: error
+
+  build-legacy-i686:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.77.2 toolchain (i686 target)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.77.2
+          targets: i686-pc-windows-gnu
+
+      - name: Install 32-bit MinGW
+        uses: egor-tensin/setup-mingw@v3
+        with:
+          platform: x86
+          cc: 0
+
+      - name: Verify 32-bit linker
+        shell: powershell
+        run: |
+          $linker = Get-Command i686-w64-mingw32-gcc -ErrorAction SilentlyContinue
+          if (-not $linker) { throw "i686-w64-mingw32-gcc not found on PATH" }
+          Write-Host "Linker: $($linker.Source)"
+
+      - name: Install Windows packaging tools
+        shell: powershell
+        run: |
+          choco install innosetup --no-progress
+          choco install osslsigncode --no-progress
+
+      - name: Install WiX Toolset v4
+        shell: powershell
+        run: |
+          dotnet tool install --global wix --version 4.0.5
+          wix extension add WixToolset.UI.wixext/4.0.5 --global
+
+      - name: Build legacy i686 artefacts
+        shell: powershell
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          packaging\windows\legacy\build-legacy-i686.ps1
+
+      - name: Upload i686 artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-legacy-i686
+          path: |
             dist/windows/legacy/tictacli-i686-legacy.exe
-            dist/windows/legacy/tictacli-*-legacy-setup.exe
-            dist/windows/legacy/tictacli-*-legacy.msi
+            dist/windows/legacy/tictacli-i686-legacy-setup.exe
+            dist/windows/legacy/tictacli-i686-legacy.msi
           if-no-files-found: error
