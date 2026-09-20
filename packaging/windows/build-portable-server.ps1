@@ -43,12 +43,12 @@ if ($args -contains "-SkipSign") {
 } else {
     Write-Output "Signing the binary..."
     $SignScript = Join-Path $RepoRoot "packaging\windows\sign.ps1"
-    & pwsh -NoProfile -File $SignScript -Path $ExeDst
+    $SignedExe = Join-Path $DistPortable "tictacli-server-signed.exe"
+    & pwsh -NoProfile -File $SignScript -InputFile $ExeDst -OutputFile $SignedExe
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Signing failed"
         exit 1
     }
-    $SignedExe = Join-Path $DistPortable "tictacli-server-signed.exe"
     if (Test-Path $SignedExe) {
         Move-Item -Path $SignedExe -Destination $ExeDst -Force
     }

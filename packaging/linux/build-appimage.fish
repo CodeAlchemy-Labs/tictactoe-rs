@@ -16,11 +16,10 @@ find $DIST_DIR -name "tictacli*.AppImage" -delete || exit 1
 echo "Building AppImages via Docker..."
 
 # Run inside Docker
-docker run --pull always --rm -v "$REPO_ROOT:/work" -w /work debian:bullseye-slim bash -c "
+docker run --pull always --rm -v "$REPO_ROOT:/work" -w /work debian:bookworm-slim bash -c "
 set -e
-echo 'deb http://archive.debian.org/debian/ bullseye main' > /etc/apt/sources.list
-apt-get update -o Acquire::Check-Valid-Until=false
-apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl file wget fuse squashfs-tools
+apt-get update
+apt-get install -y --no-install-recommends build-essential pkg-config ca-certificates curl file wget fuse libfuse2 squashfs-tools
 
 echo 'Installing Rust...'
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.97.0 --profile minimal
@@ -39,7 +38,7 @@ mkdir -p \$APPDIR/usr/bin \$APPDIR/usr/share/applications \$APPDIR/usr/share/ico
 cp target/release/tictacli \$APPDIR/usr/bin/
 cp packaging/linux/appimage/tictacli.desktop \$APPDIR/usr/share/applications/
 cp packaging/linux/common/tictacli.png \$APPDIR/usr/share/icons/hicolor/256x256/apps/tictacli.png
-VERSION=$VERSION ./linuxdeploy-x86_64.AppImage --appdir \$APPDIR --executable \$APPDIR/usr/bin/tictacli --desktop-file \$APPDIR/usr/share/applications/tictacli.desktop --icon-file \$APPDIR/usr/share/icons/hicolor/256x256/apps/tictacli.png --output appimage
+APPIMAGE_EXTRACT_AND_RUN=1 VERSION=$VERSION ./linuxdeploy-x86_64.AppImage --appdir \$APPDIR --executable \$APPDIR/usr/bin/tictacli --desktop-file \$APPDIR/usr/share/applications/tictacli.desktop --icon-file \$APPDIR/usr/share/icons/hicolor/256x256/apps/tictacli.png --output appimage
 
 echo 'Packaging server AppImage...'
 APPDIR_SERVER=AppDir-server
@@ -47,7 +46,7 @@ mkdir -p \$APPDIR_SERVER/usr/bin \$APPDIR_SERVER/usr/share/applications \$APPDIR
 cp target/release/tictacli-server \$APPDIR_SERVER/usr/bin/
 cp packaging/linux/appimage/tictacli-server.desktop \$APPDIR_SERVER/usr/share/applications/
 cp packaging/linux/common/tictacli.png \$APPDIR_SERVER/usr/share/icons/hicolor/256x256/apps/tictacli-server.png
-VERSION=$VERSION ./linuxdeploy-x86_64.AppImage --appdir \$APPDIR_SERVER --executable \$APPDIR_SERVER/usr/bin/tictacli-server --desktop-file \$APPDIR_SERVER/usr/share/applications/tictacli-server.desktop --icon-file \$APPDIR_SERVER/usr/share/icons/hicolor/256x256/apps/tictacli-server.png --output appimage
+APPIMAGE_EXTRACT_AND_RUN=1 VERSION=$VERSION ./linuxdeploy-x86_64.AppImage --appdir \$APPDIR_SERVER --executable \$APPDIR_SERVER/usr/bin/tictacli-server --desktop-file \$APPDIR_SERVER/usr/share/applications/tictacli-server.desktop --icon-file \$APPDIR_SERVER/usr/share/icons/hicolor/256x256/apps/tictacli-server.png --output appimage
 
 mv TicTacToe_Client-$VERSION-x86_64.AppImage dist/linux/tictacli-$VERSION-x86_64.AppImage
 mv TicTacToe_Server-$VERSION-x86_64.AppImage dist/linux/tictacli-server-$VERSION-x86_64.AppImage
@@ -59,7 +58,7 @@ for app in $DIST_DIR/tictacli*.AppImage
         echo "File not found: $app" >&2
         exit 1
     end
-    chmod +x $app
+    chmod +x $app; or true
     $app --appimage-version || exit 1
     sha256sum $app || exit 1
 end
