@@ -6,10 +6,10 @@ use common::protocol::{ClientMessage, ErrorCode, MatchId, ServerMessage};
 use crate::app::state::AppState;
 use crate::domain::{ActiveMatch, AuthMode, Screen};
 
-use super::SideEffect;
 use super::auth::{retry_pending, show_auth};
 use super::lobby_status;
 use super::spectator::apply_spectator_message;
+use super::SideEffect;
 
 /// Applies a message received from the server.
 pub(super) fn apply_server(

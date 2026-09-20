@@ -1,11 +1,11 @@
 //! Rendering for the terminal UI.
 
 use crate::domain::{ConnectionField, ConnectionForm};
-use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap};
+use ratatui::Frame;
 
 use common::domain::{Cell, GameStatus, Player, RankingEntry};
 

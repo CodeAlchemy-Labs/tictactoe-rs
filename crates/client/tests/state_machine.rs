@@ -1,8 +1,8 @@
 //! Integration tests for the client state machine driven by a mock transport.
 
-use client::app::AppState;
 use client::app::state::AppEvent;
-use client::app::update::{SideEffect, apply_event, dispatch};
+use client::app::update::{apply_event, dispatch, SideEffect};
+use client::app::AppState;
 use client::domain::{AuthMode, Screen};
 use client::infrastructure::{MockTransport, Transport};
 use common::domain::{Age, Board, Player, UserProfile, Username};

@@ -1,6 +1,6 @@
 //! Runtime configuration.
 
-use anyhow::{Context, bail};
+use anyhow::{bail, Context};
 use clap::Parser;
 use url::Url;
 

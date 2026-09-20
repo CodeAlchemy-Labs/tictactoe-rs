@@ -7,7 +7,7 @@
 use common::domain::{Age, Board, GameStatus, Username};
 use common::protocol::{ClientId, ClientMessage, ErrorCode, MatchId, MatchSummary, ServerMessage};
 
-use super::{SideEffect, apply_event};
+use super::{apply_event, SideEffect};
 use crate::app::state::{AppEvent, AppState};
 use crate::domain::screen::ActiveMatch;
 use crate::domain::{AuthForm, AuthMode, PendingAction, Screen};

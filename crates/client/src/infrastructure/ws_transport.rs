@@ -11,7 +11,7 @@ use std::sync::Arc;
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{Connector, connect_async_tls_with_config};
+use tokio_tungstenite::{connect_async_tls_with_config, Connector};
 
 use common::protocol::{ClientMessage, ServerMessage};
 

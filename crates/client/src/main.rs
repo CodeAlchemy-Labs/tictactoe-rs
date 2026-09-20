@@ -6,17 +6,17 @@ use anyhow::Context;
 use crossterm::cursor::{Hide, Show};
 use crossterm::execute;
 use crossterm::terminal::{
-    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+    disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
-use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::Terminal;
 use tokio::sync::mpsc;
 use tracing_subscriber::EnvFilter;
 
-use client::app::{AppEvent, AppState, apply_event};
+use client::app::{apply_event, AppEvent, AppState};
 use client::config::ArgsConfig;
 use client::infrastructure::{Transport, WsTransport};
-use client::tui::{InputEvent, KeyAction, read_input_event, render, translate_key};
+use client::tui::{read_input_event, render, translate_key, InputEvent, KeyAction};
 
 #[tokio::main]
 #[allow(clippy::too_many_lines)]
@@ -42,32 +42,30 @@ async fn main() -> anyhow::Result<()> {
 
     let keyboard_events = event_tx.clone();
     let keyboard_screen = Arc::clone(&screen);
-    tokio::task::spawn_blocking(move || {
-        loop {
-            let input = match read_input_event() {
-                Ok(input) => input,
-                Err(error) => {
-                    tracing::warn!(%error, "keyboard input failed");
-                    return;
+    tokio::task::spawn_blocking(move || loop {
+        let input = match read_input_event() {
+            Ok(input) => input,
+            Err(error) => {
+                tracing::warn!(%error, "keyboard input failed");
+                return;
+            }
+        };
+        let app_event = match input {
+            InputEvent::Key(code) => {
+                let current = keyboard_screen
+                    .read()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .clone();
+                match translate_key(code, &current) {
+                    KeyAction::Event(event) => Some(event),
+                    KeyAction::Ignored => None,
                 }
-            };
-            let app_event = match input {
-                InputEvent::Key(code) => {
-                    let current = keyboard_screen
-                        .read()
-                        .unwrap_or_else(std::sync::PoisonError::into_inner)
-                        .clone();
-                    match translate_key(code, &current) {
-                        KeyAction::Event(event) => Some(event),
-                        KeyAction::Ignored => None,
-                    }
-                }
-                InputEvent::Resize(_, _) => Some(AppEvent::Redraw),
-            };
-            if let Some(event) = app_event {
-                if keyboard_events.send(event).is_err() {
-                    return;
-                }
+            }
+            InputEvent::Resize(_, _) => Some(AppEvent::Redraw),
+        };
+        if let Some(event) = app_event {
+            if keyboard_events.send(event).is_err() {
+                return;
             }
         }
     });

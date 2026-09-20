@@ -46,7 +46,7 @@ impl AppState {
             }
         }
         if let Some(name) = &guest_name {
-            form.guest_name = name.to_string();
+            (*name).clone_into(&mut form.guest_name);
         }
 
         let is_fully_resolved = server_url.is_some() && guest_name.is_some();
