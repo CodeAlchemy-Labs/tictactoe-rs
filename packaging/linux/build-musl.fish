@@ -1,53 +1,75 @@
 #!/usr/bin/env fish
-# Fish stops on errors by default; explicit error-exit is via: exit
 
 # Resolve repo root from the script location so this works regardless of cwd.
 set REPO_ROOT (realpath (dirname (status filename))/../..)
-cd $REPO_ROOT
+cd $REPO_ROOT || exit 1
 
 set DIST_DIR $REPO_ROOT/dist/linux
-set VERSION "0.2.0"
 set TARGET "x86_64-unknown-linux-musl"
 
-echo "Cleaning old musl artefacts..."
-mkdir -p $DIST_DIR
-rm -f $DIST_DIR/tictacli*-linux-musl-*.tar.gz
+set VERSION (string match -r '^version\s*=\s*"(.+)"' < Cargo.toml | tail -n1)
+if not string match -r -q '^\d+\.\d+\.\d+' "$VERSION"
+    echo "Invalid or missing version in Cargo.toml: '$VERSION'" >&2
+    exit 1
+end
 
-# The musl target may already be installed by the workflow action; add it
-# idempotently so the script also works when run locally.
-rustup target add $TARGET 2>/dev/null; or true
+echo "Cleaning old musl artefacts..."
+mkdir -p $DIST_DIR || exit 1
+find $DIST_DIR -name "tictacli*-linux-musl-*.tar.gz" -delete || exit 1
+
+if not rustup target list --installed | string match -q "*$TARGET*"
+    rustup target add $TARGET
+    or begin
+        echo "Failed to add target $TARGET" >&2
+        exit 1
+    end
+end
 
 echo "Building musl statically linked binaries..."
-cargo build --release --locked --target $TARGET --bin tictacli --bin server
+if not cargo build --release --locked --target $TARGET --bin tictacli --bin tictacli-server
+    echo "cargo build failed" >&2
+    exit 1
+end
+
+set CLIENT_TMP ""
+set SERVER_TMP ""
+
+function cleanup
+    if test -n "$CLIENT_TMP"; and test -d "$CLIENT_TMP"
+        rm -rf $CLIENT_TMP
+    end
+    if test -n "$SERVER_TMP"; and test -d "$SERVER_TMP"
+        rm -rf $SERVER_TMP
+    end
+end
+trap cleanup EXIT
 
 # --- Package client ---
 echo "Packaging client..."
 set CLIENT_TMP (mktemp -d)
-trap "rm -rf $CLIENT_TMP" EXIT
 set CLIENT_PKG $CLIENT_TMP/tictacli-$VERSION
-mkdir -p $CLIENT_PKG
-cp target/$TARGET/release/tictacli            $CLIENT_PKG/
-cp packaging/linux/common/tictacli.desktop    $CLIENT_PKG/
-cp packaging/linux/common/tictacli.1          $CLIENT_PKG/
-cp LICENSE                                     $CLIENT_PKG/
+mkdir -p $CLIENT_PKG || exit 1
+cp target/$TARGET/release/tictacli            $CLIENT_PKG/ || exit 1
+cp packaging/linux/common/tictacli.desktop    $CLIENT_PKG/ || exit 1
+cp packaging/linux/common/tictacli.1          $CLIENT_PKG/ || exit 1
+cp LICENSE                                     $CLIENT_PKG/ || exit 1
 tar -czf $DIST_DIR/tictacli-$VERSION-linux-musl-x86_64.tar.gz \
-    -C $CLIENT_TMP tictacli-$VERSION
+    -C $CLIENT_TMP tictacli-$VERSION || exit 1
 
 # --- Package server ---
 echo "Packaging server..."
 set SERVER_TMP (mktemp -d)
-trap "rm -rf $SERVER_TMP" EXIT
 set SERVER_PKG $SERVER_TMP/tictacli-server-$VERSION
-mkdir -p $SERVER_PKG
-cp target/$TARGET/release/server                       $SERVER_PKG/tictacli-server
-cp packaging/linux/common/tictacli-server.1            $SERVER_PKG/
-cp packaging/linux/common/tictacli-server.service      $SERVER_PKG/
-cp LICENSE                                              $SERVER_PKG/
+mkdir -p $SERVER_PKG || exit 1
+cp target/$TARGET/release/tictacli-server              $SERVER_PKG/ || exit 1
+cp packaging/linux/common/tictacli-server.1            $SERVER_PKG/ || exit 1
+cp packaging/linux/common/tictacli-server.service      $SERVER_PKG/ || exit 1
+cp LICENSE                                              $SERVER_PKG/ || exit 1
 tar -czf $DIST_DIR/tictacli-server-$VERSION-linux-musl-x86_64.tar.gz \
-    -C $SERVER_TMP tictacli-server-$VERSION
+    -C $SERVER_TMP tictacli-server-$VERSION || exit 1
 
 echo "Verifying musl archives..."
-sha256sum $DIST_DIR/tictacli*-linux-musl-*.tar.gz
+sha256sum $DIST_DIR/tictacli*-linux-musl-*.tar.gz || exit 1
 
 echo "Done building musl packages."
 for file in $DIST_DIR/tictacli*-linux-musl-*.tar.gz

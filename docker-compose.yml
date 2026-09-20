@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: tictactoe-rs:local
-    command: ["server"]
+    command: ["tictacli-server"]
     environment:
       TICTACTOE_BIND: "0.0.0.0:8080"
       RUST_LOG: "info"

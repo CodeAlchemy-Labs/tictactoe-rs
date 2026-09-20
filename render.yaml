@@ -7,7 +7,7 @@
 # fallback when TICTACTOE_BIND is not set, so no configuration is required.
 #
 # This blueprint now builds from Dockerfile.server, which ships only the
-# `server` binary. The demo Dockerfile (which also ships `client` and
+# `tictacli-server` binary. The demo Dockerfile (which also ships `client` and
 # `hacker`) remains at the root for local development and demo use.
 services:
   - type: web

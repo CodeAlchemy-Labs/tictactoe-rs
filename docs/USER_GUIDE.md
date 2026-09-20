@@ -30,7 +30,7 @@ make demo-down
 ### Source build
 Ensure you have Rust and Cargo installed, then run:
 ```bash
-cargo run --release --bin server
+cargo run --release --bin tictacli-server
 cargo run --release --bin tictacli -- --server ws://127.0.0.1:8080/ws --name alice
 ```
 

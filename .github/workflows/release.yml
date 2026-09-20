@@ -76,7 +76,7 @@ jobs:
           staging="tictactoe-rs-${version}-${target}"
           mkdir -p "dist/${staging}"
 
-          for bin in server tictacli hacker; do
+          for bin in tictacli-server tictacli hacker; do
             cp "target/${target}/release/${bin}${suffix}" "dist/${staging}/${bin}${suffix}"
           done
           cp README.md CHANGELOG.md LICENSE "dist/${staging}/"

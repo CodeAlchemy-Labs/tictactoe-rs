@@ -1,5 +1,6 @@
 [package]
 name = "server"
+
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,6 +12,10 @@ readme.workspace = true
 description = "WebSocket Tic-Tac-Toe server with deterministic resource cleanup."
 keywords.workspace = true
 categories.workspace = true
+
+[[bin]]
+name = "tictacli-server"
+path = "src/main.rs"
 
 [dependencies]
 common = { path = "../common" }
@@ -43,7 +48,7 @@ section = "net"
 priority = "optional"
 depends = "$auto, ca-certificates"
 assets = [
-    ["target/release/server", "usr/bin/tictacli-server", "755"],
+    ["target/release/tictacli-server", "usr/bin/tictacli-server", "755"],
     ["../../packaging/linux/common/tictacli-server.1", "usr/share/man/man1/tictacli-server.1", "644"],
     ["../../packaging/linux/common/tictacli-server.service", "usr/share/doc/tictacli-server/systemd/tictacli-server.service", "644"],
     ["../../README.md", "usr/share/doc/tictacli-server/README.md", "644"],
@@ -56,7 +61,7 @@ summary = "TicTacToe WebSocket server"
 license = "MIT"
 url = "https://github.com/CodeAlchemy-Labs/tictactoe-rs"
 assets = [
-    { source = "../../target/release/server", dest = "/usr/bin/tictacli-server", mode = "755" },
+    { source = "../../target/release/tictacli-server", dest = "/usr/bin/tictacli-server", mode = "755" },
     { source = "../../packaging/linux/common/tictacli-server.1", dest = "/usr/share/man/man1/tictacli-server.1", mode = "644", doc = true },
     { source = "../../packaging/linux/common/tictacli-server.service", dest = "/usr/share/doc/tictacli-server/systemd/tictacli-server.service", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/tictacli-server/LICENSE", mode = "644", doc = true },

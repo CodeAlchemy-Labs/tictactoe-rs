@@ -111,7 +111,7 @@ Download the archive for your platform from
 extract it, and run the server:
 
 ```fish
-./server
+./tictacli-server
 ```
 
 In two other terminals, run the two clients:
@@ -137,7 +137,7 @@ a development server with a self-signed certificate, pass `--insecure` to
 disable certificate verification. Do not use `--insecure` against a
 production endpoint.
 
-On Windows, use `.\server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
+On Windows, use `.\tictacli-server.exe`, `.\tictacli.exe`, and `.\hacker.exe` from
 PowerShell or `cmd`.
 
 ## Quick start
@@ -298,13 +298,13 @@ without any configuration change:
 
 ```fish
 # Local default
-./server
+./tictacli-server
 
 # Explicit port
-PORT=9090 ./server
+PORT=9090 ./tictacli-server
 
 # Explicit full bind address
-TICTACTOE_BIND=127.0.0.1:9999 ./server
+TICTACTOE_BIND=127.0.0.1:9999 ./tictacli-server
 ```
 
 #### Deploying to Render

@@ -49,7 +49,7 @@ COPY crates ./crates
 # Build only the server binary. --locked ensures the build uses exactly the
 # dependency versions recorded in Cargo.lock; if the lockfile is stale the
 # build fails early rather than silently upgrading a transitive dependency.
-RUN cargo build --release --locked --bin server
+RUN cargo build --release --locked --bin tictacli-server
 
 # ---------------------------------------------------------------------------
 # Runtime stage: minimal Debian image with the server binary only.
@@ -67,7 +67,7 @@ RUN apt-get update \
     && useradd --create-home --shell /bin/bash --uid 1000 app
 
 # Copy only the server binary — nothing else.
-COPY --from=builder /build/target/release/server /usr/local/bin/server
+COPY --from=builder /build/target/release/tictacli-server /usr/local/bin/tictacli-server
 
 # Default to production mode. Operators who want development behaviour must
 # explicitly override this variable. Forgetting to set it in a production
@@ -87,4 +87,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 USER app
 WORKDIR /home/app
 
-CMD ["server"]
+CMD ["tictacli-server"]

@@ -226,7 +226,7 @@ flowchart LR
 
 The two images share the same source but diverge at the build step: the demo
 image compiles all four workspace members and copies all three binaries; the
-production image compiles only `--bin server` and copies only that binary.
+production image compiles only `--bin tictacli-server` and copies only that binary.
 
 ## Production hardening checklist
 

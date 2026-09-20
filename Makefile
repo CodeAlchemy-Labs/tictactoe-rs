@@ -91,7 +91,7 @@ hacker:
 	docker compose --profile demo run --rm hacker
 
 run-server:
-	cargo run --release --bin server
+	cargo run --release --bin tictacli-server
 
 run-hacker:
 	cargo run --release --bin hacker -- --target ws://127.0.0.1:8080/ws --scenario all

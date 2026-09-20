@@ -39,7 +39,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --shell /bin/bash --uid 1000 app
 
-COPY --from=builder /build/target/release/server /usr/local/bin/server
+COPY --from=builder /build/target/release/tictacli-server /usr/local/bin/tictacli-server
 COPY --from=builder /build/target/release/tictacli /usr/local/bin/client
 COPY --from=builder /build/target/release/hacker /usr/local/bin/hacker
 
@@ -48,4 +48,4 @@ WORKDIR /home/app
 
 # The compose file selects which binary runs in each service by overriding
 # `command`. Without an override the server runs by default.
-CMD ["server"]
+CMD ["tictacli-server"]
