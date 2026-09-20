@@ -70,7 +70,7 @@ impl Board {
     /// # Errors
     ///
     /// Returns [`DomainError::CellOccupied`] if the position is already taken.
-    pub const fn place(&mut self, position: Position, player: Player) -> Result<(), DomainError> {
+    pub fn place(&mut self, position: Position, player: Player) -> Result<(), DomainError> {
         let index = position.index();
         if !self.cells[index].is_empty() {
             return Err(DomainError::CellOccupied { position });
@@ -84,11 +84,10 @@ impl Board {
     pub fn status(&self) -> GameStatus {
         for line in WINNING_LINES {
             let [a, b, c] = line.map(|index| self.cells[index as usize]);
-            if let [Cell::Occupied(p), Cell::Occupied(q), Cell::Occupied(r)] = [a, b, c]
-                && p == q
-                && q == r
-            {
-                return GameStatus::Won(p);
+            if let [Cell::Occupied(p), Cell::Occupied(q), Cell::Occupied(r)] = [a, b, c] {
+                if p == q && q == r {
+                    return GameStatus::Won(p);
+                }
             }
         }
 
