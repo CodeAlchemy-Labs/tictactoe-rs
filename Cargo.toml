@@ -1,11 +1,11 @@
 [workspace]
-resolver = "3"
+resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
 version = "0.2.0"
-edition = "2024"
-rust-version = "1.97"
+edition = "2021"
+rust-version = "1.77"
 license = "MIT"
 authors = ["CodeAlchemy-Labs"]
 repository = "https://github.com/CodeAlchemy-Labs/tictactoe-rs"
@@ -20,15 +20,20 @@ categories = ["games", "network-programming"]
 whoami = "1"
 
 # Config
+# `toml 0.8.23` pulls `indexmap 2.14.x`, which now uses the edition-2024
+# Cargo manifest. Keep the last 0.8 branch, while pinning `indexmap` itself to a
+# Rust 1.77-compatible release.
 directories = "5"
-toml = "0.8"
-tempfile = "3"
+toml = "=0.8.23"
+indexmap = "=2.11.0"
+tempfile = "=3.14.0"
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 
-# WebSocket server
-axum = { version = "0.8", features = ["ws"] }
+# WebSocket server. Axum 0.8.x pulls `axum-core 0.5.x`, which requires rustc
+# 1.78+, so pin the last 0.7 line that remains on the Windows 7 toolchain.
+axum = { version = "=0.7.0", features = ["ws"] }
 
 # WebSocket client with TLS. `rustls-tls-native-roots` uses the system CA
 # bundle and avoids a link-time dependency on OpenSSL.
@@ -39,24 +44,43 @@ tokio-tungstenite = { version = "0.26", features = ["rustls-tls-native-roots"] }
 rustls = { version = "0.23", default-features = false, features = ["std", "ring"] }
 
 # Password hashing
-argon2 = "0.5"
+# `argon2 0.5.3` pulls `base64ct 1.8.3`, which requires the unstable
+# edition 2024 Cargo feature and fails on Rust 1.77. Keep the 0.5.2 release
+# while forcing the older `base64ct` release that is still compatible with the
+# Windows 7 toolchain.
+argon2 = "=0.5.2"
+base64ct = "=1.6.0"
 
 # Cryptographic randomness. The `getrandom` feature pulls in the OS RNG
 # that Argon2 uses to generate salts.
 rand_core = { version = "0.6", features = ["getrandom"] }
 
 # Secure zeroing of sensitive buffers
-zeroize = "1"
+# `zeroize 1.9.0` requires the edition-2024 Cargo feature on Rust 1.77, so
+# keep the last 1.x release before that bump.
+zeroize = "=1.8.1"
 
 # CLI argument parsing
-clap = { version = "4", features = ["derive", "env"] }
+# `clap 4.6.x` pulls `clap_lex 1.1.1`, and the derive macro stack also drags in
+# `darling_macro 0.24.1`, which requires rustc 1.88. Keep the 4.5.x line and
+# pin the derive support crates to the final 0.20.x releases that still support
+# the Windows 7 toolchain.
+clap = { version = "=4.5.37", features = ["derive", "env"] }
+darling = "=0.20.10"
+darling_core = "=0.20.10"
+darling_macro = "=0.20.10"
 
 # URL parsing
-url = "2"
+# `url 2.5.x` resolves to `idna_adapter 1.2.2` with an edition-2024 manifest,
+# which Rust 1.77 cannot parse. Pin the url/idna chain to the last 1.77-safe
+# releases before that bump arrived in the ecosystem.
+url = "=2.5.2"
+idna = "=0.5.0"
+idna_adapter = "=1.1.0"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde_json = "=1.0.140"
 
 # Error handling
 thiserror = "2"
@@ -66,9 +90,14 @@ anyhow = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
-# Terminal UI
-ratatui = "0.29"
+# Terminal UI. Ratatui 0.29.x pulls the rustc-1.88 `instability` proc-macro
+# stack; pin the last pre-instability line so the legacy Windows 7/8/8.1 build
+# remains compatible with Rust 1.77.
+ratatui = { version = "=0.24.0", default-features = false, features = ["crossterm"] }
 crossterm = "0.28"
+
+# MSRV-safe transitive compatibility for the legacy Windows build path.
+unicode-segmentation = "=1.12.0"
 
 # Async utilities
 futures-util = "0.3"

@@ -22,6 +22,12 @@ whoami.workspace = true
 
 directories.workspace = true
 toml.workspace = true
+indexmap.workspace = true
+idna.workspace = true
+idna_adapter.workspace = true
+darling.workspace = true
+darling_core.workspace = true
+darling_macro.workspace = true
 common = { path = "../common" }
 tokio.workspace = true
 serde.workspace = true
@@ -37,6 +43,7 @@ tokio-tungstenite.workspace = true
 rustls.workspace = true
 clap.workspace = true
 url.workspace = true
+unicode-segmentation.workspace = true
 
 [dev-dependencies]
 
@@ -46,7 +53,9 @@ tokio-tungstenite.workspace = true
 workspace = true
 
 [features]
-# TODO(stage-6): legacy-console = ["ratatui/no-underline-color"]
+default = ["modern-console"]
+modern-console = ["ratatui/underline-color"]
+legacy-console = []
 
 [package.metadata.deb]
 maintainer = "CodeAlchemy-Labs <maintainers@codealchemy-labs.example>"
