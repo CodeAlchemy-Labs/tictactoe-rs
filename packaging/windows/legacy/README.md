@@ -80,3 +80,9 @@ This keeps the script stable even when it is launched from a different working d
 The legacy build disables the modern underline-color rendering path so older `cmd.exe` consoles keep working without requiring modern terminal features.
 
 The Stage 6 workflow keeps this artifact separate from the modern Windows 10/11 installer (`packaging/windows/`).
+
+## Icon
+
+The legacy installers use the same icon as the modern installers, from
+`packaging/windows/tictacli.ico`. The path is passed to both Inno Setup
+and WiX by the PowerShell build scripts as an absolute path.
