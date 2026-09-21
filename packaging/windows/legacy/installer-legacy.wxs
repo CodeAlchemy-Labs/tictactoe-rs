@@ -21,7 +21,7 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Icon Id="AppIcon.ico" SourceFile="$(var.IconFile)" />
 
-    <MediaTemplate CompressionLevel="high" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <StandardDirectory Id="ProgramFilesFolder">
       <Directory Id="INSTALLFOLDER" Name="TicTacToe Client (Legacy)" />
