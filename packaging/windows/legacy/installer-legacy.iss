@@ -24,7 +24,6 @@ OutputDir={#OutputDir}
 OutputBaseFilename={#OutputBaseName}
 SetupIconFile={#IconFile}
 UninstallDisplayIcon={app}\tictacli.exe
-WizardSmallImageFile={#IconFile}
 Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
