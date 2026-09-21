@@ -70,6 +70,17 @@ $tempMsi = Join-Path $env:TEMP "legacy-msi-i686.msi"
 if ($LASTEXITCODE -ne 0) { throw "Failed to sign i686 MSI" }
 Move-Item -Path $tempMsi -Destination $msiFile -Force
 
+$portableRoot = Join-Path $repoRoot "dist\windows\legacy\staging-client-i686"
+$portableDir = Join-Path $portableRoot "tictacli-$Version-i686-legacy"
+if (Test-Path $portableRoot) { Remove-Item -Path $portableRoot -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+Copy-Item -Path $signedBinary -Destination (Join-Path $portableDir "tictacli.exe")
+Copy-Item -Path (Join-Path $repoRoot "packaging\windows\legacy\README-client.txt") -Destination (Join-Path $portableDir "README.txt")
+Copy-Item -Path (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $portableDir "LICENSE")
+$portableZip = Join-Path $distDir "tictacli-$Version-i686-legacy-portable.zip"
+Compress-Archive -Path "$portableDir\*" -DestinationPath $portableZip -Force
+Remove-Item -Path $portableRoot -Recurse -Force
+
 Write-Host "i686 legacy artefact hashes:"
 Get-ChildItem -Path $distDir -File |
     Where-Object { $_.Name -match 'i686' -and ($_.Extension -in '.exe', '.msi') } |

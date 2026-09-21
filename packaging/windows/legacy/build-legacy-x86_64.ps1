@@ -70,6 +70,17 @@ $tempMsi = Join-Path $env:TEMP "legacy-msi-x86_64.msi"
 if ($LASTEXITCODE -ne 0) { throw "Failed to sign x86_64 MSI" }
 Move-Item -Path $tempMsi -Destination $msiFile -Force
 
+$portableRoot = Join-Path $repoRoot "dist\windows\legacy\staging-client-x86_64"
+$portableDir = Join-Path $portableRoot "tictacli-$Version-x86_64-legacy"
+if (Test-Path $portableRoot) { Remove-Item -Path $portableRoot -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+Copy-Item -Path $signedBinary -Destination (Join-Path $portableDir "tictacli.exe")
+Copy-Item -Path (Join-Path $repoRoot "packaging\windows\legacy\README-client.txt") -Destination (Join-Path $portableDir "README.txt")
+Copy-Item -Path (Join-Path $repoRoot "LICENSE") -Destination (Join-Path $portableDir "LICENSE")
+$portableZip = Join-Path $distDir "tictacli-$Version-x86_64-legacy-portable.zip"
+Compress-Archive -Path "$portableDir\*" -DestinationPath $portableZip -Force
+Remove-Item -Path $portableRoot -Recurse -Force
+
 Write-Host "x86_64 legacy artefact hashes:"
 Get-ChildItem -Path $distDir -File |
     Where-Object { $_.Name -match 'x86_64' -and ($_.Extension -in '.exe', '.msi') } |
