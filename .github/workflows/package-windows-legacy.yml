@@ -50,14 +50,23 @@ jobs:
         run: |
           packaging\windows\legacy\build-legacy-x86_64.ps1
 
+      - name: Build legacy x86_64 server
+        shell: powershell
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          packaging\windows\legacy\build-legacy-server-x86_64.ps1
+
       - name: Upload x86_64 artefacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-legacy-x86_64
           path: |
-            dist/windows/legacy/tictacli-x86_64-legacy.exe
+            dist/windows/legacy/tictacli-*-x86_64-legacy-portable.zip
             dist/windows/legacy/tictacli-x86_64-legacy-setup.exe
             dist/windows/legacy/tictacli-x86_64-legacy.msi
+            dist/windows/legacy/tictacli-server-*-x86_64-legacy-portable.zip
           if-no-files-found: error
 
   build-legacy-i686:
@@ -105,12 +114,21 @@ jobs:
         run: |
           packaging\windows\legacy\build-legacy-i686.ps1
 
+      - name: Build legacy i686 server
+        shell: powershell
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          packaging\windows\legacy\build-legacy-server-i686.ps1
+
       - name: Upload i686 artefacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-legacy-i686
           path: |
-            dist/windows/legacy/tictacli-i686-legacy.exe
+            dist/windows/legacy/tictacli-*-i686-legacy-portable.zip
             dist/windows/legacy/tictacli-i686-legacy-setup.exe
             dist/windows/legacy/tictacli-i686-legacy.msi
+            dist/windows/legacy/tictacli-server-*-i686-legacy-portable.zip
           if-no-files-found: error
