@@ -123,8 +123,10 @@ If you only want to try the demo and do not need to install the application syst
 - `tictacli-<version>-x86_64.AppImage`
 - `tictacli-server-<version>-x86_64.AppImage`
 - `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`
-- `tictacli-<version>-x86_64-legacy.exe`
-- `tictacli-<version>-i686-legacy.exe`
+- `tictacli-<version>-x86_64-legacy-portable.zip`
+- `tictacli-<version>-i686-legacy-portable.zip`
+- `tictacli-server-<version>-x86_64-legacy-portable.zip`
+- `tictacli-server-<version>-i686-legacy-portable.zip`
 - `tictacli-x86_64-legacy-setup.exe`
 - `tictacli-x86_64-legacy.msi`
 - `tictacli-i686-legacy-setup.exe`

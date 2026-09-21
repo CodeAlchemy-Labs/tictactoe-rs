@@ -14,15 +14,21 @@ This folder contains the compatibility artifacts for the Stage 6 legacy Windows 
 
 From the repository root:
 
-```powershell
-cargo +1.77.2 build --release --target x86_64-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
-pwsh -File packaging/windows/legacy/build-legacy-x86_64.ps1
+  pwsh -File packaging/windows/legacy/build-legacy-x86_64.ps1
+  pwsh -File packaging/windows/legacy/build-legacy-i686.ps1
+  pwsh -File packaging/windows/legacy/build-legacy-server-x86_64.ps1
+  pwsh -File packaging/windows/legacy/build-legacy-server-i686.ps1
 
-cargo +1.77.2 build --release --target i686-pc-windows-gnu --no-default-features --features legacy-console --bin tictacli
-pwsh -File packaging/windows/legacy/build-legacy-i686.ps1
-```
+Each script builds the corresponding binary, signs it, produces the
+installer (client only) and the portable `.zip`, and writes everything
+under `dist/windows/legacy/`.
 
-The scripts write their archives to `dist/windows/legacy`.
+## Portable artefacts
+
+Each portable archive contains the executable under its versioned directory,
+the relevant README, and the `LICENSE` file. Server archives also include
+`sample.env`. Archives use the naming convention
+`tictacli[-server]-<version>-<architecture>-legacy-portable.zip`.
 
 ## Installer parameterization
 

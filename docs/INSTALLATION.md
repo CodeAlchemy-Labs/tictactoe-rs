@@ -8,7 +8,8 @@ This guide explains how to install the TicTacToe client and server. We provide p
 | Platform | Version / target | Package | Notes |
 |---|---|---|---|
 | Windows 10 / 11 | modern client | `.exe` / `.msi` | primary supported path |
-| Windows 7 / 8 / 8.1 | legacy compatibility | architecture-specific legacy `.exe` / `.msi` | EOL compatibility build |
+| Windows 7 / 8 / 8.1 | legacy client | architecture-specific legacy `.zip` / `.exe` / `.msi` | EOL compatibility build |
+| Windows 7 / 8 / 8.1 | legacy server | architecture-specific legacy portable `.zip` | EOL compatibility build |
 | Debian | 11+ | `.deb` | glibc 2.31 |
 | Ubuntu | 20.04+ | `.deb` | glibc 2.31 |
 | Fedora | 30+ | `.rpm` | glibc 2.28 |
@@ -73,6 +74,13 @@ For older, end-of-life Windows systems, the project releases dedicated compatibi
 - `tictacli-i686-legacy-setup.exe` and `tictacli-i686-legacy.msi`
 
 These are for Windows 7 / 8 / 8.1 only. They are compatibility packages for a deprecated console stack and are intentionally kept separate from the modern Windows 10/11 installer flow.
+
+### Legacy client portable archives
+
+As an alternative to the installers, download
+`tictacli-<version>-x86_64-legacy-portable.zip` or
+`tictacli-<version>-i686-legacy-portable.zip`. Extract the archive and run
+`tictacli.exe` from the extracted directory.
 
 ## Verifying the Windows signature
 
@@ -160,16 +168,19 @@ Run the binary directly:
 
 ```mermaid
 flowchart TD
-    Start[What do you want to do?] --> Linux[I want to run Linux software]
-    Start --> Win[I want to run the server on Windows]
-    
-    Linux --> LinuxRoot[Do I have root and a package manager?]
-    LinuxRoot -- Yes --> LinuxNative[Use .deb / .rpm / .pkg.tar.zst]
-    LinuxRoot -- No --> LinuxAppImage[Use AppImage]
-    
-    Win --> WinInstall[Do I want an installer?]
-    WinInstall -- Yes --> WinMSI[Use the .msi]
-    WinInstall -- No --> WinZip[Use the portable .zip]
+   Start[What do you want to install?] --> Client[Client]
+   Start --> Server[Server]
+   Client --> Win10[Windows 10 / 11]
+   Client --> Win7[Windows 7 / 8 / 8.1]
+   Win10 --> Win10Installer[Download setup.exe or .msi]
+   Win7 --> Win7Installer[Download legacy-setup.exe or legacy.msi]
+   Win7 --> Win7Portable[Or download legacy-portable.zip]
+   Server --> LinuxSrv[Linux]
+   Server --> WinSrv[Windows]
+   LinuxSrv --> LinuxPkg[Use .deb / .rpm / .pkg.tar.zst]
+   LinuxSrv --> LinuxAppImage[Or use the AppImage]
+   WinSrv --> Win10Srv[Windows 10 / 11: portable .zip]
+   WinSrv --> Win7Srv[Windows 7 / 8 / 8.1: legacy-portable.zip]
 ```
 
 ### Linux AppImage (portable)
@@ -223,6 +234,20 @@ $env:TICTACTOE_ENV = 'production'
 **Firewall and Signature:**
 Windows Defender Firewall will prompt you on the first launch. Allow the app on private networks, but do not allow it on public networks unless necessary.
 The `.exe` is signed with a self-signed certificate. You may see a Windows SmartScreen warning unless you trust the certificate as described in [Verifying the Windows signature](#verifying-the-windows-signature).
+
+### Windows 7 / 8 / 8.1 legacy server
+
+The legacy server is distributed as a standalone portable archive for older
+Windows versions. Download
+`tictacli-server-<version>-x86_64-legacy-portable.zip` or
+`tictacli-server-<version>-i686-legacy-portable.zip` from the GitHub Releases
+page.
+
+Extract the archive and run `tictacli-server.exe` by double-clicking it or from
+PowerShell. It binds to `0.0.0.0:8080` by default and logs
+`listening on 0.0.0.0:8080` when ready. The archive includes `README.txt`,
+`sample.env`, and `LICENSE`; set the documented environment variables before
+launching when changing the default configuration.
 
 
 ## Service installation
