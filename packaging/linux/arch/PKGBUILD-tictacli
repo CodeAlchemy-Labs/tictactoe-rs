@@ -2,7 +2,7 @@
 pkgname=tictacli
 # Placeholder. build-arch.fish rewrites this from Cargo.toml before makepkg
 # runs. Do not treat this value as authoritative.
-pkgver=0.3.2
+pkgver=0.3.3
 pkgrel=1
 pkgdesc="TicTacToe WebSocket client"
 arch=('x86_64' 'aarch64')
