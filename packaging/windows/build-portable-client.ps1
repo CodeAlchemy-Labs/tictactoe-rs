@@ -71,7 +71,7 @@ New-Item -ItemType Directory -Path $Staging | Out-Null
 Copy-Item -Path $ExeDst -Destination $Staging
 Copy-Item -Path (Join-Path $RepoRoot "packaging\windows\portable\README-client.txt") -Destination (Join-Path $Staging "README.txt")
 Copy-Item -Path (Join-Path $RepoRoot "LICENSE") -Destination $Staging
-Copy-Item -Path (Join-Path $RepoRoot "packaging\windows\portable\config.example.toml") -Destination $Staging
+Copy-Item -Path (Join-Path $RepoRoot "packaging\common\config.example.toml") -Destination $Staging
 
 # 6. Zip
 $ZipPath = Join-Path $DistWindows "tictacli-$Version-x86_64-portable.zip"
