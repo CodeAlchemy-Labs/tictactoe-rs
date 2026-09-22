@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-09-21
+
+### Fixed
+- `packaging/linux/build-arch.fish` did not inject the workspace version into the PKGBUILDs before invoking `makepkg`, so the Arch build downloaded the source tarball of the previous tag and failed with `no bin target named`. The version is now rewritten from `Cargo.toml` at build time, and the PKGBUILDs consume the locally generated tarball instead of a GitHub URL.
+- Windows executables did not embed an icon resource. `crates/client` and `crates/server` now have a `build.rs` that embeds `packaging/windows/tictacli.ico` into every Windows binary via `winresource`. Explorer, the taskbar, and the Add/Remove Programs entry all show the application icon.
+- `packaging/windows/legacy/installer-legacy.wxs` installed only the executable. The MSI now installs the icon file alongside the binary, creates Start Menu and Desktop shortcuts, and installs into `Program Files` on x86_64 and `Program Files (x86)` on i686.
+- `packaging/windows/legacy/installer-legacy.iss` did not copy the icon file nor create a Desktop shortcut, so the Start Menu entry had no icon. Both are now installed, and the installer respects the target architecture.
+
 ## [0.3.1] - 2026-09-21
 
 ### Fixed
@@ -42,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The server's RAII cleanup guarantees remain the critical defense against stale sessions and leaked resources during disconnects.
 
 ## [Unreleased]
+
+[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.1...v0.3.2
 
 ## [0.2.0] - 2026-09-18
 
@@ -134,7 +145,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected, that the server owns its port for as long as it runs, and that
   ephemeral ports are released synchronously on `drop`.
 
-[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.1.1...v0.2.0
