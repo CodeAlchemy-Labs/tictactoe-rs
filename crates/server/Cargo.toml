@@ -32,6 +32,9 @@ argon2.workspace = true
 rand_core.workspace = true
 zeroize.workspace = true
 
+[build-dependencies]
+winresource.workspace = true
+
 [dev-dependencies]
 tokio-tungstenite.workspace = true
 [lints]

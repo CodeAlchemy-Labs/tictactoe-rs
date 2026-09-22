@@ -3,7 +3,7 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 rust-version = "1.77"
 license = "MIT"
@@ -17,6 +17,7 @@ categories = ["games", "network-programming"]
 
 [workspace.dependencies]
 
+winresource = { version = "=0.1.29", default-features = false }
 whoami = "1"
 
 # Config
