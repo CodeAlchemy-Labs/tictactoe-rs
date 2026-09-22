@@ -14,6 +14,9 @@
 <?ifndef UpgradeCode ?>
   <?error UpgradeCode is required. Pass -d UpgradeCode=<GUID>?>
 <?endif?>
+<?ifndef InstallDirId ?>
+  <?error InstallDirId is required. Pass -d InstallDirId=ProgramFiles64Folder or ProgramFilesFolder?>
+<?endif?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="TicTacToe Client (Legacy)"
@@ -26,11 +29,7 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <?if $(var.TargetArch) = "x86_64-pc-windows-gnu" ?>
-      <StandardDirectory Id="ProgramFiles64Folder">
-    <?else?>
-      <StandardDirectory Id="ProgramFilesFolder">
-    <?endif?>
+    <StandardDirectory Id="$(var.InstallDirId)">
         <Directory Id="INSTALLFOLDER" Name="TicTacToe Client (Legacy)">
           <Component Id="ClientExeComponent" Guid="{2E7C1CBF-FC42-4D57-BAB6-F9D2FB0F39A1}">
             <File Id="ClientExe" Source="$(var.SourceBinary)" Name="tictacli.exe" KeyPath="yes" />
