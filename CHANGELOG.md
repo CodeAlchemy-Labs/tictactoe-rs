@@ -11,12 +11,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `tictacli`, `README.txt`, `LICENSE`, and `config.example.toml`.
 - `packaging/common/config.example.toml`: a shared reference file used by
   both the Windows and macOS portable builds.
+- GPG signing of release artefacts. All `.deb`, `.rpm`, `.tar.gz`, and `.zip`
+  files now ship with a detached `.asc` signature. A `SHA256SUMS.asc` file
+  covers the aggregate checksums.
+- `packaging/certs/gpg-fingerprint.txt`: the public fingerprint of the
+  CodeAlchemy-Labs GPG signing key.
+- `packaging/certs/sign-release-artifacts.sh`: the CI script that signs the
+  release artefacts.
+- `docs/INSTALLATION.md` and `docs/SECURITY.md` now document the verification
+  procedure and the key rotation policy.
 
 ### Changed
 - The standalone `tictacli.exe` binary is no longer published as a release asset. Use the portable `.zip` for a no-install client, or the `.exe` / `.msi` installers for a system installation.
 - `packaging/windows/portable/config.example.toml` was moved to
   `packaging/common/config.example.toml` so Windows and macOS can share a
   single copy.
+- `.pkg.tar.zst` and `.AppImage` files are not GPG-signed in this release.
+  Arch users are expected to rely on the AUR mechanism when it becomes
+  available. AppImage users can verify the `SHA256SUMS` entry.
 
 ## [Unreleased]
 
