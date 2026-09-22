@@ -133,6 +133,19 @@ jobs:
         with:
           path: dist
 
+      - name: Install signing tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends debsigs rpm gnupg
+
+      - name: Sign release artefacts
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_KEY_ID: C63EA044D207C82C
+        run: |
+          bash packaging/certs/sign-release-artifacts.sh dist
+
       - name: List the downloaded assets
         run: find dist -type f | sort
 
@@ -145,17 +158,26 @@ jobs:
           files: |
             dist/binaries-*/*.tar.gz
             dist/binaries-*/*.zip
+            dist/binaries-*/*.asc
             dist/windows-installers/*.exe
             dist/windows-installers/*.msi
             dist/windows-legacy-*/*.exe
             dist/windows-legacy-*/*.msi
             dist/windows-legacy-*/*.zip
+            dist/windows-legacy-*/*.asc
             dist/tictacli-deb/*.deb
+            dist/tictacli-deb/*.asc
             dist/tictacli-rpm/*.rpm
+            dist/tictacli-rpm/*.asc
             dist/linux-arch/*.pkg.tar.zst
             dist/tictacli-musl/*.tar.gz
+            dist/tictacli-musl/*.asc
             dist/tictacli-appimage/*.AppImage
             dist/tictacli-windows-portable/*.zip
+            dist/tictacli-windows-portable/*.asc
             dist/tictacli-macos-portable/*.tar.gz
+            dist/tictacli-macos-portable/*.asc
+            dist/SHA256SUMS
+            dist/SHA256SUMS.asc
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
