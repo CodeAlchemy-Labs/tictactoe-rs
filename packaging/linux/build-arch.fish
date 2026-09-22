@@ -18,24 +18,25 @@ mkdir -p $DIST_DIR || exit 1
 find $DIST_DIR -name "tictacli*.pkg.tar.zst" -delete
 
 # Create a local source tarball from the repo so makepkg does not need
-# network access. The PKGBUILD expects tictacli-$VERSION.tar.gz containing
-# a top-level directory tictactoe-rs-$VERSION/.
+# network access. The tarball must be named tictacli-$VERSION.tar.gz and
+# contains a top-level directory tictacli-$VERSION/ so the PKGBUILDs can `cd`
+# into "$srcdir/tictacli-$pkgver`.
 set TARBALL (mktemp -d)
 trap "rm -rf $TARBALL" EXIT
 
 if command -q git; and test -d .git
-    git archive --format=tar.gz --prefix=tictactoe-rs-$VERSION/ HEAD > $TARBALL/tictacli-$VERSION.tar.gz || exit 1
+    git archive --format=tar.gz --prefix=tictacli-$VERSION/ HEAD > $TARBALL/tictacli-$VERSION.tar.gz || exit 1
 else
-    mkdir -p $TARBALL/tictactoe-rs-$VERSION || exit 1
+    mkdir -p $TARBALL/tictacli-$VERSION || exit 1
     for item in crates Cargo.toml Cargo.lock LICENSE README.md CHANGELOG.md packaging/linux/common
         if test -e $item
-            cp -a --parents $item $TARBALL/tictactoe-rs-$VERSION/ || exit 1
+            cp -a --parents $item $TARBALL/tictacli-$VERSION/ || exit 1
         else
             echo "Missing required file/directory: $item" >&2
             exit 1
         end
     end
-    tar -czf $TARBALL/tictacli-$VERSION.tar.gz -C $TARBALL tictactoe-rs-$VERSION || exit 1
+    tar -czf $TARBALL/tictacli-$VERSION.tar.gz -C $TARBALL tictacli-$VERSION || exit 1
 end
 
 if not test -f $TARBALL/tictacli-$VERSION.tar.gz
@@ -61,17 +62,21 @@ for PKG in tictacli tictacli-server
         exit 1
     end
     if not grep -q "^pkgver=$VERSION\$" $PKGBUILD_DST
-        echo "PKGBUILD for $PKG does not contain pkgver=$VERSION" >&2
+        echo "PKGBUILD for $PKG does not contain pkgver=$VERSION after rewrite" >&2
         echo "--- $PKGBUILD_DST ---" >&2
         cat $PKGBUILD_DST >&2
         exit 1
     end
 
+    # Move the previous tarball out of the way and stage the freshly generated
+    # source archive expected by the PKGBUILD.
+    rm -f $BUILD_DIR/tictacli-$VERSION.tar.gz || exit 1
+    cp $TARBALL/tictacli-$VERSION.tar.gz $BUILD_DIR/ || exit 1
+
     # Lay out everything makepkg needs inside the build dir.
     if test -f $ARCH_DIR/$PKG.install
         cp $ARCH_DIR/$PKG.install $BUILD_DIR/ || exit 1
     end
-    cp $TARBALL/tictacli-$VERSION.tar.gz $BUILD_DIR/ || exit 1
 
     cd $BUILD_DIR || exit 1
     # --skipinteg: git archive changes with every commit, so its checksum

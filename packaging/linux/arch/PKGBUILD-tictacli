@@ -1,9 +1,8 @@
 # Maintainer: CodeAlchemy-Labs <maintainers@codealchemy-labs.example>
 pkgname=tictacli
-# Placeholder. build-arch.fish overwrites this with the version from
-# Cargo.toml before invoking makepkg. Do not rely on this value being
-# current; it exists only to satisfy `makepkg --printsrcinfo`.
-pkgver=0.3.1
+# Placeholder. build-arch.fish rewrites this from Cargo.toml before makepkg
+# runs. Do not treat this value as authoritative.
+pkgver=0.3.2
 pkgrel=1
 pkgdesc="TicTacToe WebSocket client"
 arch=('x86_64' 'aarch64')
@@ -13,24 +12,24 @@ depends=('gcc-libs' 'glibc' 'ca-certificates')
 makedepends=('cargo' 'rust' 'nasm')
 options=('!lto' '!debug')
 source=("tictacli-$pkgver.tar.gz")
-# SKIP is safe here: build-arch.fish produces the tarball from the local
-# repository and passes --skipinteg to makepkg. The tarball never leaves
-# this machine before it is consumed.
+# SKIP is intentional. build-arch.fish produces the tarball from the local
+# checkout via git archive and passes --skipinteg to makepkg. The archive
+# changes with every commit and cannot be pinned in a static file.
 sha256sums=('SKIP')
 install=tictacli.install
 
 build() {
-  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  cd "$srcdir/tictacli-$pkgver" || cd "$srcdir"
   cargo build --release --locked --bin tictacli
 }
 
 check() {
-  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  cd "$srcdir/tictacli-$pkgver" || cd "$srcdir"
   cargo test --release --locked -p client
 }
 
 package() {
-  cd "tictactoe-rs-$pkgver" || cd "$srcdir"
+  cd "$srcdir/tictacli-$pkgver" || cd "$srcdir"
   install -Dm755 target/release/tictacli "$pkgdir/usr/bin/tictacli"
   install -Dm644 packaging/linux/common/tictacli.desktop "$pkgdir/usr/share/applications/tictacli.desktop"
   install -Dm644 packaging/linux/common/tictacli.png "$pkgdir/usr/share/icons/hicolor/256x256/apps/tictacli.png"
