@@ -138,6 +138,12 @@ If you only want to try the demo and do not need to install the application syst
 
 The legacy Windows artefacts target Windows 7/8/8.1 and are built with the Rust 1.77 MSRV and `legacy-console` compatibility mode.
 
+All `.deb`, `.rpm`, `.tar.gz`, and `.zip` release artefacts are signed with the
+CodeAlchemy-Labs GPG key. Detached signatures are published as `.asc` files
+alongside each artefact, and a `SHA256SUMS.asc` file signs the aggregate
+checksums. See [`docs/INSTALLATION.md`](docs/INSTALLATION.md) for verification
+instructions.
+
 You can build the portable distributions locally by running:
 ```fish
 make package-portable
@@ -445,6 +451,9 @@ The server includes extensive production hardening logic added in v0.2.0:
 - Per-IP connection caps mitigate simplistic botnets and malicious tenants on shared networks.
 - A token-bucket rate limiter governs authentication requests per IP to thwart brute-force password guessing.
 - An adversarial actor (`hacker`) ensures these state machine invariants and resource defenses hold. By default, the hacker refuses to target non-local servers. Targeting a remote production instance requires the explicit `--allow-production` flag.
+- Release artefacts are signed with a dedicated GPG key. Detached `.asc`
+  signatures are published alongside every `.deb`, `.rpm`, `.tar.gz`, and
+  `.zip` file. See [`docs/SECURITY.md`](docs/SECURITY.md) for the key details.
 
 For the full security rationale and the specific behaviors the hacker scenarios
 verify, see [`docs/SECURITY.md`](docs/SECURITY.md).

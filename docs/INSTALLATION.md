@@ -3,6 +3,86 @@
 ## Introduction
 This guide explains how to install the TicTacToe client and server. We provide pre-built native packages for Windows 10/11 and Linux distributions, and a dedicated legacy build path for Windows 7/8/8.1 that targets Rust 1.77 and disables the Ratatui underline-color feature for compatibility with the older console stack.
 
+## Verifying release artefacts
+
+The release tarballs and archives are signed with the CodeAlchemy-Labs GPG signing key. The key fingerprint is published in `packaging/certs/gpg-fingerprint.txt` and is shown here for convenience:
+
+```text
+CodeAlchemy-Labs GPG signing key
+=================================
+
+Fingerprint:
+  382C EF98 8949 C035 798A  8FE6 C63E A044 D207 C82C
+
+Long key ID:
+  C63EA044D207C82C
+
+Key server:
+  https://keys.openpgp.org/vks/v1/by-fingerprint/382CEF988949C035798A8FE6C63EA044D207C82C
+
+Key type:
+  RSA 4096, signing and certification primary key
+  RSA 4096, encryption subkey
+  Created 2026-09-22, expires 2028-09-21
+
+Usage:
+  All .deb, .rpm, .tar.gz, and .zip release artefacts are signed with this
+  key. The detached signatures are published as .asc files alongside each
+  artefact. A SHA256SUMS.asc file signs the aggregate checksums.
+
+  See docs/INSTALLATION.md for verification instructions.
+
+Import:
+  gpg --keyserver keys.openpgp.org --recv-keys 382CEF988949C035798A8FE6C63EA044D207C82C
+```
+
+Import the public key:
+
+```bash
+gpg --keyserver keys.openpgp.org --recv-keys 382CEF988949C035798A8FE6C63EA044D207C82C
+```
+
+### Verifying a `.deb`
+
+`debsig-verify` is the package-native check for Debian/Ubuntu packages. The command is:
+
+```bash
+debsig-verify tictacli_0.4.0_amd64.deb
+```
+
+This requires the Debian policy file for `debsigs` to be installed. See the Debian documentation for setup instructions: <https://wiki.debian.org/Teams/Debsig/Howto>. If you prefer a lighter verification path, check the signed aggregate checksum instead:
+
+```bash
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum -c SHA256SUMS
+```
+
+### Verifying an `.rpm`
+
+```bash
+rpm --import https://keys.openpgp.org/vks/v1/by-fingerprint/382CEF988949C035798A8FE6C63EA044D207C82C
+rpm --checksig tictacli-0.4.0-1.x86_64.rpm
+```
+
+### Verifying a detached `.asc`
+
+```bash
+gpg --verify tictacli-0.4.0-x86_64-portable.zip.asc tictacli-0.4.0-x86_64-portable.zip
+```
+
+### Verifying the full `SHA256SUMS`
+
+```bash
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum -c SHA256SUMS
+```
+
+### Arch and AppImage status
+
+The `.pkg.tar.zst` and `.AppImage` artefacts are intentionally not GPG-signed in this release. For Arch, the package integrity story is the AUR mechanism once the AUR package is published; the .pkg.tar.zst files are built from the tagged source in the release pipeline and are not signed with the maintainer key. For AppImage, users can verify the corresponding entry in `SHA256SUMS` and `SHA256SUMS.asc` as the expected integrity check.
+
+Windows `.exe` and `.msi` binaries are signed with Authenticode, not GPG. Follow the existing [Verifying the Windows signature](#verifying-the-windows-signature) procedure for certificate trust and signature validation.
+
 ## Compatibility matrix
 
 | Platform | Version / target | Package | Notes |
