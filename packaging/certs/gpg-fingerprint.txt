@@ -1,0 +1,26 @@
+CodeAlchemy-Labs GPG signing key
+=================================
+
+Fingerprint:
+  382C EF98 8949 C035 798A  8FE6 C63E A044 D207 C82C
+
+Long key ID:
+  C63EA044D207C82C
+
+Key server:
+  https://keys.openpgp.org/vks/v1/by-fingerprint/382CEF988949C035798A8FE6C63EA044D207C82C
+
+Key type:
+  RSA 4096, signing and certification primary key
+  RSA 4096, encryption subkey
+  Created 2026-09-22, expires 2028-09-21
+
+Usage:
+  All .deb, .rpm, .tar.gz, and .zip release artefacts are signed with this
+  key. The detached signatures are published as .asc files alongside each
+  artefact. A SHA256SUMS.asc file signs the aggregate checksums.
+
+  See docs/INSTALLATION.md for verification instructions.
+
+Import:
+  gpg --keyserver keys.openpgp.org --recv-keys 382CEF988949C035798A8FE6C63EA044D207C82C
