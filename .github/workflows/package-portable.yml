@@ -51,7 +51,13 @@ jobs:
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: powershell -File packaging\windows\build-portable-server.ps1
 
-      - name: Upload Windows portable server artefact
+      - name: Build portable client
+        env:
+          WINDOWS_CERTIFICATE_PFX_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_PFX_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: powershell -File packaging\windows\build-portable-client.ps1
+
+      - name: Upload Windows portable artefacts
         uses: actions/upload-artifact@v4
         with:
           name: tictacli-windows-portable

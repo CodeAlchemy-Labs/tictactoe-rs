@@ -61,5 +61,4 @@ jobs:
           path: |
             dist/windows/tictacli-*-setup.exe
             dist/windows/tictacli-*.msi
-            dist/windows/tictacli.exe
           if-no-files-found: error
