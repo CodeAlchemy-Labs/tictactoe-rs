@@ -30,6 +30,8 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 $target = "x86_64-pc-windows-gnu"
+# Stable UpgradeCode for the legacy x86_64 MSI.
+# Do not change this once a release has been published: it would break upgrades.
 $legacyUpgradeCode = "E92F0561-9AEF-4D79-BD57-4C182B4A554C"
 Write-Host "Building legacy Windows binary for $target"
 & cargo +1.77.2 build --release --locked --target $target --no-default-features --features legacy-console --bin tictacli
@@ -62,7 +64,14 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to sign x86_64 setup installer" }
 Move-Item -Path $tempSetup -Destination $setupExe -Force
 
 $msiFile = Join-Path $distDir "tictacli-x86_64-legacy.msi"
-& wix build installer-legacy.wxs -d SourceBinary=$signedBinary -d AppVersion=$Version -d TargetArch=$target -d IconFile=$iconFile -d UpgradeCode=$legacyUpgradeCode -o $msiFile
+& wix build installer-legacy.wxs `
+    -d SourceBinary=$signedBinary `
+    -d AppVersion=$Version `
+    -d TargetArch=$target `
+    -d IconFile=$iconFile `
+    -d UpgradeCode=$legacyUpgradeCode `
+    -d InstallDirId=ProgramFiles64Folder `
+    -o $msiFile
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed for x86_64" }
 if (-not (Test-Path $msiFile)) { throw "MSI not found at $msiFile" }
 

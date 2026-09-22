@@ -30,7 +30,9 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 }
 
 $target = "i686-pc-windows-gnu"
-$legacyUpgradeCode = (uuidgen).Trim()
+# Stable UpgradeCode for the legacy i686 MSI.
+# Do not change this once a release has been published: it would break upgrades.
+$legacyUpgradeCode = "A4B7E2F9-3C81-4D5A-B6E8-1F9C2D4A8E71"
 Write-Host "Building legacy Windows binary for $target"
 & cargo +1.77.2 build --release --locked --target $target --no-default-features --features legacy-console --bin tictacli
 if ($LASTEXITCODE -ne 0) { throw "Legacy Windows build failed for $target" }
@@ -62,7 +64,14 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to sign i686 setup installer" }
 Move-Item -Path $tempSetup -Destination $setupExe -Force
 
 $msiFile = Join-Path $distDir "tictacli-i686-legacy.msi"
-& wix build installer-legacy.wxs -d SourceBinary=$signedBinary -d AppVersion=$Version -d TargetArch=$target -d IconFile=$iconFile -d UpgradeCode=$legacyUpgradeCode -o $msiFile
+& wix build installer-legacy.wxs `
+    -d SourceBinary=$signedBinary `
+    -d AppVersion=$Version `
+    -d TargetArch=$target `
+    -d IconFile=$iconFile `
+    -d UpgradeCode=$legacyUpgradeCode `
+    -d InstallDirId=ProgramFilesFolder `
+    -o $msiFile
 if ($LASTEXITCODE -ne 0) { throw "WiX build failed for i686" }
 if (-not (Test-Path $msiFile)) { throw "MSI not found at $msiFile" }
 
