@@ -149,6 +149,7 @@ jobs:
             dist/windows-installers/*.msi
             dist/windows-legacy-*/*.exe
             dist/windows-legacy-*/*.msi
+            dist/windows-legacy-*/*.zip
             dist/tictacli-deb/*.deb
             dist/tictacli-rpm/*.rpm
             dist/linux-arch/*.pkg.tar.zst
