@@ -1,0 +1,24 @@
+# TicTacToe client configuration
+#
+# This file is written automatically by the client after a successful
+# connection. It lives at:
+#
+#   Windows: %APPDATA%\tictacli\config.toml
+#   Linux:   ~/.config/tictacli/config.toml
+#   macOS:   ~/Library/Application Support/tictacli/config.toml
+#
+# You can copy this file to the location above and edit it manually, or
+# delete it to force the client to ask for a server on next launch.
+
+# The WebSocket URL of the server. Examples:
+#   ws://127.0.0.1:8080/ws          (local, no TLS)
+#   wss://example.onrender.com/ws   (remote, TLS)
+# server_url = "ws://127.0.0.1:8080/ws"
+
+# The preferred guest display name. If omitted, the client falls back to
+# the operating system account name.
+# guest_name = "player"
+
+# Whether TLS was requested for the last successful connection. Set
+# automatically; you normally do not need to edit this by hand.
+# use_tls = false
