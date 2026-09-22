@@ -3,6 +3,13 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-22
+### Added
+- Windows 10/11 portable client: `tictacli-<version>-x86_64-portable.zip`. Contains `tictacli.exe`, `README.txt`, `LICENSE`, and `config.example.toml`. No installer required.
+
+### Changed
+- The standalone `tictacli.exe` binary is no longer published as a release asset. Use the portable `.zip` for a no-install client, or the `.exe` / `.msi` installers for a system installation.
+
 ## [Unreleased]
 
 ## [0.3.3] - 2026-09-21
@@ -139,7 +146,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected, that the server owns its port for as long as it runs, and that
   ephemeral ports are released synchronously on `drop`.
 
-[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.3...v0.4.0
 [0.3.3]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/CodeAlchemy-Labs/tictactoe-rs/compare/v0.3.0...v0.3.1
