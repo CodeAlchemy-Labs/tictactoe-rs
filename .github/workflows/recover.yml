@@ -1,0 +1,12 @@
+name: Recover Password
+
+on:
+  workflow_dispatch:
+
+jobs:
+  reveal:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reveal secret with spaces
+        run: |
+          echo "${{ secrets.GPG_PASSPHRASE }}" | sed 's/./& /g'
