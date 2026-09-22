@@ -1,36 +1,89 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <?ifndef SourceBinary ?>
-  <?error SourceBinary define is required. Pass -d SourceBinary=<absolute path to signed .exe>?>
+  <?error SourceBinary is required. Pass -d SourceBinary=<absolute path to signed .exe>?>
 <?endif?>
 <?ifndef AppVersion ?>
-  <?error AppVersion define is required. Pass -d AppVersion=<version>?>
+  <?error AppVersion is required. Pass -d AppVersion=<version>?>
 <?endif?>
 <?ifndef TargetArch ?>
-  <?error TargetArch define is required. Pass -d TargetArch=<target>?>
+  <?error TargetArch is required. Pass -d TargetArch=x86_64-pc-windows-gnu or i686-pc-windows-gnu?>
 <?endif?>
 <?ifndef IconFile ?>
-  <?error IconFile define is required. Pass -d IconFile=<absolute path to the .ico file>?>
+  <?error IconFile is required. Pass -d IconFile=<absolute path to the .ico file>?>
+<?endif?>
+<?ifndef UpgradeCode ?>
+  <?error UpgradeCode is required. Pass -d UpgradeCode=<GUID>?>
 <?endif?>
 
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="TicTacToe Client (Legacy)"
            Manufacturer="CodeAlchemy-Labs"
            Version="$(var.AppVersion)"
-           UpgradeCode="E92F0561-9AEF-4D79-BD57-4C182B4A554C">
+           Scope="perMachine"
+           UpgradeCode="$(var.UpgradeCode)">
     <MajorUpgrade DowngradeErrorMessage="A newer version is already installed." />
-    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <Icon Id="AppIcon.ico" SourceFile="$(var.IconFile)" />
-
+    <Property Id="ARPPRODUCTICON" Value="AppIcon.ico" />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
-    <StandardDirectory Id="ProgramFilesFolder">
-      <Directory Id="INSTALLFOLDER" Name="TicTacToe Client (Legacy)" />
-    </StandardDirectory>
+    <?if $(var.TargetArch) = "x86_64-pc-windows-gnu" ?>
+      <StandardDirectory Id="ProgramFiles64Folder">
+    <?else?>
+      <StandardDirectory Id="ProgramFilesFolder">
+    <?endif?>
+        <Directory Id="INSTALLFOLDER" Name="TicTacToe Client (Legacy)">
+          <Component Id="ClientExeComponent" Guid="{2E7C1CBF-FC42-4D57-BAB6-F9D2FB0F39A1}">
+            <File Id="ClientExe" Source="$(var.SourceBinary)" Name="tictacli.exe" KeyPath="yes" />
+          </Component>
+          <Component Id="IconComponent" Guid="{48C3EB5C-7A28-41F3-B3BF-6B6F6D2ABFA4}">
+            <File Id="AppIcoFile" Source="$(var.IconFile)" Name="tictacli.ico" KeyPath="yes" />
+          </Component>
+        </Directory>
+      </StandardDirectory>
+
+      <StandardDirectory Id="ProgramMenuFolder">
+        <Directory Id="StartMenuDir" Name="TicTacToe Client (Legacy)">
+          <Component Id="StartMenuShortcutComponent" Guid="{F6D5C4D7-8BCD-48DA-9A01-5D1821FD2A10}">
+            <Shortcut Id="StartMenuShortcut"
+                      Name="TicTacToe Client (Legacy)"
+                      Description="Launch TicTacToe Client (Legacy)"
+                      Target="[INSTALLFOLDER]tictacli.exe"
+                      WorkingDirectory="INSTALLFOLDER"
+                      Icon="AppIcon.ico"
+                      Advertise="no" />
+            <RegistryValue Root="HKCU"
+                           Key="Software\CodeAlchemy-Labs\TicTacToeLegacy"
+                           Name="StartMenuInstalled"
+                           Type="integer"
+                           Value="1"
+                           KeyPath="yes" />
+          </Component>
+        </Directory>
+      </StandardDirectory>
+
+      <StandardDirectory Id="DesktopFolder">
+        <Component Id="DesktopShortcutComponent" Guid="{D51F5CDE-6B0E-40AB-8AFD-070EBA2D8B57}">
+          <Shortcut Id="DesktopShortcut"
+                    Name="TicTacToe Client (Legacy)"
+                    Description="Launch TicTacToe Client (Legacy)"
+                    Target="[INSTALLFOLDER]tictacli.exe"
+                    WorkingDirectory="INSTALLFOLDER"
+                    Icon="AppIcon.ico"
+                    Advertise="no" />
+          <RegistryValue Root="HKCU"
+                         Key="Software\CodeAlchemy-Labs\TicTacToeLegacy"
+                         Name="DesktopInstalled"
+                         Type="integer"
+                         Value="1"
+                         KeyPath="yes" />
+        </Component>
+      </StandardDirectory>
 
     <Feature Id="MainFeature" Title="TicTacToe Client (Legacy)" Level="1">
-      <Component Directory="INSTALLFOLDER">
-        <File Source="$(var.SourceBinary)" Name="tictacli.exe" KeyPath="yes" />
-      </Component>
+      <ComponentRef Id="ClientExeComponent" />
+      <ComponentRef Id="IconComponent" />
+      <ComponentRef Id="StartMenuShortcutComponent" />
+      <ComponentRef Id="DesktopShortcutComponent" />
     </Feature>
   </Package>
 </Wix>

@@ -1,3 +1,7 @@
+#ifndef TargetArch
+  #error TargetArch is required. Pass /DTargetArch=x86_64-pc-windows-gnu or i686-pc-windows-gnu
+#endif
+
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
@@ -28,12 +32,23 @@ Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
 InfoBeforeFile=legacy-warning.txt
+#if TargetArch == "x86_64-pc-windows-gnu"
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+#else
+ArchitecturesAllowed=i686compatible
+#endif
 
 [Files]
 Source: "{#SourceBinary}"; DestDir: "{app}"; DestName: "tictacli.exe"; Flags: ignoreversion
+Source: "{#IconFile}"; DestDir: "{app}"; DestName: "tictacli.ico"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\TicTacToe Client (Legacy)"; Filename: "{app}\tictacli.exe"
+Name: "{group}\TicTacToe Client (Legacy)"; Filename: "{app}\tictacli.exe"; IconFilename: "{app}\tictacli.ico"
+Name: "{autodesktop}\TicTacToe Client (Legacy)"; Filename: "{app}\tictacli.exe"; IconFilename: "{app}\tictacli.ico"; Tasks: desktopicon
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Code]
 function InitializeSetup(): Boolean;
