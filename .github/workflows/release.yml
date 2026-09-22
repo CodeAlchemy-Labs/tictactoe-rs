@@ -156,5 +156,6 @@ jobs:
             dist/tictacli-musl/*.tar.gz
             dist/tictacli-appimage/*.AppImage
             dist/tictacli-windows-portable/*.zip
+            dist/tictacli-macos-portable/*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
