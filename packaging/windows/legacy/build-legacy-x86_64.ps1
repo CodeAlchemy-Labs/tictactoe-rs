@@ -54,6 +54,8 @@ $setupBaseName = "tictacli-x86_64-legacy-setup"
     "/DIconFile=$iconFile" `
     "/DOutputBaseName=$setupBaseName" `
     "/DTargetArch=$target" `
+    "/DArchId=x64compatible" `
+    "/DArchInstallIn64Bit=x64compatible" `
     "installer-legacy.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup build failed for x86_64" }
 if (-not (Test-Path $setupExe)) { throw "Setup installer not found at $setupExe" }

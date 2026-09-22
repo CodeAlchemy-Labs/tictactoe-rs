@@ -18,6 +18,14 @@
   #error IconFile define is required. Pass /DIconFile=<absolute path to the .ico file>
 #endif
 
+#ifndef ArchId
+  #error ArchId is required. Pass /DArchId=x64compatible or /DArchId=x86compatible
+#endif
+
+#ifndef ArchInstallIn64Bit
+  #define ArchInstallIn64Bit ""
+#endif
+
 [Setup]
 AppName=TicTacToe Client (Legacy)
 AppVersion={#AppVersion}
@@ -32,11 +40,9 @@ Compression=lzma2
 SolidCompression=yes
 PrivilegesRequired=lowest
 InfoBeforeFile=legacy-warning.txt
-#if TargetArch == "x86_64-pc-windows-gnu"
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
-#else
-ArchitecturesAllowed=i686compatible
+ArchitecturesAllowed={#ArchId}
+#if ArchInstallIn64Bit != ""
+ArchitecturesInstallIn64BitMode={#ArchInstallIn64Bit}
 #endif
 
 [Files]
