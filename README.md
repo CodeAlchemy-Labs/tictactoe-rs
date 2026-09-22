@@ -126,6 +126,7 @@ If you only want to try the demo and do not need to install the application syst
 - `tictacli-server-<version>-x86_64.AppImage`
 - `tictacli-server-<version>-x86_64-pc-windows-gnu.zip`
 - `tictacli-<version>-x86_64-portable.zip`
+- `tictacli-<version>-aarch64-apple-darwin.tar.gz`
 - `tictacli-<version>-x86_64-legacy-portable.zip`
 - `tictacli-<version>-i686-legacy-portable.zip`
 - `tictacli-server-<version>-x86_64-legacy-portable.zip`

@@ -6,9 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.4.0] - 2026-09-22
 ### Added
 - Windows 10/11 portable client: `tictacli-<version>-x86_64-portable.zip`. Contains `tictacli.exe`, `README.txt`, `LICENSE`, and `config.example.toml`. No installer required.
+- macOS portable client: `tictacli-<version>-aarch64-apple-darwin.tar.gz`.
+  Apple Silicon (M1 and newer). Ad-hoc signed, not notarized. Contains
+  `tictacli`, `README.txt`, `LICENSE`, and `config.example.toml`.
+- `packaging/common/config.example.toml`: a shared reference file used by
+  both the Windows and macOS portable builds.
 
 ### Changed
 - The standalone `tictacli.exe` binary is no longer published as a release asset. Use the portable `.zip` for a no-install client, or the `.exe` / `.msi` installers for a system installation.
+- `packaging/windows/portable/config.example.toml` was moved to
+  `packaging/common/config.example.toml` so Windows and macOS can share a
+  single copy.
 
 ## [Unreleased]
 
